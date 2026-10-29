@@ -162,7 +162,7 @@ export function PaymentModal({ isOpen, onClose, onSuccess }) {
   ];
 
   const isUrgentTime = holdRemainingSeconds !== null && holdRemainingSeconds < 120;
-  const vietQrUrl = `https://img.vietqr.io/image/970436-9988776655-compact.png?amount=${activeBooking.totalAmount}&addInfo=${activeBooking.bookingCode}&accountName=NIGHT%20MOVIE%20CINEMA`;
+  const vietQrUrl = `https://img.vietqr.io/image/BIDV-8813341949-compact.png?amount=${activeBooking.totalAmount}&addInfo=${activeBooking.bookingCode}&accountName=NIGHT%20MOVIE%20CINEMA`;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
@@ -432,14 +432,14 @@ export function PaymentModal({ isOpen, onClose, onSuccess }) {
               <div className="space-y-1 text-slate-800 text-xs w-full">
                 <div>
                   <span className="text-[10px] text-slate-500 block">Ngân hàng:</span>
-                  <b className="text-blue-900">Vietcombank (VCB)</b>
+                  <b className="text-blue-900">BIDV</b>
                 </div>
                 <div>
                   <span className="text-[10px] text-slate-500 block">Số tài khoản:</span>
                   <div className="flex items-center justify-between bg-slate-100 px-2 py-0.5 rounded font-mono font-bold text-slate-900">
-                    <span>9988776655</span>
+                    <span>8813341949</span>
                     <button
-                      onClick={() => copyToClipboard('9988776655', 'acc')}
+                      onClick={() => copyToClipboard('8813341949', 'acc')}
                       className="text-blue-600 hover:text-blue-800"
                     >
                       <Copy className="w-3 h-3" />
@@ -506,7 +506,10 @@ export function PaymentModal({ isOpen, onClose, onSuccess }) {
             return (
               <div
                 key={m.id}
-                onClick={() => setPaymentMethod(m.id)}
+                onClick={() => {
+                  setPaymentMethod(m.id);
+                  if (m.id === 'banking') setShowQrModal(true);
+                }}
                 className={`p-2.5 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${
                   isSelected
                     ? m.id === 'momo'
