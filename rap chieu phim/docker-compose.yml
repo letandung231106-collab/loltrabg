@@ -1,0 +1,67 @@
+version: '3.8'
+
+services:
+  # 1. MySQL Database Service (InnoDB 8.0)
+  mysql_db:
+    image: mysql:8.0
+    container_name: night_movie_mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: cinema_management
+      MYSQL_USER: cinema_user
+      MYSQL_PASSWORD: cinemapassword
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./cinema_management.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - cinema_network
+
+  # 2. Backend REST API Server (Node.js/Express)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: night_movie_backend
+    restart: always
+    environment:
+      PORT: 5000
+      NODE_ENV: production
+      DB_HOST: mysql_db
+      DB_PORT: 3306
+      DB_USER: cinema_user
+      DB_PASSWORD: cinemapassword
+      DB_NAME: cinema_management
+      JWT_SECRET: cinema_night_movie_production_secret_2026
+      JWT_EXPIRES_IN: 7d
+      SEAT_HOLD_MINUTES: 10
+    ports:
+      - "5000:5000"
+    depends_on:
+      - mysql_db
+    networks:
+      - cinema_network
+
+  # 3. Frontend Web Client (React + Nginx)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: night_movie_frontend
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - cinema_network
+
+networks:
+  cinema_network:
+    driver: bridge
+
+volumes:
+  mysql_data:
+    driver: local
