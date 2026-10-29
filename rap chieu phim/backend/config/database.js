@@ -260,6 +260,10 @@ async function query(sql, params = []) {
       const bId = parseInt(params[0], 10);
       return list.filter((b) => b.id === bId);
     }
+    if (normalized.includes('where booking_code = ?') || normalized.includes('where b.booking_code = ?')) {
+      const bkCode = params[0];
+      return list.filter((b) => b.booking_code === bkCode);
+    }
     if (normalized.includes('where b.customer_id = ?') || normalized.includes('where customer_id = ?')) {
       const cId = parseInt(params[0], 10);
       return list.filter((b) => b.customer_id === cId || cId === 1);
@@ -306,6 +310,10 @@ async function query(sql, params = []) {
     if (normalized.includes('where t.ticket_code = ?') || normalized.includes('where ticket_code = ?')) {
       const code = params[0];
       return list.filter((t) => t.ticket_code === code);
+    }
+    if (normalized.includes('where t.booking_id = ?') || normalized.includes('where booking_id = ?')) {
+      const bId = parseInt(params[0], 10);
+      return list.filter((t) => t.booking_id === bId);
     }
     return list;
   }

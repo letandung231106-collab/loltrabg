@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { BookingProvider, useBooking } from './context/BookingContext';
+import { api } from './services/api';
+import confetti from 'canvas-confetti';
 import { Header } from './components/common/Header';
 import { LoginModal } from './components/common/LoginModal';
 import { HomePage } from './pages/customer/HomePage';
@@ -31,13 +33,63 @@ import { KdmProjectorManager } from './pages/admin/KdmProjectorManager';
 
 function MainApp() {
   const { isAuthenticated, isManager, isStaff, isTechnician, user } = useAuth();
+  const { resetBookingState } = useBooking();
   const [currentView, setCurrentView] = useState('home'); // 'home' | 'movies' | 'schedules' | 'booking-flow' | 'my-tickets' | 'admin-dashboard'
   const [adminTab, setAdminTab] = useState('dashboard');
   const [selectedScheduleId, setSelectedScheduleId] = useState(null);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [momoIssuedTickets, setMomoIssuedTickets] = useState(null);
+  const [momoReturnBanner, setMomoReturnBanner] = useState(null);
+
+  // Tự động kiểm tra và xác thực Return URL khi chuyển hướng từ Cổng Thanh Toán MoMo Sandbox về
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const partnerCode = params.get('partnerCode');
+    const orderId = params.get('orderId');
+    const resultCode = params.get('resultCode');
+
+    if (partnerCode && orderId && resultCode !== null) {
+      const payload = Object.fromEntries(params.entries());
+      // Làm sạch thanh địa chỉ URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+
+      api
+        .verifyMomoReturn(payload)
+        .then((res) => {
+          if (res.success && res.data?.paymentStatus === 'success') {
+            confetti({
+              particleCount: 130,
+              spread: 85,
+              origin: { y: 0.6 },
+            });
+            resetBookingState();
+            setMomoIssuedTickets(res.data);
+            setCurrentView('booking-flow');
+            setMomoReturnBanner({
+              type: 'success',
+              text: `Thanh toán MoMo Sandbox thành công (Mã GD: ${res.data.transactionCode})! Chữ ký HMAC-SHA256 hợp lệ.`,
+            });
+          } else {
+            resetBookingState();
+            setMomoReturnBanner({
+              type: 'error',
+              text: `Giao dịch MoMo Sandbox đã bị hủy hoặc từ chối (ResultCode: ${resultCode}). Ghế giữ tạm thời đã được giải phóng tự động.`,
+            });
+            setCurrentView('schedules');
+          }
+        })
+        .catch((err) => {
+          setMomoReturnBanner({
+            type: 'error',
+            text: err.message || 'Lỗi xác thực kết quả trả về từ cổng MoMo Sandbox.',
+          });
+        });
+    }
+  }, []);
 
   // Navigate to schedule booking flow
   const handleSelectSchedule = (scheduleId) => {
+    setMomoIssuedTickets(null);
     setSelectedScheduleId(scheduleId);
     setCurrentView('booking-flow');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -64,6 +116,27 @@ function MainApp() {
           currentView={currentView}
         />
 
+        {/* MoMo Sandbox Return Notification Banner */}
+        {momoReturnBanner && (
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
+            <div
+              className={`p-3.5 rounded-2xl border flex items-center justify-between text-xs sm:text-sm font-semibold ${
+                momoReturnBanner.type === 'success'
+                  ? 'bg-emerald-950/80 border-emerald-500 text-emerald-200'
+                  : 'bg-rose-950/80 border-rose-500 text-rose-200'
+              }`}
+            >
+              <span>{momoReturnBanner.text}</span>
+              <button
+                onClick={() => setMomoReturnBanner(null)}
+                className="ml-4 px-2.5 py-1 rounded-lg bg-black/30 hover:bg-black/50 text-white text-xs"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Dynamic Views */}
         {currentView === 'home' && (
           <HomePage
@@ -84,8 +157,15 @@ function MainApp() {
         {currentView === 'booking-flow' && (
           <BookingFlowPage
             scheduleId={selectedScheduleId}
-            onBack={() => setCurrentView('schedules')}
-            onNavigateMyTickets={() => setCurrentView('my-tickets')}
+            initialIssuedTickets={momoIssuedTickets}
+            onBack={() => {
+              setMomoIssuedTickets(null);
+              setCurrentView('schedules');
+            }}
+            onNavigateMyTickets={() => {
+              setMomoIssuedTickets(null);
+              setCurrentView('my-tickets');
+            }}
             onOpenAuth={() => setIsLoginModalOpen(true)}
           />
         )}
