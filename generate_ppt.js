@@ -2035,12 +2035,11 @@ function drawUMLClassBox(slide, x, y, w, h, title, color, bg, attrs, methods) {
 }
 
 // =============================================================
-// =============================================================
-// SLIDE 25: Đánh Giá Đồ Án & 4 Điểm Sáng Kỹ Thuật
+// SLIDE 25: Điểm Sáng Kỹ Thuật, Hướng Phát Triển & Kết Luận
 // =============================================================
 {
   const slide = pres.addSlide();
-  addHeader(slide, "24. ĐÁNH GIÁ ĐỒ ÁN & 4 ĐIỂM SÁNG KỸ THUẬT", "TỔNG KẾT ĐỒ ÁN");
+  addHeader(slide, "24. ĐÁNH GIÁ ĐỒ ÁN, ĐIỂM SÁNG KỸ THUẬT & KẾT LUẬN", "TỔNG KẾT ĐỒ ÁN");
 
   // Left card: Điểm sáng kỹ thuật
   slide.addShape(pres.ShapeType.roundRect, {
@@ -2074,275 +2073,37 @@ function drawUMLClassBox(slide, x, y, w, h, title, color, bg, attrs, methods) {
     fontSize: 7.2, lineSpacingMultiple: 1.12, fontFace: FONT_BODY
   });
 
-  // Right card: Đóng góp & Hiệu năng
+  // Right card: Kết luận
   slide.addShape(pres.ShapeType.roundRect, {
     x: 5.15, y: 1.15, w: 4.35, h: 3.95,
-    fill: { color: BG_WHITE },
-    line: { color: POP_SKY, width: 1.5 },
-    rectRadius: 0.15
-  });
-  slide.addShape(pres.ShapeType.roundRect, {
-    x: 5.35, y: 1.3, w: 3.95, h: 0.35,
-    fill: { color: BG_SOFT_BLUE },
-    line: { color: POP_SKY, width: 1 },
-    rectRadius: 0.08
-  });
-  slide.addText("🏆 HIỆU NĂNG VẬN HÀNH & BẢO MẬT", {
-    x: 5.35, y: 1.3, w: 3.95, h: 0.35,
-    fontSize: 8.8, bold: true, color: POP_SKY,
-    align: "center", valign: "middle", fontFace: FONT_HEADING
-  });
-  slide.addText([
-    { text: "• Toàn vẹn dữ liệu tuyệt đối (100% ACID):\n", options: { bold: true, color: TEXT_DARK } },
-    { text: "  Cơ chế khóa hàng (Row-level Lock) đảm bảo không có bất kỳ xung đột vé nào dù hàng trăm người dùng bấm cùng lúc.\n\n", options: { color: TEXT_BODY } },
-    { text: "• Tự động hóa vòng đời sự cố (Zero Human Delay):\n", options: { bold: true, color: TEXT_DARK } },
-    { text: "  Checklist 9 tiêu chí tự động sinh Incident, phân công KTV và theo dõi vật tư minh bạch.\n\n", options: { color: TEXT_BODY } },
-    { text: "• Bảo mật phân quyền chặt chẽ (RBAC + JWT):\n", options: { bold: true, color: TEXT_DARK } },
-    { text: "  5 Actors được phân tách quyền hạn rõ ràng, chống truy cập trái phép API.", options: { color: TEXT_BODY } }
-  ], {
-    x: 5.35, y: 1.75, w: 3.95, h: 3.2,
-    fontSize: 7.2, lineSpacingMultiple: 1.12, fontFace: FONT_BODY
-  });
-
-  slide.addNotes("Slide đánh giá 4 điểm sáng kỹ thuật nổi bật của đồ án và hiệu năng vận hành.");
-}
-
-// =============================================================
-// SLIDE 26: Định Hướng Mở Rộng: Trải Nghiệm Khách Hàng & Doanh Thu
-// =============================================================
-{
-  const slide = pres.addSlide();
-  addHeader(slide, "25. ĐỊNH HƯỚNG PHÁT TRIỂN: TRẢI NGHIỆM KHÁCH HÀNG & DOANH THU", "ĐỊNH HƯỚNG MỞ RỘNG");
-
-  const cardsCX = [
-    {
-      title: "👓 SƠ ĐỒ GHẾ GÓC NHÌN 3D (SEAT PREVIEW)",
-      badge: "TRẢI NGHIỆM", color: POP_SKY, bg: BG_SOFT_BLUE,
-      x: 0.5, y: 1.15, w: 4.38, h: 1.95,
-      points: [
-        "Mô phỏng góc nhìn 3D/360° từ từng ghế tới màn chiếu (Three.js/WebGL).",
-        "Trực quan hóa độ dốc, khoảng cách và loại trừ điểm mù trước khi thanh toán.",
-        "Gia tăng tỷ lệ chốt đơn cho hàng ghế VIP, Sweetbox và phòng IMAX."
-      ]
-    },
-    {
-      title: "🍿 F&B EXPRESS & ĐẶT TRƯỚC BẮP NƯỚC",
-      badge: "DOANH THU F&B", color: POP_SUNNY, bg: BG_SOFT_YELLOW,
-      x: 5.12, y: 1.15, w: 4.38, h: 1.95,
-      points: [
-        "Tích hợp giỏ hàng combo bắp nước ngay trong luồng đặt vé xem phim.",
-        "Làn nhận Fast Track tại quầy bằng mã QR riêng, cắt giảm 70% thời gian chờ đợi.",
-        "Tự động trừ kho bắp/nước và thống kê doanh thu F&B độc lập theo suất."
-      ]
-    },
-    {
-      title: "📈 GIÁ VÉ ĐỘNG (DYNAMIC PRICING)",
-      badge: "TỐI ƯU GIÁ", color: POP_MINT, bg: BG_SOFT_GREEN,
-      x: 0.5, y: 3.22, w: 4.38, h: 1.95,
-      points: [
-        "Thuật toán điều chỉnh giá tự động theo giờ cao điểm, phim hot và vị trí ghế.",
-        "Giảm giá kích cầu vào suất khuya hoặc ngày thường để tối đa tỷ lệ lấp đầy.",
-        "Tích hợp gói vé thuê bao Cinema Pass (xem phim không giới hạn theo tháng)."
-      ]
-    },
-    {
-      title: "🛡️ VÉ ĐỘNG AN TOÀN & CHIA TIỀN NHÓM",
-      badge: "TIỆN ÍCH", color: POP_PURPLE, bg: BG_SOFT_PURPLE,
-      x: 5.12, y: 3.22, w: 4.38, h: 1.95,
-      points: [
-        "Lưu vé trực tiếp vào Apple Wallet / Google Wallet ngay sau khi thanh toán.",
-        "Mã QR động xoay vòng 30 giây (Dynamic QR) chống chụp màn hình bán vé lậu.",
-        "Tính năng Split-bill chia tiền tự động cho nhóm bạn cùng đi xem chung."
-      ]
-    }
-  ];
-
-  cardsCX.forEach(c => {
-    slide.addShape(pres.ShapeType.roundRect, {
-      x: c.x, y: c.y, w: c.w, h: c.h,
-      fill: { color: BG_WHITE },
-      line: { color: c.color, width: 1.5 },
-      rectRadius: 0.12
-    });
-
-    slide.addShape(pres.ShapeType.roundRect, {
-      x: c.x + 0.1, y: c.y + 0.1, w: c.w - 0.2, h: 0.32,
-      fill: { color: c.bg },
-      line: { color: c.color, width: 1 },
-      rectRadius: 0.08
-    });
-    slide.addText(c.title, {
-      x: c.x + 0.15, y: c.y + 0.1, w: c.w - 0.3, h: 0.32,
-      fontSize: 8.2, bold: true, color: c.color,
-      valign: "middle", fontFace: FONT_HEADING
-    });
-
-    const bulletItems = c.points.map(pt => ({
-      text: "• " + pt + "\n",
-      options: { color: TEXT_BODY }
-    }));
-
-    slide.addText(bulletItems, {
-      x: c.x + 0.15, y: c.y + 0.48, w: c.w - 0.3, h: c.h - 0.55,
-      fontSize: 7.2, lineSpacingMultiple: 1.15, fontFace: FONT_BODY
-    });
-  });
-
-  slide.addNotes("Định hướng mở rộng các tính năng nâng cao trải nghiệm khách hàng và tối ưu doanh thu rạp chiếu.");
-}
-
-// =============================================================
-// SLIDE 27: Định Hướng Mở Rộng: Vận Hành Thông Minh, IoT & AI
-// =============================================================
-{
-  const slide = pres.addSlide();
-  addHeader(slide, "26. ĐỊNH HƯỚNG PHÁT TRIỂN: VẬN HÀNH THÔNG MINH, IOT & AI", "ĐỊNH HƯỚNG MỞ RỘNG");
-
-  const cardsTech = [
-    {
-      title: "🌿 IOT & GREEN CINEMA AUTOMATION",
-      badge: "TỰ ĐỘNG HÓA", color: POP_MINT, bg: BG_SOFT_GREEN,
-      x: 0.5, y: 1.15, w: 4.38, h: 1.95,
-      points: [
-        "Liên kết lịch chiếu với hệ thống IoT điều khiển nhiệt độ điều hòa trước 15p.",
-        "Tự động điều chỉnh độ sáng đèn khán phòng và âm thanh theo tiến trình suất chiếu.",
-        "Cắt giảm tới 25% điện năng tiêu thụ tại các phòng chiếu ngoài giờ hoạt động."
-      ]
-    },
-    {
-      title: "🔍 BẢO TRÌ DỰ ĐOÁN (PREDICTIVE MAINTENANCE)",
-      badge: "VẬN HÀNH", color: POP_CORAL, bg: BG_SOFT_PINK,
-      x: 5.12, y: 1.15, w: 4.38, h: 1.95,
-      points: [
-        "Theo dõi số giờ chiếu lũy kế của bóng đèn Laser, màng lọc HVAC, dàn loa âm thanh.",
-        "Cảnh báo chủ động lịch bảo trì định kỳ trước khi thiết bị gặp sự cố bất ngờ.",
-        "Loại bỏ 90% nguy cơ phải hủy suất chiếu hoặc bồi thường vé cho khách hàng."
-      ]
-    },
-    {
-      title: "🤖 TRỢ LÝ AI & GỢI Ý PHIM CÁ NHÂN HÓA",
-      badge: "TRÍ TUỆ NHÂN TẠO", color: POP_SKY, bg: BG_SOFT_BLUE,
-      x: 0.5, y: 3.22, w: 4.38, h: 1.95,
-      points: [
-        "AI Movie Concierge: Chatbot ngôn ngữ tự nhiên tư vấn phim theo cảm xúc & lịch rảnh.",
-        "Thuật toán Recommendation Engine gợi ý phim theo sở thích và lịch sử xem vé.",
-        "Sentiment Analysis phân tích cảm xúc từ review thực tế của khán giả sau khi xem."
-      ]
-    },
-    {
-      title: "📺 DIGITAL SIGNAGE & ĐẶT RẠP RIÊNG",
-      badge: "DỊCH VỤ", color: POP_INDIGO, bg: BG_CARD_LIGHT,
-      x: 5.12, y: 3.22, w: 4.38, h: 1.95,
-      points: [
-        "Màn hình sảnh (Signage) đồng bộ thời gian thực: Suất kế tiếp, vé còn/hết, gọi số F&B.",
-        "Phân hệ Private Screening: Đặt trọn khán phòng tổ chức sinh nhật, hội thảo, giải E-Sports.",
-        "Tự động tính bảng giá trọn gói theo khung giờ, số lượng khách và dịch vụ đi kèm."
-      ]
-    }
-  ];
-
-  cardsTech.forEach(c => {
-    slide.addShape(pres.ShapeType.roundRect, {
-      x: c.x, y: c.y, w: c.w, h: c.h,
-      fill: { color: BG_WHITE },
-      line: { color: c.color, width: 1.5 },
-      rectRadius: 0.12
-    });
-
-    slide.addShape(pres.ShapeType.roundRect, {
-      x: c.x + 0.1, y: c.y + 0.1, w: c.w - 0.2, h: 0.32,
-      fill: { color: c.bg },
-      line: { color: c.color, width: 1 },
-      rectRadius: 0.08
-    });
-    slide.addText(c.title, {
-      x: c.x + 0.15, y: c.y + 0.1, w: c.w - 0.3, h: 0.32,
-      fontSize: 8.2, bold: true, color: c.color,
-      valign: "middle", fontFace: FONT_HEADING
-    });
-
-    const bulletItems = c.points.map(pt => ({
-      text: "• " + pt + "\n",
-      options: { color: TEXT_BODY }
-    }));
-
-    slide.addText(bulletItems, {
-      x: c.x + 0.15, y: c.y + 0.48, w: c.w - 0.3, h: c.h - 0.55,
-      fontSize: 7.2, lineSpacingMultiple: 1.15, fontFace: FONT_BODY
-    });
-  });
-
-  slide.addNotes("Định hướng mở rộng các công nghệ vận hành thông minh IoT, bảo trì dự đoán và trí tuệ nhân tạo AI.");
-}
-
-// =============================================================
-// SLIDE 28: Kết Luận Đồ Án & Giá Trị Thực Tiễn
-// =============================================================
-{
-  const slide = pres.addSlide();
-  addHeader(slide, "27. KẾT LUẬN ĐỒ ÁN & GIÁ TRỊ THỰC TIỄN", "TỔNG KẾT ĐỒ ÁN");
-
-  // Left card: Hoàn thành mục tiêu
-  slide.addShape(pres.ShapeType.roundRect, {
-    x: 0.5, y: 1.15, w: 4.35, h: 3.95,
     fill: { color: BG_WHITE },
     line: { color: POP_MINT, width: 1.5 },
     rectRadius: 0.15
   });
   slide.addShape(pres.ShapeType.roundRect, {
-    x: 0.7, y: 1.3, w: 3.95, h: 0.35,
+    x: 5.35, y: 1.3, w: 3.95, h: 0.35,
     fill: { color: BG_SOFT_GREEN },
     line: { color: POP_MINT, width: 1 },
     rectRadius: 0.08
   });
-  slide.addText("🎯 HOÀN THÀNH TOÀN DIỆN MỤC TIÊU OOAD", {
-    x: 0.7, y: 1.3, w: 3.95, h: 0.35,
+  slide.addText("🎯 KẾT LUẬN ĐỒ ÁN", {
+    x: 5.35, y: 1.3, w: 3.95, h: 0.35,
     fontSize: 8.8, bold: true, color: POP_MINT,
     align: "center", valign: "middle", fontFace: FONT_HEADING
   });
   slide.addText([
-    { text: "• Chuẩn mực mô hình hóa hướng đối tượng:\n", options: { bold: true, color: TEXT_DARK } },
-    { text: "  Áp dụng chính xác quy trình OOAD từ Use Case, Activity, Sequence đến Class Diagram chuẩn UML 2.5.\n\n", options: { color: TEXT_BODY } },
+    { text: "• Hoàn thành trọn vẹn mục tiêu môn học OOAD:\n", options: { bold: true, color: TEXT_DARK } },
+    { text: "  Áp dụng chuẩn xác quy trình phân tích thiết kế từ Use Case, Activity, Sequence đến Class Diagram.\n\n", options: { color: TEXT_BODY } },
     { text: "• Hiện thực hóa thành công sản phẩm thực tế:\n", options: { bold: true, color: TEXT_DARK } },
-    { text: "  Không chỉ dừng ở lý thuyết, toàn bộ kiến trúc đã được cài đặt hoàn chỉnh và vận hành mượt mà trên React 18 + Node.js + MySQL 8.0 InnoDB.\n\n", options: { color: TEXT_BODY } },
-    { text: "• Khả năng chịu tải và bảo mật tin cậy:\n", options: { bold: true, color: TEXT_DARK } },
-    { text: "  Thuật toán khóa ghế Transaction khóa triệt để Race Condition; phân quyền 5 Roles RBAC chặt chẽ.", options: { color: TEXT_BODY } }
-  ], {
-    x: 0.7, y: 1.75, w: 3.95, h: 3.2,
-    fontSize: 7.3, lineSpacingMultiple: 1.15, fontFace: FONT_BODY
-  });
-
-  // Right card: Giá trị thực tiễn
-  slide.addShape(pres.ShapeType.roundRect, {
-    x: 5.15, y: 1.15, w: 4.35, h: 3.95,
-    fill: { color: BG_WHITE },
-    line: { color: POP_CORAL, width: 1.5 },
-    rectRadius: 0.15
-  });
-  slide.addShape(pres.ShapeType.roundRect, {
-    x: 5.35, y: 1.3, w: 3.95, h: 0.35,
-    fill: { color: BG_SOFT_PINK },
-    line: { color: POP_CORAL, width: 1 },
-    rectRadius: 0.08
-  });
-  slide.addText("🚀 GIÁ TRỊ ỨNG DỤNG & THƯƠNG MẠI HÓA", {
-    x: 5.35, y: 1.3, w: 3.95, h: 0.35,
-    fontSize: 8.8, bold: true, color: POP_CORAL,
-    align: "center", valign: "middle", fontFace: FONT_HEADING
-  });
-  slide.addText([
-    { text: "• Giải quyết trọn vẹn 2 bài toán song hành:\n", options: { bold: true, color: TEXT_DARK } },
-    { text: "  Vừa tối ưu trải nghiệm khách hàng (đặt vé siêu tốc, giữ ghế công bằng) vừa quản lý cơ sở vật chất phòng máy chính xác.\n\n", options: { color: TEXT_BODY } },
-    { text: "• Sẵn sàng tích hợp mở rộng hệ sinh thái:\n", options: { bold: true, color: TEXT_DARK } },
-    { text: "  Cấu trúc module hóa cao, dễ dàng kết nối cổng thanh toán thật (VNPay, MoMo), cổng IoT rạp và mô hình AI tư vấn.\n\n", options: { color: TEXT_BODY } },
-    { text: "• Tính khả thi triển khai cao:\n", options: { bold: true, color: TEXT_DARK } },
-    { text: "  Có thể chuyển giao trực tiếp làm nền tảng quản lý cho các chuỗi rạp chiếu phim hiện đại.", options: { color: TEXT_BODY } }
+    { text: "  Không chỉ là bản vẽ lý thuyết, toàn bộ hệ thống đã được cài đặt và vận hành mượt mà trên React + Express + MySQL.\n\n", options: { color: TEXT_BODY } },
+    { text: "• Tính ứng dụng thực tiễn cao:\n", options: { bold: true, color: TEXT_DARK } },
+    { text: "  Giải quyết triệt để cả bài toán Vận hành rạp chiếu và Trải nghiệm đặt vé khách hàng.", options: { color: TEXT_BODY } }
   ], {
     x: 5.35, y: 1.75, w: 3.95, h: 3.2,
-    fontSize: 7.3, lineSpacingMultiple: 1.15, fontFace: FONT_BODY
+    fontSize: 7.5, lineSpacingMultiple: 1.15, fontFace: FONT_BODY
   });
 
-  slide.addNotes("Tổng kết thành quả đạt được của đồ án và tiềm năng ứng dụng thực tế vào sản phẩm thương mại.");
+  slide.addNotes("Tổng kết lại các điểm sáng kỹ thuật và kết luận thành công của đồ án.");
 }
 
 // =============================================================
