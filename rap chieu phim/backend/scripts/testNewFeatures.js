@@ -174,6 +174,44 @@ async function runNewFeatureTests() {
   );
   check(updateCust.status === 200, 'PUT /api/customers/:id nâng hạng thẻ thành viên khách hàng lên PLATINUM');
 
+  // 13. Test Movie Reviews GET (/api/movies/:id/reviews)
+  const getReviews = await req('GET', '/movies/1/reviews');
+  check(
+    getReviews.status === 200 && Array.isArray(getReviews.data?.data?.reviews),
+    'GET /api/movies/1/reviews lấy danh sách đánh giá & điểm xếp hạng phim',
+    `Điểm TB: ${getReviews.data?.data?.averageRating}/5 (${getReviews.data?.data?.totalReviews} nhận xét)`
+  );
+
+  // 14. Test Movie Review POST (POST /api/movies/:id/reviews)
+  const postReview = await req(
+    'POST',
+    '/movies/1/reviews',
+    {
+      rating: 5,
+      comment: 'Trải nghiệm xem phim tuyệt vời, màn hình sắc nét và ghế ngồi rất thoải mái!',
+    },
+    custToken
+  );
+  check(
+    postReview.status === 201 && postReview.data?.data?.rating === 5,
+    'POST /api/movies/1/reviews khách hàng gửi đánh giá & bình luận 5 sao thành công'
+  );
+
+  // 15. Test Movie Review Validation (rating ngoài phạm vi 1-5)
+  const invalidReview = await req(
+    'POST',
+    '/movies/1/reviews',
+    {
+      rating: 99,
+      comment: 'Điểm rating không hợp lệ',
+    },
+    custToken
+  );
+  check(
+    invalidReview.status === 400,
+    'POST /api/movies/1/reviews kiểm tra dữ liệu đầu vào chặn rating không hợp lệ (>5 sao)'
+  );
+
   console.log('\n================================================================');
   console.log('  TẤT CẢ TÍNH NĂNG MỚI ĐÃ VƯỢT QUA KIỂM THỬ THÀNH CÔNG 100%!');
   console.log('================================================================');

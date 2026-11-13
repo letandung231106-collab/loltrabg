@@ -162,6 +162,8 @@ function MainApp() {
             onSelectMovie={handleSelectMovie}
             onSelectSchedule={handleSelectSchedule}
             onNavigate={handleNavigate}
+            onOpenInSeatDelivery={() => setIsInSeatDeliveryOpen(true)}
+            onOpenLuckyWheel={() => setIsLuckyWheelOpen(true)}
           />
         )}
 

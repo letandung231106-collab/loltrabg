@@ -1,6 +1,22 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Film, Shield, Bell, User, LogOut, Sparkles, CheckCircle, AlertTriangle, Wrench, ClipboardCheck, Calendar } from 'lucide-react';
+import {
+  Film,
+  Shield,
+  Bell,
+  User,
+  LogOut,
+  Sparkles,
+  CheckCircle,
+  AlertTriangle,
+  Wrench,
+  ClipboardCheck,
+  Calendar,
+  Menu,
+  X,
+  Utensils,
+  Ticket,
+} from 'lucide-react';
 
 export function Header({
   onOpenAuth,
@@ -13,6 +29,7 @@ export function Header({
   const { user, isAuthenticated, logout, switchRole, notifications, unreadNotifCount, isManager, isStaff, isTechnician } = useAuth();
   const [showRoleMenu, setShowRoleMenu] = useState(false);
   const [showNotifMenu, setShowNotifMenu] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const roles = [
     { id: 'admin', label: '👑 Admin (Quản trị)', desc: 'Toàn quyền quản lý hệ thống' },
@@ -231,9 +248,103 @@ export function Header({
                 Đăng Nhập
               </button>
             )}
+            {/* Mobile Hamburger Button */}
+            <button
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="p-2 rounded-xl bg-cinema-850 hover:bg-cinema-800 text-slate-300 hover:text-white border border-cinema-700/60 lg:hidden transition-colors"
+              title="Menu điều hướng"
+            >
+              {isMobileMenuOpen ? <X className="w-5 h-5 text-ruby-400" /> : <Menu className="w-5 h-5" />}
+            </button>
           </div>
         </div>
       </div>
+
+      {/* Mobile Drawer Navigation */}
+      {isMobileMenuOpen && (
+        <div className="lg:hidden bg-cinema-950/95 border-b border-cinema-700/80 px-4 py-4 space-y-3 animate-fade-in backdrop-blur-xl">
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => {
+                setIsMobileMenuOpen(false);
+                onOpenLuckyWheel();
+              }}
+              className="p-2.5 rounded-xl bg-gradient-to-r from-amber-500/20 to-rose-500/20 border border-amber-500/40 text-amber-300 font-bold text-xs flex items-center justify-center gap-1.5"
+            >
+              <Sparkles className="w-4 h-4 text-amber-400" /> Vòng Quay
+            </button>
+            <button
+              onClick={() => {
+                setIsMobileMenuOpen(false);
+                onOpenInSeatDelivery();
+              }}
+              className="p-2.5 rounded-xl bg-gradient-to-r from-emerald-500/20 to-teal-500/20 border border-emerald-500/40 text-emerald-300 font-bold text-xs flex items-center justify-center gap-1.5"
+            >
+              <Utensils className="w-4 h-4 text-emerald-400" /> Gọi Bắp Nước
+            </button>
+          </div>
+
+          <div className="space-y-1 pt-1 border-t border-cinema-800">
+            <button
+              onClick={() => {
+                setIsMobileMenuOpen(false);
+                onNavigate('home');
+              }}
+              className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-bold text-left transition-colors flex items-center gap-2.5 ${
+                currentView === 'home' ? 'bg-ruby-600 text-white' : 'text-slate-300 hover:bg-cinema-850'
+              }`}
+            >
+              <Film className="w-4 h-4" /> Trang Chủ
+            </button>
+            <button
+              onClick={() => {
+                setIsMobileMenuOpen(false);
+                onNavigate('movies');
+              }}
+              className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-bold text-left transition-colors flex items-center gap-2.5 ${
+                currentView === 'movies' ? 'bg-ruby-600 text-white' : 'text-slate-300 hover:bg-cinema-850'
+              }`}
+            >
+              <Film className="w-4 h-4" /> Danh Sách Phim Chiếu
+            </button>
+            <button
+              onClick={() => {
+                setIsMobileMenuOpen(false);
+                onNavigate('schedules');
+              }}
+              className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-bold text-left transition-colors flex items-center gap-2.5 ${
+                currentView === 'schedules' ? 'bg-ruby-600 text-white' : 'text-slate-300 hover:bg-cinema-850'
+              }`}
+            >
+              <Calendar className="w-4 h-4" /> Lịch Chiếu & Đặt Vé
+            </button>
+            {isAuthenticated && (
+              <button
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  onNavigate('my-tickets');
+                }}
+                className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-bold text-left transition-colors flex items-center gap-2.5 ${
+                  currentView === 'my-tickets' ? 'bg-ruby-600 text-white' : 'text-slate-300 hover:bg-cinema-850'
+                }`}
+              >
+                <Ticket className="w-4 h-4" /> Vé Của Tôi & QR Code
+              </button>
+            )}
+            {(isManager || isStaff || isTechnician) && (
+              <button
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  onNavigate('admin-dashboard');
+                }}
+                className="w-full px-3.5 py-2.5 rounded-xl text-xs font-bold text-left text-gold-400 bg-cinema-850/80 hover:bg-cinema-800 border border-gold-500/30 flex items-center gap-2.5"
+              >
+                <Shield className="w-4 h-4 text-gold-400" /> Hệ Thống Vận Hành Rạp (Admin)
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </header>
   );
 }

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
 import {
   X,
   Play,
@@ -15,18 +16,35 @@ import {
   MapPin,
   Flame,
   CheckCircle2,
+  MessageSquare,
+  Send,
 } from 'lucide-react';
 
 export function MovieDetailModal({ isOpen, onClose, movie, onSelectSchedule }) {
+  const { isAuthenticated, user } = useAuth();
   const [schedules, setSchedules] = useState([]);
   const [loadingSchedules, setLoadingSchedules] = useState(false);
   const [isPlayingTrailer, setIsPlayingTrailer] = useState(false);
   const [selectedDate, setSelectedDate] = useState('all');
 
+  // Reviews state
+  const [reviews, setReviews] = useState([]);
+  const [averageRating, setAverageRating] = useState(5.0);
+  const [totalReviews, setTotalReviews] = useState(0);
+  const [newRating, setNewRating] = useState(5);
+  const [hoverRating, setHoverRating] = useState(0);
+  const [newComment, setNewComment] = useState('');
+  const [submittingReview, setSubmittingReview] = useState(false);
+  const [reviewMsg, setReviewMsg] = useState('');
+
   useEffect(() => {
     if (isOpen && movie?.id) {
       fetchMovieSchedules(movie.id);
+      fetchMovieReviews(movie.id);
       setIsPlayingTrailer(false);
+      setReviewMsg('');
+      setNewComment('');
+      setNewRating(5);
     }
   }, [isOpen, movie]);
 
@@ -41,6 +59,50 @@ export function MovieDetailModal({ isOpen, onClose, movie, onSelectSchedule }) {
       console.error('Lỗi tải lịch chiếu phim:', err);
     } finally {
       setLoadingSchedules(false);
+    }
+  };
+
+  const fetchMovieReviews = async (movieId) => {
+    try {
+      const res = await api.getMovieReviews(movieId);
+      if (res.success && res.data) {
+        setReviews(res.data.reviews || []);
+        setAverageRating(res.data.averageRating || 5.0);
+        setTotalReviews(res.data.totalReviews || 0);
+      }
+    } catch (err) {
+      console.warn('Lỗi tải đánh giá phim:', err);
+    }
+  };
+
+  const handleSubmitReview = async (e) => {
+    e.preventDefault();
+    if (!isAuthenticated) {
+      alert('Vui lòng đăng nhập để gửi đánh giá phim.');
+      return;
+    }
+    if (!newComment.trim()) {
+      alert('Vui lòng nhập nội dung nhận xét.');
+      return;
+    }
+
+    setSubmittingReview(true);
+    try {
+      const res = await api.addMovieReview(movie.id, {
+        rating: newRating,
+        comment: newComment.trim(),
+      });
+      if (res.success && res.data) {
+        setReviews((prev) => [res.data, ...prev]);
+        setTotalReviews((prev) => prev + 1);
+        setNewComment('');
+        setReviewMsg('Đã đăng nhận xét thành công!');
+        setTimeout(() => setReviewMsg(''), 3000);
+      }
+    } catch (err) {
+      alert(err.message || 'Lỗi khi gửi đánh giá.');
+    } finally {
+      setSubmittingReview(false);
     }
   };
 
@@ -303,6 +365,138 @@ export function MovieDetailModal({ isOpen, onClose, movie, onSelectSchedule }) {
                 ))}
               </div>
             )}
+          </div>
+
+          {/* Audience Reviews & Ratings Section */}
+          <div className="space-y-4 pt-6 border-t border-cinema-700/60">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="text-base font-black text-white flex items-center gap-2">
+                  <Star className="w-5 h-5 text-amber-400 fill-amber-400" /> Đánh Giá & Nhận Xét Từ Khán Giả
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Chia sẻ cảm nhận chân thực của bạn sau khi thưởng thức bộ phim
+                </p>
+              </div>
+
+              {/* Rating summary pill */}
+              <div className="flex items-center gap-3 px-4 py-2 rounded-2xl bg-cinema-850 border border-cinema-700/80 self-start sm:self-auto">
+                <div className="text-2xl font-black text-amber-400 font-mono flex items-center gap-1">
+                  <span>{averageRating.toFixed(1)}</span>
+                  <span className="text-xs text-slate-400 font-normal">/ 5</span>
+                </div>
+                <div className="text-left border-l border-cinema-700 pl-3">
+                  <div className="flex items-center text-amber-400 text-xs">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <Star
+                        key={star}
+                        className={`w-3 h-3 ${
+                          star <= Math.round(averageRating) ? 'fill-amber-400 text-amber-400' : 'text-slate-600'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                  <div className="text-[10px] text-slate-400 mt-0.5 font-medium">{totalReviews} lượt đánh giá</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Write a review form */}
+            <form onSubmit={handleSubmitReview} className="p-4 rounded-2xl bg-cinema-850/80 border border-cinema-700/80 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <span className="text-xs font-bold text-slate-300">Đánh giá của bạn:</span>
+                <div className="flex items-center gap-1.5">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      type="button"
+                      onClick={() => setNewRating(star)}
+                      onMouseEnter={() => setHoverRating(star)}
+                      onMouseLeave={() => setHoverRating(0)}
+                      className="p-1 text-slate-500 hover:scale-125 transition-transform"
+                    >
+                      <Star
+                        className={`w-5 h-5 ${
+                          star <= (hoverRating || newRating)
+                            ? 'text-amber-400 fill-amber-400 shadow-glow-amber'
+                            : 'text-slate-600'
+                        }`}
+                      />
+                    </button>
+                  ))}
+                  <span className="text-xs font-bold font-mono text-amber-400 ml-2">
+                    {newRating === 5 ? 'Tuyệt vời 🌟' : newRating === 4 ? 'Rất hay 👍' : newRating === 3 ? 'Bình thường' : newRating === 2 ? 'Tạm được' : 'Không thích'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="relative">
+                <textarea
+                  value={newComment}
+                  onChange={(e) => setNewComment(e.target.value)}
+                  placeholder={
+                    isAuthenticated
+                      ? 'Viết cảm nhận của bạn về diễn xuất, âm thanh, cốt truyện...'
+                      : 'Đăng nhập để gửi nhận xét của bạn về bộ phim này...'
+                  }
+                  rows={2}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-ruby-500 transition-colors"
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                {reviewMsg && <span className="text-xs text-emerald-400 font-bold">✓ {reviewMsg}</span>}
+                {!reviewMsg && <span className="text-[10px] text-slate-500">Mọi bình luận đều được kiểm duyệt văn minh</span>}
+
+                <button
+                  type="submit"
+                  disabled={submittingReview}
+                  className="px-4 py-2 rounded-xl bg-ruby-600 hover:bg-ruby-500 text-white text-xs font-bold shadow-glow-red transition-all flex items-center gap-1.5 ml-auto"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  {submittingReview ? 'Đang gửi...' : 'Gửi Nhận Xét'}
+                </button>
+              </div>
+            </form>
+
+            {/* Reviews list */}
+            <div className="space-y-2.5 max-h-60 overflow-y-auto pr-1">
+              {reviews.length === 0 ? (
+                <div className="py-6 text-center text-xs text-slate-500">
+                  Chưa có nhận xét nào. Hãy là người đầu tiên đánh giá bộ phim này!
+                </div>
+              ) : (
+                reviews.map((r, idx) => (
+                  <div key={r.id || idx} className="p-3.5 rounded-xl bg-cinema-850/50 border border-cinema-700/50 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-ruby-600 to-amber-500 text-white text-[10px] font-black flex items-center justify-center">
+                          {r.user_name?.[0]?.toUpperCase() || 'K'}
+                        </div>
+                        <span className="text-xs font-bold text-white">{r.user_name || 'Khán giả'}</span>
+                        <span className="text-[10px] px-1.5 py-0.2 rounded bg-cinema-800 text-emerald-400 font-medium">
+                          ✓ Đã xem rạp
+                        </span>
+                      </div>
+                      <div className="flex items-center text-amber-400">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <Star
+                            key={star}
+                            className={`w-3 h-3 ${
+                              star <= r.rating ? 'fill-amber-400 text-amber-400' : 'text-slate-600'
+                            }`}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                    <p className="text-xs text-slate-300 leading-relaxed pl-8">{r.comment}</p>
+                    <div className="text-[10px] text-slate-500 pl-8">
+                      {new Date(r.created_at).toLocaleDateString('vi-VN')} {new Date(r.created_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
       </div>

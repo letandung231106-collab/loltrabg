@@ -331,7 +331,7 @@ const tomorrowDate = new Date(); tomorrowDate.setDate(tomorrowDate.getDate() + 1
 const tomorrowStr = localDateStr(tomorrowDate);
 const schedules = [
   { id: 1, movie_id: 1, room_id: 4, start_time: `${todayStr} 14:00:00`, end_time: `${todayStr} 16:50:00`, format: 'IMAX 2D Phụ đề', ticket_price: 150000, status: 'screening' },
-  { id: 2, movie_id: 1, room_id: 4, start_time: `${todayStr} 18:00:00`, end_time: `${todayStr} 20:50:00`, format: 'IMAX 2D Phụ đề', ticket_price: 160000, status: 'scheduled' },
+  { id: 2, movie_id: 1, room_id: 4, start_time: `${tomorrowStr} 18:00:00`, end_time: `${tomorrowStr} 20:50:00`, format: 'IMAX 2D Phụ đề', ticket_price: 160000, status: 'scheduled' },
   { id: 3, movie_id: 5, room_id: 5, start_time: `${todayStr} 19:00:00`, end_time: `${todayStr} 21:10:00`, format: '4DX 3D Phụ đề', ticket_price: 180000, status: 'scheduled' },
   { id: 4, movie_id: 4, room_id: 1, start_time: `${todayStr} 15:00:00`, end_time: `${todayStr} 17:20:00`, format: '2D Tiếng Việt', ticket_price: 90000, status: 'screening' },
   { id: 5, movie_id: 4, room_id: 1, start_time: `${todayStr} 18:30:00`, end_time: `${todayStr} 20:50:00`, format: '2D Tiếng Việt', ticket_price: 100000, status: 'scheduled' },
@@ -547,6 +547,14 @@ const turnaround_checklists = [
   { id: 2, schedule_id: 4, room_id: 2, room_name: 'Phòng 2 - Dolby Atmos', cleaned_by_name: 'Đỗ Tuấn Kiệt', target_minutes: 12, actual_minutes: 10, seats_checked: true, trash_cleared: true, spilled_liquid_cleaned: true, screen_undamaged: true, aircon_normal: true, status: 'ready', verified_at: `${todayStr} 15:30:00` },
 ];
 
+// --- 25. Đánh Giá & Bình Luận Phim (Movie Reviews & Ratings) ---
+const movie_reviews = [
+  { id: 1, movie_id: 1, user_id: 7, user_name: 'Nguyễn Văn An (Diamond VIP)', rating: 5, comment: 'Phim cực đỉnh, âm thanh Dolby Atmos tại rạp đánh thức mọi giác quan! Hình ảnh sa mạc cát choáng ngợp.', created_at: `${todayStr} 10:30:00` },
+  { id: 2, movie_id: 1, user_id: 8, user_name: 'Trần Thị Mai', rating: 5, comment: 'Diễn xuất của Timothée và Zendaya quá tuyệt vời. Rạp chiếu ghế ngồi êm ái, bắp phô mai rất ngon.', created_at: `${todayStr} 11:15:00` },
+  { id: 3, movie_id: 2, user_id: 7, user_name: 'Nguyễn Văn An (Diamond VIP)', rating: 5, comment: 'Kiệt tác của Christopher Nolan! Phân cảnh thử bom Trinity khiến cả rạp nín thở. Trải nghiệm điện ảnh đỉnh cao.', created_at: `${todayStr} 09:00:00` },
+  { id: 4, movie_id: 3, user_id: 8, user_name: 'Trần Thị Mai', rating: 4, comment: 'Kỹ xảo IMAX 3D cực kỳ mãn nhãn. Hành tinh Pandora đẹp lung linh. Rất đáng xem lại!', created_at: `${todayStr} 08:45:00` },
+];
+
 const payments = [
   { id: 1, booking_id: 1, payment_method: 'banking', amount: 220000, transaction_code: 'TXN-BANKING-001', status: 'success', payment_time: `${todayStr} 10:16:30` },
 ];
@@ -582,4 +590,5 @@ module.exports = {
   kdm_licenses,
   projector_lamp_logs,
   turnaround_checklists,
+  movie_reviews,
 };

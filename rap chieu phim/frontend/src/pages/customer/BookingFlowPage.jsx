@@ -34,13 +34,24 @@ export function BookingFlowPage({
   }, [initialIssuedTickets]);
 
   useEffect(() => {
-    if (scheduleId && !initialIssuedTickets) {
-      fetchSeatMap();
-    }
-    return () => {
-      // Don't auto reset if user is in active hold session
-    };
-  }, [scheduleId]);
+    if (!scheduleId || initialIssuedTickets) return;
+
+    fetchSeatMap();
+
+    // Auto-refresh sơ đồ ghế thời gian thực mỗi 4s để cập nhật ghế giữ/đã đặt
+    const interval = setInterval(() => {
+      api.getScheduleSeatMap(scheduleId)
+        .then((res) => {
+          if (res.success && res.data) {
+            setScheduleData(res.data);
+            setSelectedSchedule(res.data.schedule);
+          }
+        })
+        .catch(() => {});
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [scheduleId, initialIssuedTickets]);
 
   const fetchSeatMap = async () => {
     try {
@@ -206,14 +217,19 @@ export function BookingFlowPage({
           </div>
         )}
 
-        {/* Refresh Live Seat Map Button */}
-        <button
-          onClick={fetchSeatMap}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cinema-800 hover:bg-cinema-700 text-slate-300 text-xs font-medium border border-cinema-700 transition-colors"
-          title="Tải lại trạng thái ghế mới nhất"
-        >
-          <RefreshCw className="w-3.5 h-3.5" /> Làm mới sơ đồ
-        </button>
+        {/* Live Seat Map Status & Refresh Button */}
+        <div className="flex items-center gap-2.5">
+          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[11px] font-semibold">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" /> Live Realtime
+          </span>
+          <button
+            onClick={fetchSeatMap}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cinema-800 hover:bg-cinema-700 text-slate-300 text-xs font-medium border border-cinema-700 transition-colors"
+            title="Tải lại trạng thái ghế mới nhất"
+          >
+            <RefreshCw className="w-3.5 h-3.5" /> Làm mới
+          </button>
+        </div>
       </div>
 
       {/* Error Alert (e.g. Concurrency conflict: Ghế vừa được người khác giữ) */}

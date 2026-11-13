@@ -307,6 +307,18 @@ async function query(sql, params = []) {
   }
 
   // =========================================================================
+  // 2.1. MOVIE REVIEWS (Đánh giá & Bình luận phim)
+  // =========================================================================
+  if (normalized.startsWith('select') && normalized.includes('from movie_reviews')) {
+    if (normalized.includes('where movie_id = ?')) {
+      const movieId = parseInt(params[0], 10);
+      const reviews = (memory.movie_reviews || []).filter((r) => r.movie_id === movieId);
+      return reviews.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    }
+    return memory.movie_reviews || [];
+  }
+
+  // =========================================================================
   // 3. CINEMA ROOMS
   // =========================================================================
   if (normalized.startsWith('select') && normalized.includes('from cinema_rooms')) {
@@ -1083,6 +1095,22 @@ async function query(sql, params = []) {
       created_at: now.toISOString(),
     };
     memory.movies.unshift(newMovie);
+    return { insertId: newId, affectedRows: 1 };
+  }
+
+  if (normalized.startsWith('insert into movie_reviews')) {
+    const newId = memory.movie_reviews && memory.movie_reviews.length > 0 ? Math.max(...memory.movie_reviews.map((r) => r.id)) + 1 : 1;
+    const newReview = {
+      id: newId,
+      movie_id: parseInt(params[0], 10),
+      user_id: parseInt(params[1], 10),
+      user_name: params[2] || 'Khách hàng',
+      rating: parseInt(params[3], 10) || 5,
+      comment: params[4] || '',
+      created_at: now.toISOString().slice(0, 19).replace('T', ' '),
+    };
+    if (!memory.movie_reviews) memory.movie_reviews = [];
+    memory.movie_reviews.unshift(newReview);
     return { insertId: newId, affectedRows: 1 };
   }
 

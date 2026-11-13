@@ -56,6 +56,8 @@ export const api = {
   // Movies
   getMovies: (params = {}) => request(`/movies${buildQueryString(params)}`),
   getMovieById: (id) => request(`/movies/${id}`),
+  getMovieReviews: (id) => request(`/movies/${id}/reviews`),
+  addMovieReview: (id, data) => request(`/movies/${id}/reviews`, { method: 'POST', body: JSON.stringify(data) }),
   createMovie: (data) => request('/movies', { method: 'POST', body: JSON.stringify(data) }),
   updateMovie: (id, data) => request(`/movies/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteMovie: (id) => request(`/movies/${id}`, { method: 'DELETE' }),

@@ -236,10 +236,90 @@ async function deleteMovie(req, res, next) {
   }
 }
 
+/**
+ * Lấy danh sách đánh giá & điểm xếp hạng của phim
+ */
+async function getMovieReviews(req, res, next) {
+  try {
+    const { id } = req.params;
+    const reviews = await db.query(
+      `SELECT * FROM movie_reviews WHERE movie_id = ? ORDER BY created_at DESC`,
+      [id]
+    );
+
+    const totalReviews = reviews.length;
+    const averageRating =
+      totalReviews > 0
+        ? Math.round((reviews.reduce((acc, r) => acc + Number(r.rating || 5), 0) / totalReviews) * 10) / 10
+        : 5.0;
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        reviews,
+        totalReviews,
+        averageRating,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Gửi đánh giá & bình luận phim mới (Khách hàng đã đăng nhập)
+ */
+async function addMovieReview(req, res, next) {
+  try {
+    const { id } = req.params;
+    const { rating, comment } = req.body;
+    const userId = req.user?.id;
+    const userName = req.user?.name || req.user?.username || 'Khách hàng';
+
+    const numRating = parseInt(rating, 10);
+    if (isNaN(numRating) || numRating < 1 || numRating > 5) {
+      return res.status(400).json({
+        success: false,
+        message: 'Điểm đánh giá phải từ 1 đến 5 sao.',
+      });
+    }
+
+    if (!comment || comment.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng nhập nội dung nhận xét phim.',
+      });
+    }
+
+    const result = await db.query(
+      `INSERT INTO movie_reviews (movie_id, user_id, user_name, rating, comment) VALUES (?, ?, ?, ?, ?)`,
+      [id, userId, userName, numRating, comment.trim()]
+    );
+
+    return res.status(201).json({
+      success: true,
+      message: 'Cảm ơn bạn đã gửi đánh giá phim!',
+      data: {
+        id: result?.insertId,
+        movie_id: parseInt(id, 10),
+        user_id: userId,
+        user_name: userName,
+        rating: numRating,
+        comment: comment.trim(),
+        created_at: new Date().toISOString(),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   getMovies,
   getMovieById,
   createMovie,
   updateMovie,
   deleteMovie,
+  getMovieReviews,
+  addMovieReview,
 };
