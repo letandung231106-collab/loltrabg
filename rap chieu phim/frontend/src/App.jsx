@@ -5,6 +5,8 @@ import { api } from './services/api';
 import confetti from 'canvas-confetti';
 import { Header } from './components/common/Header';
 import { LoginModal } from './components/common/LoginModal';
+import { LuckyWheelModal } from './components/customer/LuckyWheelModal';
+import { InSeatDeliveryModal } from './components/customer/InSeatDeliveryModal';
 import { HomePage } from './pages/customer/HomePage';
 import { MoviesPage } from './pages/customer/MoviesPage';
 import { SchedulesPage } from './pages/customer/SchedulesPage';
@@ -39,6 +41,8 @@ function MainApp() {
   const [selectedScheduleId, setSelectedScheduleId] = useState(null);
   const [selectedMovieIdFilter, setSelectedMovieIdFilter] = useState('all');
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [isLuckyWheelOpen, setIsLuckyWheelOpen] = useState(false);
+  const [isInSeatDeliveryOpen, setIsInSeatDeliveryOpen] = useState(false);
   const [momoIssuedTickets, setMomoIssuedTickets] = useState(null);
   const [momoReturnBanner, setMomoReturnBanner] = useState(null);
 
@@ -123,6 +127,8 @@ function MainApp() {
           onOpenAuth={() => setIsLoginModalOpen(true)}
           onNavigate={handleNavigate}
           currentView={currentView}
+          onOpenLuckyWheel={() => setIsLuckyWheelOpen(true)}
+          onOpenInSeatDelivery={() => setIsInSeatDeliveryOpen(true)}
         />
 
         {/* MoMo Sandbox Return Notification Banner */}
@@ -235,6 +241,20 @@ function MainApp() {
       <LoginModal
         isOpen={isLoginModalOpen}
         onClose={() => setIsLoginModalOpen(false)}
+      />
+
+      {/* Lucky Wheel Modal */}
+      <LuckyWheelModal
+        isOpen={isLuckyWheelOpen}
+        onClose={() => setIsLuckyWheelOpen(false)}
+        onVoucherClaimed={() => {}}
+        onNavigateBooking={() => handleNavigate('movies')}
+      />
+
+      {/* In-Seat Delivery Modal */}
+      <InSeatDeliveryModal
+        isOpen={isInSeatDeliveryOpen}
+        onClose={() => setIsInSeatDeliveryOpen(false)}
       />
     </div>
   );

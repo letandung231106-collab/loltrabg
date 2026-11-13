@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { Film, Shield, Bell, User, LogOut, Sparkles, CheckCircle, AlertTriangle, Wrench, ClipboardCheck, Calendar } from 'lucide-react';
 
-export function Header({ onOpenAuth, onNavigate, currentView }) {
+export function Header({ onOpenAuth, onNavigate, currentView, onOpenLuckyWheel, onOpenInSeatDelivery }) {
   const { user, isAuthenticated, logout, switchRole, notifications, unreadNotifCount, isManager, isStaff, isTechnician } = useAuth();
   const [showRoleMenu, setShowRoleMenu] = useState(false);
   const [showNotifMenu, setShowNotifMenu] = useState(false);
@@ -76,6 +76,21 @@ export function Header({ onOpenAuth, onNavigate, currentView }) {
 
             {/* Nav links */}
             <nav className="hidden lg:flex items-center gap-1">
+              <button
+                onClick={onOpenLuckyWheel}
+                className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/20 via-rose-500/20 to-ruby-500/20 hover:from-amber-500/30 hover:to-rose-500/30 text-amber-300 border border-amber-500/40 text-xs font-black transition-all flex items-center gap-1.5 shadow-sm animate-pulse"
+                title="Vòng quay may mắn nhận voucher"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                <span>Vòng Quay Voucher</span>
+              </button>
+              <button
+                onClick={onOpenInSeatDelivery}
+                className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500/20 to-teal-500/20 hover:from-emerald-500/30 hover:to-teal-500/30 text-emerald-300 border border-emerald-500/40 text-xs font-black transition-all flex items-center gap-1.5 shadow-sm"
+                title="Gọi bắp nước giao tận ghế trong phòng chiếu"
+              >
+                <span>🍿 Gọi Món Tận Ghế</span>
+              </button>
               <button
                 onClick={() => onNavigate('home')}
                 className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
