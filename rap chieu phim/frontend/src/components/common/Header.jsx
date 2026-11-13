@@ -2,7 +2,14 @@ import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { Film, Shield, Bell, User, LogOut, Sparkles, CheckCircle, AlertTriangle, Wrench, ClipboardCheck, Calendar } from 'lucide-react';
 
-export function Header({ onOpenAuth, onNavigate, currentView, onOpenLuckyWheel, onOpenInSeatDelivery }) {
+export function Header({
+  onOpenAuth,
+  onNavigate,
+  currentView,
+  onOpenLuckyWheel,
+  onOpenInSeatDelivery,
+  onOpenProfile,
+}) {
   const { user, isAuthenticated, logout, switchRole, notifications, unreadNotifCount, isManager, isStaff, isTechnician } = useAuth();
   const [showRoleMenu, setShowRoleMenu] = useState(false);
   const [showNotifMenu, setShowNotifMenu] = useState(false);
@@ -193,14 +200,20 @@ export function Header({ onOpenAuth, onNavigate, currentView, onOpenLuckyWheel, 
 
             {/* Auth / User Badge */}
             {isAuthenticated ? (
-              <div className="flex items-center gap-2 bg-cinema-850/80 border border-cinema-700/60 rounded-xl px-3 py-1.5">
-                <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-ruby-600 to-amber-500 flex items-center justify-center font-bold text-xs text-white">
-                  {user?.name?.[0]?.toUpperCase() || 'U'}
-                </div>
-                <div className="hidden sm:block text-left text-xs">
-                  <div className="font-semibold text-white max-w-[120px] truncate">{user?.name || user?.username}</div>
-                  <div className="text-gold-400 text-[10px] uppercase font-bold tracking-wider">{user?.role}</div>
-                </div>
+              <div className="flex items-center gap-2 bg-cinema-850/80 border border-cinema-700/60 rounded-xl px-2.5 py-1.5">
+                <button
+                  onClick={onOpenProfile}
+                  className="flex items-center gap-2 text-left hover:opacity-85 transition-opacity"
+                  title="Hồ sơ tài khoản & Đổi mật khẩu"
+                >
+                  <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-ruby-600 to-amber-500 flex items-center justify-center font-bold text-xs text-white shadow-sm">
+                    {user?.name?.[0]?.toUpperCase() || 'U'}
+                  </div>
+                  <div className="hidden sm:block text-left text-xs">
+                    <div className="font-semibold text-white max-w-[120px] truncate">{user?.name || user?.username}</div>
+                    <div className="text-gold-400 text-[10px] uppercase font-bold tracking-wider">{user?.role}</div>
+                  </div>
+                </button>
                 <button
                   onClick={logout}
                   className="p-1 text-slate-400 hover:text-ruby-400 transition-colors ml-1"

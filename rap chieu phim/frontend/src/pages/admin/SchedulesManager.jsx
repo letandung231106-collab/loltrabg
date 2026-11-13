@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
-import { Calendar, Plus, Trash2, Clock, Film, Building, AlertTriangle, CheckCircle, X } from 'lucide-react';
+import { Calendar, Plus, Trash2, Edit2, Clock, Film, Building, AlertTriangle, CheckCircle, X } from 'lucide-react';
 
 export function SchedulesManager() {
   const [schedules, setSchedules] = useState([]);
@@ -8,6 +8,7 @@ export function SchedulesManager() {
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
+  const [editingSchedule, setEditingSchedule] = useState(null);
   const [msg, setMsg] = useState({ text: '', type: '' });
 
   const [formData, setFormData] = useState({
@@ -16,6 +17,7 @@ export function SchedulesManager() {
     start_time: '',
     ticket_price: 90000,
     format: '2D Phụ đề',
+    status: 'scheduled',
   });
 
   useEffect(() => {
@@ -41,6 +43,7 @@ export function SchedulesManager() {
   };
 
   const handleOpenCreate = () => {
+    setEditingSchedule(null);
     const defaultStart = new Date();
     defaultStart.setHours(defaultStart.getHours() + 2, 0, 0, 0);
     const startStr = defaultStart.toISOString().slice(0, 16);
@@ -51,6 +54,21 @@ export function SchedulesManager() {
       start_time: startStr,
       ticket_price: 90000,
       format: '2D Phụ đề',
+      status: 'scheduled',
+    });
+    setModalOpen(true);
+  };
+
+  const handleOpenEdit = (s) => {
+    setEditingSchedule(s);
+    const startStr = s.start_time.replace(' ', 'T').slice(0, 16);
+    setFormData({
+      movie_id: s.movie_id,
+      room_id: s.room_id,
+      start_time: startStr,
+      ticket_price: s.ticket_price || s.price || 90000,
+      format: s.format || '2D Phụ đề',
+      status: s.status || 'scheduled',
     });
     setModalOpen(true);
   };
@@ -58,14 +76,17 @@ export function SchedulesManager() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const res = await api.createSchedule(formData);
-      if (res.success) {
+      if (editingSchedule) {
+        const res = await api.updateSchedule(editingSchedule.id, formData);
+        setMsg({ text: res.message || 'Cập nhật suất chiếu thành công!', type: 'success' });
+      } else {
+        const res = await api.createSchedule(formData);
         setMsg({ text: res.message || 'Lập lịch chiếu thành công!', type: 'success' });
-        setModalOpen(false);
-        fetchData();
       }
+      setModalOpen(false);
+      fetchData();
     } catch (err) {
-      setMsg({ text: err.message || 'Lỗi khi lập lịch chiếu.', type: 'error' });
+      setMsg({ text: err.message || 'Lỗi khi lưu lịch chiếu.', type: 'error' });
     }
   };
 
@@ -165,15 +186,24 @@ export function SchedulesManager() {
                     </span>
                   </td>
                   <td className="p-4 text-right">
-                    {s.status === 'scheduled' && (
+                    <div className="flex items-center justify-end gap-1.5">
                       <button
-                        onClick={() => handleCancelSchedule(s.id)}
-                        className="p-1.5 rounded-lg bg-cinema-800 hover:bg-rose-900 text-rose-400 hover:text-rose-200 transition-colors"
-                        title="Hủy lịch chiếu"
+                        onClick={() => handleOpenEdit(s)}
+                        className="p-1.5 rounded-lg bg-cinema-800 hover:bg-cinema-700 text-gold-400 hover:text-gold-200 transition-colors"
+                        title="Chỉnh sửa suất chiếu"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        <Edit2 className="w-3.5 h-3.5" />
                       </button>
-                    )}
+                      {s.status === 'scheduled' && (
+                        <button
+                          onClick={() => handleCancelSchedule(s.id)}
+                          className="p-1.5 rounded-lg bg-cinema-800 hover:bg-rose-900 text-rose-400 hover:text-rose-200 transition-colors"
+                          title="Hủy lịch chiếu"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -182,12 +212,14 @@ export function SchedulesManager() {
         </div>
       </div>
 
-      {/* Modal Lập Lịch Chiếu Mới */}
+      {/* Modal Lập / Sửa Lịch Chiếu */}
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-fade-in">
           <div className="relative w-full max-w-lg glass-panel rounded-3xl p-6 shadow-2xl border border-cinema-600">
             <div className="flex items-center justify-between pb-4 border-b border-cinema-700">
-              <h3 className="font-black text-base text-white">Lập Lịch Chiếu Mới</h3>
+              <h3 className="font-black text-base text-white">
+                {editingSchedule ? 'Cập Nhật Suất Chiếu' : 'Lập Lịch Chiếu Mới'}
+              </h3>
               <button onClick={() => setModalOpen(false)} className="p-1 text-slate-400 hover:text-white">
                 <X className="w-5 h-5" />
               </button>
@@ -278,7 +310,7 @@ export function SchedulesManager() {
                   type="submit"
                   className="px-6 py-2 rounded-xl bg-ruby-600 hover:bg-ruby-500 text-white font-bold shadow-glow-red"
                 >
-                  Xác Nhận Lập Lịch
+                  {editingSchedule ? 'Lưu Cập Nhật Suất Chiếu' : 'Xác Nhận Lập Lịch'}
                 </button>
               </div>
             </form>

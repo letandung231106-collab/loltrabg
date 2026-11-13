@@ -45,8 +45,29 @@ export function AdminLayout({ currentTab, onSelectTab, children }) {
     { id: 'reports', label: 'Báo cáo & Thống kê', icon: BarChart3, roles: ['admin', 'manager'] },
   ];
 
-  const userRole = user?.role?.toLowerCase() || 'admin';
+  const userRole = user?.role?.toLowerCase() || 'customer';
   const visibleNavItems = navItems.filter((item) => item.roles.includes(userRole));
+
+  // Kiểm soát phân quyền: Chặn khách hàng thường vào trang nội bộ
+  if (userRole === 'customer' || !user) {
+    return (
+      <div className="max-w-2xl mx-auto py-20 px-4 text-center space-y-5 animate-fade-in">
+        <div className="w-16 h-16 rounded-3xl bg-ruby-600/20 text-ruby-400 border border-ruby-500/40 flex items-center justify-center mx-auto shadow-glow-red">
+          <Shield className="w-8 h-8" />
+        </div>
+        <h2 className="text-2xl font-black text-white">Truy Cập Quản Trị Bị Từ Chối (403 Forbidden)</h2>
+        <p className="text-slate-400 text-xs sm:text-sm leading-relaxed max-w-lg mx-auto">
+          Tài khoản hiện tại của bạn là <strong>Khách Hàng (Customer)</strong>. Phân hệ Quản trị & Vận hành chỉ dành riêng cho Admin, Quản lý rạp, Nhân sự và Kỹ thuật viên (RBAC).
+        </p>
+        <div className="p-4 rounded-2xl bg-cinema-900 border border-cinema-700 max-w-md mx-auto text-xs text-left space-y-2">
+          <div className="font-bold text-gold-400">💡 Thử nghiệm đồ án (OOAD Quick Switch):</div>
+          <p className="text-slate-300">
+            Bạn hãy bấm vào nút <strong>👑 Admin</strong> hoặc <strong>👔 Manager</strong> trên thanh Demo Switcher ở đầu trang để chuyển vai trò và trải nghiệm toàn bộ các chức năng quản trị!
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-cinema-950 text-slate-100">

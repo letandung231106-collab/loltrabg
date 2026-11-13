@@ -171,9 +171,81 @@ async function createRoom(req, res, next) {
   }
 }
 
+/**
+ * Cập nhật thông tin phòng chiếu (name, room_type, location, description)
+ */
+async function updateRoom(req, res, next) {
+  try {
+    const { id } = req.params;
+    const { name, room_type, location, description, capacity } = req.body;
+
+    const existing = await db.query(`SELECT * FROM cinema_rooms WHERE id = ?`, [id]);
+    if (!existing || existing.length === 0) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy phòng chiếu.' });
+    }
+
+    await db.query(
+      `UPDATE cinema_rooms 
+       SET name = COALESCE(?, name),
+           room_type = COALESCE(?, room_type),
+           capacity = COALESCE(?, capacity),
+           location = COALESCE(?, location),
+           status = COALESCE(?, status),
+           description = COALESCE(?, description)
+       WHERE id = ?`,
+      [name, room_type, capacity, location, req.body.status, description, id]
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: `Cập nhật thông tin phòng chiếu ${name || existing[0].name} thành công!`,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Xóa phòng chiếu (chặn xóa nếu đang có lịch chiếu đã lên lịch)
+ */
+async function deleteRoom(req, res, next) {
+  try {
+    const { id } = req.params;
+
+    const existing = await db.query(`SELECT * FROM cinema_rooms WHERE id = ?`, [id]);
+    if (!existing || existing.length === 0) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy phòng chiếu.' });
+    }
+
+    // Kiểm tra lịch chiếu gắn với phòng
+    const activeSchedules = await db.query(
+      `SELECT * FROM screening_schedules WHERE room_id = ? AND status = 'scheduled'`,
+      [id]
+    );
+
+    if (activeSchedules && activeSchedules.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Không thể xóa phòng chiếu "${existing[0].name}" vì đang có ${activeSchedules.length} suất chiếu đã được lên lịch. Vui lòng hủy lịch chiếu trước!`,
+      });
+    }
+
+    await db.query(`DELETE FROM cinema_rooms WHERE id = ?`, [id]);
+
+    return res.status(200).json({
+      success: true,
+      message: `Đã xóa phòng chiếu "${existing[0].name}" thành công!`,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   getRooms,
   getRoomById,
   updateRoomStatus,
   createRoom,
+  updateRoom,
+  deleteRoom,
 };

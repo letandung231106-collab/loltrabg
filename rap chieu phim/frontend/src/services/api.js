@@ -50,6 +50,8 @@ export const api = {
   register: (userData) => request('/auth/register', { method: 'POST', body: JSON.stringify(userData) }),
   getMe: () => request('/auth/me'),
   switchRole: (targetRole) => request('/auth/switch-role', { method: 'POST', body: JSON.stringify({ targetRole }) }),
+  updateProfile: (data) => request('/auth/profile', { method: 'PUT', body: JSON.stringify(data) }),
+  forgotPassword: (data) => request('/auth/forgot-password', { method: 'POST', body: JSON.stringify(data) }),
 
   // Movies
   getMovies: (params = {}) => request(`/movies${buildQueryString(params)}`),
@@ -64,11 +66,14 @@ export const api = {
   updateRoomStatus: (id, status, description) =>
     request(`/rooms/${id}/status`, { method: 'PUT', body: JSON.stringify({ status, description }) }),
   createRoom: (data) => request('/rooms', { method: 'POST', body: JSON.stringify(data) }),
+  updateRoom: (id, data) => request(`/rooms/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteRoom: (id) => request(`/rooms/${id}`, { method: 'DELETE' }),
 
   // Schedules
   getSchedules: (params = {}) => request(`/schedules${buildQueryString(params)}`),
   getScheduleSeatMap: (id) => request(`/schedules/${id}/seats`),
   createSchedule: (data) => request('/schedules', { method: 'POST', body: JSON.stringify(data) }),
+  updateSchedule: (id, data) => request(`/schedules/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   cancelSchedule: (id) => request(`/schedules/${id}`, { method: 'DELETE' }),
 
   // Bookings & Hold Seats
@@ -131,10 +136,13 @@ export const api = {
     request(`/shifts/handovers/${id}/status`, { method: 'PUT', body: JSON.stringify({ status, notes }) }),
   getEmployees: (params = {}) => request(`/employees${buildQueryString(params)}`),
   getTechnicians: () => request('/employees/technicians'),
+  createEmployee: (data) => request('/employees', { method: 'POST', body: JSON.stringify(data) }),
+  updateEmployee: (id, data) => request(`/employees/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
 
   // Customers (CRM)
   getCustomers: (params = {}) => request(`/customers${buildQueryString(params)}`),
   getCustomerById: (id) => request(`/customers/${id}`),
+  updateCustomer: (id, data) => request(`/customers/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   updateCustomerMembership: (id, membership_level) =>
     request(`/customers/${id}/membership`, { method: 'PUT', body: JSON.stringify({ membership_level }) }),
 

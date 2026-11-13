@@ -344,6 +344,12 @@ async function query(sql, params = []) {
   // 5. SCREENING SCHEDULES
   // =========================================================================
   if (normalized.startsWith('select') && normalized.includes('from screening_schedules')) {
+    // Check active schedules for room deletion (roomController.deleteRoom)
+    if (normalized.includes('where room_id = ?') && normalized.includes("status = 'scheduled'")) {
+      const roomId = parseInt(params[0], 10);
+      return memory.schedules.filter((s) => s.room_id === roomId && s.status === 'scheduled');
+    }
+
     // Check active schedules for movie deletion (movieController.deleteMovie)
     if (normalized.includes('where movie_id = ?') && normalized.includes("status in ('scheduled', 'screening')")) {
       const movieId = parseInt(params[0], 10);
@@ -352,14 +358,19 @@ async function query(sql, params = []) {
       );
     }
 
-    // Check schedule time overlap conflict (scheduleController.createSchedule)
+    // Check schedule time overlap conflict (scheduleController.createSchedule / updateSchedule)
     if (normalized.includes('where s.room_id = ?') && normalized.includes('>= s.end_time')) {
       const roomId = parseInt(params[0], 10);
-      const newStart = new Date(String(params[1]).replace(' ', 'T'));
-      const newEnd = new Date(String(params[3]).replace(' ', 'T'));
+      const isExclude = normalized.includes('s.id != ?');
+      const excludeId = isExclude ? parseInt(params[1], 10) : null;
+      const startParam = isExclude ? params[2] : params[1];
+      const endParam = isExclude ? params[4] : params[3];
+      const newStart = new Date(String(startParam).replace(' ', 'T'));
+      const newEnd = new Date(String(endParam).replace(' ', 'T'));
       return memory.schedules
         .filter((s) => {
           if (s.room_id !== roomId) return false;
+          if (isExclude && s.id === excludeId) return false;
           if (!['scheduled', 'screening'].includes(s.status)) return false;
           const existStart = new Date(String(s.start_time).replace(' ', 'T'));
           const existEnd = new Date(String(s.end_time).replace(' ', 'T'));
@@ -484,8 +495,9 @@ async function query(sql, params = []) {
         if (!b) return false;
         if (bs.status === 'booked') return true;
         if (bs.status === 'holding') {
-          const exp = new Date(String(bs.hold_expire).replace(' ', 'T') + 'Z');
-          return exp > now;
+          const exp1 = new Date(String(bs.hold_expire).replace(' ', 'T'));
+          const exp2 = new Date(String(bs.hold_expire).replace(' ', 'T') + 'Z');
+          return (exp1 > now) || (exp2 > now);
         }
         return false;
       });
@@ -512,15 +524,12 @@ async function query(sql, params = []) {
       const bookingId = parseInt(params[0], 10);
       let list = memory.booking_seats.filter((bs) => bs.booking_id === bookingId);
       if (normalized.includes("status = 'holding'")) {
- loc-update
         list = list.filter((bs) => {
           if (bs.status !== 'holding') return false;
-          const exp = new Date(String(bs.hold_expire).replace(' ', 'T') + 'Z');
-          return exp > now;
+          const exp1 = new Date(String(bs.hold_expire).replace(' ', 'T'));
+          const exp2 = new Date(String(bs.hold_expire).replace(' ', 'T') + 'Z');
+          return (exp1 > now) || (exp2 > now);
         });
-
-        list = list.filter((bs) => bs.status === 'holding');
- main
       }
       return list.map((bs) => {
         const st = memory.seats.find((s) => s.id === bs.seat_id);
@@ -1213,6 +1222,75 @@ async function query(sql, params = []) {
       }
     }
     return { affectedRows: room ? 1 : 0 };
+  }
+
+  if (normalized.startsWith('delete from cinema_rooms')) {
+    const id = parseInt(params[0], 10);
+    memory.rooms = memory.rooms.filter((r) => r.id !== id);
+    memory.seats = memory.seats.filter((s) => s.room_id !== id);
+    return { affectedRows: 1 };
+  }
+
+  if (normalized.startsWith('update customers')) {
+    const id = parseInt(params[params.length - 1], 10);
+    const cust = memory.customers.find((c) => c.id === id || c.user_id === id);
+    if (cust) {
+      if (normalized.includes('membership_level = ?')) {
+        if (params[0] !== undefined) cust.name = params[0];
+        if (params[1] !== undefined) cust.email = params[1];
+        if (params[2] !== undefined) cust.phone = params[2];
+        if (params[3] !== undefined) cust.membership_level = params[3];
+      } else {
+        if (params[0] !== undefined) cust.name = params[0];
+        if (params[1] !== undefined) cust.email = params[1];
+        if (params[2] !== undefined) cust.phone = params[2];
+      }
+    }
+    return { affectedRows: cust ? 1 : 0 };
+  }
+
+  if (normalized.startsWith('update users')) {
+    const id = parseInt(params[params.length - 1], 10);
+    const u = memory.users.find((user) => user.id === id);
+    if (u) {
+      if (normalized.includes('password = ?')) {
+        u.password = params[0];
+      } else if (normalized.includes('role_id = ?')) {
+        u.role_id = parseInt(params[0], 10);
+      }
+    }
+    return { affectedRows: u ? 1 : 0 };
+  }
+
+  if (normalized.startsWith('insert into employees')) {
+    const newId = memory.employees.length > 0 ? Math.max(...memory.employees.map((e) => e.id)) + 1 : 1;
+    const newEmp = {
+      id: newId,
+      user_id: parseInt(params[0], 10),
+      name: params[1],
+      phone: params[2] || '',
+      email: params[3] || '',
+      position: params[4] || 'Nhân viên',
+      department: params[5] || 'Vận Hành Rạp',
+      status: params[6] || 'active',
+      salary: 10000000,
+    };
+    memory.employees.push(newEmp);
+    return { insertId: newId, affectedRows: 1 };
+  }
+
+  if (normalized.startsWith('update employees')) {
+    const id = parseInt(params[params.length - 1], 10);
+    const emp = memory.employees.find((e) => e.id === id || e.user_id === id);
+    if (emp) {
+      if (params[0] !== undefined) emp.name = params[0];
+      if (params[1] !== undefined) emp.phone = params[1];
+      if (params[2] !== undefined) emp.email = params[2];
+      if (params[3] !== undefined) emp.position = params[3];
+      if (params[4] !== undefined) emp.department = params[4];
+      if (params[5] !== undefined) emp.status = params[5];
+    }
+    return { affectedRows: emp ? 1 : 0 };
   }
 
   // D. Equipment Mutations
