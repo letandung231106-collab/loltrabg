@@ -484,8 +484,9 @@ async function query(sql, params = []) {
         if (!b) return false;
         if (bs.status === 'booked') return true;
         if (bs.status === 'holding') {
-          const exp = new Date(String(bs.hold_expire).replace(' ', 'T') + 'Z');
-          return exp > now;
+          const exp1 = new Date(String(bs.hold_expire).replace(' ', 'T'));
+          const exp2 = new Date(String(bs.hold_expire).replace(' ', 'T') + 'Z');
+          return (exp1 > now) || (exp2 > now);
         }
         return false;
       });
@@ -512,15 +513,12 @@ async function query(sql, params = []) {
       const bookingId = parseInt(params[0], 10);
       let list = memory.booking_seats.filter((bs) => bs.booking_id === bookingId);
       if (normalized.includes("status = 'holding'")) {
- loc-update
         list = list.filter((bs) => {
           if (bs.status !== 'holding') return false;
-          const exp = new Date(String(bs.hold_expire).replace(' ', 'T') + 'Z');
-          return exp > now;
+          const exp1 = new Date(String(bs.hold_expire).replace(' ', 'T'));
+          const exp2 = new Date(String(bs.hold_expire).replace(' ', 'T') + 'Z');
+          return (exp1 > now) || (exp2 > now);
         });
-
-        list = list.filter((bs) => bs.status === 'holding');
- main
       }
       return list.map((bs) => {
         const st = memory.seats.find((s) => s.id === bs.seat_id);
