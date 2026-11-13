@@ -200,8 +200,7 @@ async function query(sql, params = []) {
       const bookingId = parseInt(params[0], 10);
       let list = memory.booking_seats.filter((bs) => bs.booking_id === bookingId);
       if (normalized.includes("status = 'holding'")) {
-        const now = new Date();
-        list = list.filter((bs) => bs.status === 'holding' && new Date(bs.hold_expire) > now);
+        list = list.filter((bs) => bs.status === 'holding');
       }
       return list.map((bs) => {
         const st = memory.seats.find((s) => s.id === bs.seat_id);
