@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { api } from '../../services/api';
 import { useBooking } from '../../context/BookingContext';
 import { useAuth } from '../../context/AuthContext';
@@ -33,13 +33,19 @@ export function BookingFlowPage({
     }
   }, [initialIssuedTickets]);
 
+  const isModalOpenRef = useRef(false);
+  isModalOpenRef.current = isPaymentOpen || isConcessionOpen;
+
   useEffect(() => {
     if (!scheduleId || initialIssuedTickets) return;
 
     fetchSeatMap();
 
     // Auto-refresh sơ đồ ghế thời gian thực mỗi 4s để cập nhật ghế giữ/đã đặt
+    // Tự động tạm ngưng khi tab trình duyệt bị ẩn hoặc đang mở modal thanh toán/combo
     const interval = setInterval(() => {
+      if (document.hidden || isModalOpenRef.current) return;
+
       api.getScheduleSeatMap(scheduleId)
         .then((res) => {
           if (res.success && res.data) {

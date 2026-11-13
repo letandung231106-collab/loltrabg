@@ -138,11 +138,12 @@ async function runNewFeatureTests() {
   check(updateSched.status === 200, 'PUT /api/schedules/:id cập nhật giá vé & định dạng suất chiếu');
 
   // 10. Test Employee Creation (POST /api/employees)
+  const empUser = `tech_expert_${Date.now() % 100000}`;
   const createEmp = await req(
     'POST',
     '/employees',
     {
-      username: 'tech_expert1',
+      username: empUser,
       password: 'password123',
       name: 'Vũ Hoàng Nam (KTV Trưởng)',
       phone: '0933445566',
@@ -182,10 +183,10 @@ async function runNewFeatureTests() {
     `Điểm TB: ${getReviews.data?.data?.averageRating}/5 (${getReviews.data?.data?.totalReviews} nhận xét)`
   );
 
-  // 14. Test Movie Review POST (POST /api/movies/:id/reviews)
+  // 14. Test Movie Review POST - Verified Buyer (Phim 4: khách hàng An đã mua vé)
   const postReview = await req(
     'POST',
-    '/movies/1/reviews',
+    '/movies/4/reviews',
     {
       rating: 5,
       comment: 'Trải nghiệm xem phim tuyệt vời, màn hình sắc nét và ghế ngồi rất thoải mái!',
@@ -193,8 +194,23 @@ async function runNewFeatureTests() {
     custToken
   );
   check(
-    postReview.status === 201 && postReview.data?.data?.rating === 5,
-    'POST /api/movies/1/reviews khách hàng gửi đánh giá & bình luận 5 sao thành công'
+    postReview.status === 201 && postReview.data?.data?.rating === 5 && postReview.data?.data?.is_verified_buyer === 1,
+    'POST /api/movies/4/reviews khách hàng đã mua vé nhận đúng huy hiệu Verified Spectator (is_verified_buyer = 1)'
+  );
+
+  // 14b. Test Movie Review POST - Unverified Buyer (Phim 2: khách hàng An CHƯA mua vé)
+  const unverifiedReview = await req(
+    'POST',
+    '/movies/2/reviews',
+    {
+      rating: 4,
+      comment: 'Hóng phim này chiếu lại quá!',
+    },
+    custToken
+  );
+  check(
+    unverifiedReview.status === 201 && unverifiedReview.data?.data?.is_verified_buyer === 0,
+    'POST /api/movies/2/reviews khách chưa mua vé KHÔNG có huy hiệu (is_verified_buyer = 0)'
   );
 
   // 15. Test Movie Review Validation (rating ngoài phạm vi 1-5)
@@ -210,6 +226,51 @@ async function runNewFeatureTests() {
   check(
     invalidReview.status === 400,
     'POST /api/movies/1/reviews kiểm tra dữ liệu đầu vào chặn rating không hợp lệ (>5 sao)'
+  );
+
+  // 16. Test Movie Review Anti-Spam (chặn gửi trùng phim 4 trong vòng 60s)
+  const spamReview = await req(
+    'POST',
+    '/movies/4/reviews',
+    {
+      rating: 4,
+      comment: 'Thử gửi đánh giá spam liên tục...',
+    },
+    custToken
+  );
+  check(
+    spamReview.status === 429,
+    'POST /api/movies/4/reviews chặn đánh giá spam liên tục trong 60 giây (429 Too Many Requests)'
+  );
+
+  // 17. Test Cross-Room Seat Hold Guard
+  // Ghế ID 1 thuộc phòng 1, nhưng ta thử giữ nó trong suất chiếu của phòng 2 (suất 2)
+  const crossRoomHold = await req(
+    'POST',
+    '/bookings/hold',
+    {
+      screening_id: 2,
+      seat_ids: [1], // ID 1 là của phòng 1, suất 2 chiếu ở phòng 2
+    },
+    custToken
+  );
+  check(
+    crossRoomHold.status === 400 || crossRoomHold.data?.message?.includes('phòng chiếu'),
+    'POST /api/bookings/hold chặn giữ ghế không thuộc phòng chiếu của suất chiếu'
+  );
+
+  // 18. Test Concession Order Validation (chặn số lượng <= 0)
+  const invalidConcession = await req(
+    'POST',
+    '/concessions/sell',
+    {
+      items: [{ id: 1, name: 'Bắp Rang Bơ', quantity: 0, price: 45000 }],
+    },
+    adminToken
+  );
+  check(
+    invalidConcession.status === 400,
+    'POST /api/concessions/sell chặn đơn hàng có số lượng món <= 0'
   );
 
   console.log('\n================================================================');

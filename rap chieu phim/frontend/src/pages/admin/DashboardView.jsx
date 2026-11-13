@@ -288,68 +288,61 @@ export function DashboardView({ onNavigateTab }) {
         </div>
 
         <div className="h-72 w-full pt-2">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart
-              data={
-                analytics?.dailyRevenue && analytics.dailyRevenue.length > 0
-                  ? analytics.dailyRevenue
-                  : [
-                      { date: 'T2', total_revenue: 12000000, tickets_count: 140 },
-                      { date: 'T3', total_revenue: 15500000, tickets_count: 185 },
-                      { date: 'T4', total_revenue: 19800000, tickets_count: 230 },
-                      { date: 'T5', total_revenue: 16400000, tickets_count: 195 },
-                      { date: 'T6', total_revenue: 28500000, tickets_count: 340 },
-                      { date: 'T7', total_revenue: 38200000, tickets_count: 450 },
-                      { date: 'CN', total_revenue: 35000000, tickets_count: 410 },
-                    ]
-              }
-            >
-              <defs>
-                <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#ef4444" stopOpacity={0.4} />
-                  <stop offset="95%" stopColor="#ef4444" stopOpacity={0.0} />
-                </linearGradient>
-                <linearGradient id="colorTickets" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.4} />
-                  <stop offset="95%" stopColor="#f59e0b" stopOpacity={0.0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#263145" />
-              <XAxis dataKey="date" stroke="#64748b" tick={{ fontSize: 11 }} />
-              <YAxis yAxisId="left" stroke="#ef4444" tick={{ fontSize: 10 }} />
-              <YAxis yAxisId="right" orientation="right" stroke="#f59e0b" tick={{ fontSize: 10 }} />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: '#0d1117',
-                  borderColor: '#384661',
-                  borderRadius: '12px',
-                  fontSize: '12px',
-                }}
-                formatter={(val, name) => [
-                  name === 'total_revenue' ? `${parseFloat(val).toLocaleString('vi-VN')} VNĐ` : `${val} vé`,
-                  name === 'total_revenue' ? 'Doanh Thu' : 'Số Vé',
-                ]}
-              />
-              <Area
-                yAxisId="left"
-                type="monotone"
-                dataKey="total_revenue"
-                stroke="#ef4444"
-                strokeWidth={3}
-                fillOpacity={1}
-                fill="url(#colorRev)"
-              />
-              <Area
-                yAxisId="right"
-                type="monotone"
-                dataKey="tickets_count"
-                stroke="#f59e0b"
-                strokeWidth={2}
-                fillOpacity={1}
-                fill="url(#colorTickets)"
-              />
-            </AreaChart>
-          </ResponsiveContainer>
+          {analytics?.dailyRevenue && analytics.dailyRevenue.length > 0 ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={analytics.dailyRevenue}>
+                <defs>
+                  <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#ef4444" stopOpacity={0.4} />
+                    <stop offset="95%" stopColor="#ef4444" stopOpacity={0.0} />
+                  </linearGradient>
+                  <linearGradient id="colorTickets" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.4} />
+                    <stop offset="95%" stopColor="#f59e0b" stopOpacity={0.0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#263145" />
+                <XAxis dataKey="date" stroke="#64748b" tick={{ fontSize: 11 }} />
+                <YAxis yAxisId="left" stroke="#ef4444" tick={{ fontSize: 10 }} />
+                <YAxis yAxisId="right" orientation="right" stroke="#f59e0b" tick={{ fontSize: 10 }} />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: '#0d1117',
+                    borderColor: '#384661',
+                    borderRadius: '12px',
+                    fontSize: '12px',
+                  }}
+                  formatter={(val, name) => [
+                    name === 'total_revenue' ? `${parseFloat(val).toLocaleString('vi-VN')} VNĐ` : `${val} vé`,
+                    name === 'total_revenue' ? 'Doanh Thu' : 'Số Vé',
+                  ]}
+                />
+                <Area
+                  yAxisId="left"
+                  type="monotone"
+                  dataKey="total_revenue"
+                  stroke="#ef4444"
+                  strokeWidth={3}
+                  fillOpacity={1}
+                  fill="url(#colorRev)"
+                />
+                <Area
+                  yAxisId="right"
+                  type="monotone"
+                  dataKey="tickets_count"
+                  stroke="#f59e0b"
+                  strokeWidth={2}
+                  fillOpacity={1}
+                  fill="url(#colorTickets)"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-full flex flex-col items-center justify-center text-slate-500 text-xs">
+              <TrendingUp className="w-8 h-8 text-slate-600 mb-2 stroke-[1.5]" />
+              Chưa có dữ liệu giao dịch trong 7 ngày qua.
+            </div>
+          )}
         </div>
       </div>
 
@@ -386,54 +379,72 @@ export function DashboardView({ onNavigateTab }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-cinema-800/60 font-medium">
-              {(analytics?.topMovies || []).map((m, idx) => (
-                <tr key={m.id || idx} className="hover:bg-cinema-850/50 transition-colors">
-                  <td className="py-3.5 px-3">
-                    <span
-                      className={`w-7 h-7 rounded-xl flex items-center justify-center font-black font-mono text-xs ${
-                        idx === 0
-                          ? 'bg-amber-500 text-black shadow-glow-amber'
-                          : idx === 1
-                          ? 'bg-slate-300 text-black'
-                          : idx === 2
-                          ? 'bg-amber-700 text-white'
-                          : 'bg-cinema-800 text-slate-400'
-                      }`}
-                    >
-                      {idx + 1}
-                    </span>
-                  </td>
-                  <td className="py-3.5 px-4">
-                    <div className="flex items-center gap-3">
-                      {m.poster && (
-                        <img
-                          src={m.poster}
-                          alt={m.name}
-                          className="w-8 h-11 object-cover rounded-lg shadow-sm border border-cinema-700"
-                        />
-                      )}
-                      <div>
-                        <div className="font-extrabold text-white text-sm">{m.name}</div>
-                        <div className="text-[10px] text-slate-400">ID Phim: #{m.id}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="py-3.5 px-3 text-center">
-                    <span className="px-2.5 py-1 rounded-full bg-cinema-800 text-amber-300 font-mono font-bold">
-                      {m.total_tickets || Math.floor(Math.random() * 200 + 50)} vé
-                    </span>
-                  </td>
-                  <td className="py-3.5 px-4 text-right font-mono font-black text-white text-sm">
-                    {parseFloat(m.total_revenue || 12000000).toLocaleString('vi-VN')}{' '}
-                    <span className="text-[10px] font-normal text-slate-400">VNĐ</span>
-                  </td>
-                  <td className="py-3.5 px-3 text-center">
-                    <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 font-mono font-bold text-[11px]">
-                      {Math.max(8, Math.round(100 / (idx + 2)))}%
-                    </span>
+              {(analytics?.topMovies || []).length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="py-8 text-center text-slate-500 text-xs">
+                    Chưa có dữ liệu bán vé phim.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                (() => {
+                  const totalTicketsAll = (analytics?.topMovies || []).reduce(
+                    (sum, m) => sum + (Number(m.total_tickets || m.tickets_sold) || 0),
+                    0
+                  );
+                  return (analytics?.topMovies || []).map((m, idx) => {
+                    const tickets = Number(m.total_tickets || m.tickets_sold) || 0;
+                    const pct = totalTicketsAll > 0 ? Math.round((tickets / totalTicketsAll) * 100) : 0;
+                    return (
+                      <tr key={m.id || idx} className="hover:bg-cinema-850/50 transition-colors">
+                        <td className="py-3.5 px-3">
+                          <span
+                            className={`w-7 h-7 rounded-xl flex items-center justify-center font-black font-mono text-xs ${
+                              idx === 0
+                                ? 'bg-amber-500 text-black shadow-glow-amber'
+                                : idx === 1
+                                ? 'bg-slate-300 text-black'
+                                : idx === 2
+                                ? 'bg-amber-700 text-white'
+                                : 'bg-cinema-800 text-slate-400'
+                            }`}
+                          >
+                            {idx + 1}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <div className="flex items-center gap-3">
+                            {m.poster && (
+                              <img
+                                src={m.poster}
+                                alt={m.name}
+                                className="w-8 h-11 object-cover rounded-lg shadow-sm border border-cinema-700"
+                              />
+                            )}
+                            <div>
+                              <div className="font-extrabold text-white text-sm">{m.name}</div>
+                              <div className="text-[10px] text-slate-400">ID Phim: #{m.id}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-3 text-center">
+                          <span className="px-2.5 py-1 rounded-full bg-cinema-800 text-amber-300 font-mono font-bold">
+                            {tickets} vé
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 text-right font-mono font-black text-white text-sm">
+                          {parseFloat(m.total_revenue || 0).toLocaleString('vi-VN')}{' '}
+                          <span className="text-[10px] font-normal text-slate-400">VNĐ</span>
+                        </td>
+                        <td className="py-3.5 px-3 text-center">
+                          <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 font-mono font-bold text-[11px]">
+                            {pct}%
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  });
+                })()
+              )}
             </tbody>
           </table>
         </div>

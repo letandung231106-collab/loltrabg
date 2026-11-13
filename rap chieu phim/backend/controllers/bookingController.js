@@ -65,9 +65,21 @@ async function holdSeats(req, res, next) {
 
       // Lấy thông tin giá từng loại ghế
       const [seatsInfo] = await conn.query(
-        `SELECT id, row_number, seat_number, seat_type FROM seats WHERE id IN (?)`,
+        `SELECT id, room_id, row_number, seat_number, seat_type FROM seats WHERE id IN (?)`,
         [seat_ids]
       );
+
+      if (!seatsInfo || seatsInfo.length !== seat_ids.length) {
+        throw new Error('Một số ghế được chọn không tồn tại trong hệ thống.');
+      }
+
+      // Xác thực nghiêm ngặt: Tất cả ghế phải thuộc chính xác phòng chiếu của suất chiếu này
+      const invalidRoomSeats = seatsInfo.filter(
+        (s) => s.room_id && s.room_id !== schedule.room_id
+      );
+      if (invalidRoomSeats.length > 0) {
+        throw new Error('Một số ghế được chọn không thuộc phòng chiếu của suất này.');
+      }
 
       let totalAmount = 0;
       const basePrice = parseFloat(schedule.ticket_price);

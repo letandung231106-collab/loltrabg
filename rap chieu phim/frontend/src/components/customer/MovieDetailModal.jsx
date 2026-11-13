@@ -474,9 +474,11 @@ export function MovieDetailModal({ isOpen, onClose, movie, onSelectSchedule }) {
                           {r.user_name?.[0]?.toUpperCase() || 'K'}
                         </div>
                         <span className="text-xs font-bold text-white">{r.user_name || 'Khán giả'}</span>
-                        <span className="text-[10px] px-1.5 py-0.2 rounded bg-cinema-800 text-emerald-400 font-medium">
-                          ✓ Đã xem rạp
-                        </span>
+                        {Boolean(r.is_verified_buyer) && (
+                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-cinema-800 text-emerald-400 font-medium">
+                            ✓ Đã xem rạp
+                          </span>
+                        )}
                       </div>
                       <div className="flex items-center text-amber-400">
                         {[1, 2, 3, 4, 5].map((star) => (

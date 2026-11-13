@@ -107,17 +107,37 @@ async function sellConcessionOrder(req, res, next) {
       });
     }
 
+    // Xác thực số lượng và đơn giá từng món
+    for (const item of items) {
+      const qty = parseInt(item.quantity, 10);
+      const prc = parseFloat(item.price);
+      if (isNaN(qty) || qty <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: `Số lượng món '${item.name || item.id}' phải lớn hơn 0.`,
+        });
+      }
+      if (isNaN(prc) || prc < 0) {
+        return res.status(400).json({
+          success: false,
+          message: `Đơn giá món '${item.name || item.id}' không hợp lệ.`,
+        });
+      }
+    }
+
     // Lấy công thức BOM
     const recipes = await db.query(`SELECT * FROM concession_recipes`, []);
     let totalAmount = 0;
 
     // Trừ kho nguyên liệu
     for (const orderItem of items) {
-      totalAmount += orderItem.price * orderItem.quantity;
+      const qty = parseInt(orderItem.quantity, 10);
+      const prc = parseFloat(orderItem.price);
+      totalAmount += prc * qty;
       const itemRecipes = recipes.filter((r) => r.item_id === orderItem.id);
 
       for (const recipe of itemRecipes) {
-        const usageQuantity = -(recipe.quantity_used * orderItem.quantity);
+        const usageQuantity = -(recipe.quantity_used * qty);
         await db.query(
           `INSERT INTO inventory_logs (ingredient_id, change_type, quantity, reason, employee_id)
            VALUES (?, ?, ?, ?, ?)`,

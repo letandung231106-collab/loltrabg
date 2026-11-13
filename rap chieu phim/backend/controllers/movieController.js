@@ -284,16 +284,52 @@ async function addMovieReview(req, res, next) {
       });
     }
 
-    if (!comment || comment.trim().length === 0) {
+    if (!comment || typeof comment !== 'string' || comment.trim().length === 0) {
       return res.status(400).json({
         success: false,
         message: 'Vui lòng nhập nội dung nhận xét phim.',
       });
     }
 
+    // Làm sạch comment, loại bỏ thẻ HTML tiềm ẩn mã độc XSS
+    const cleanComment = comment.replace(/<[^>]*>?/gm, '').trim();
+    if (!cleanComment) {
+      return res.status(400).json({
+        success: false,
+        message: 'Nội dung nhận xét phim chứa ký tự không hợp lệ.',
+      });
+    }
+
+    // Chống spam: Kiểm tra xem người dùng có vừa gửi đánh giá cho phim này trong vòng 60s không
+    const recentReviews = await db.query(
+      `SELECT id, created_at FROM movie_reviews WHERE movie_id = ? AND user_id = ? ORDER BY created_at DESC LIMIT 1`,
+      [id, userId]
+    );
+    if (recentReviews && recentReviews.length > 0) {
+      const lastCreated = new Date(recentReviews[0].created_at).getTime();
+      if (!isNaN(lastCreated) && Date.now() - lastCreated < 60000) {
+        return res.status(429).json({
+          success: false,
+          message: 'Bạn vừa gửi đánh giá cho phim này. Vui lòng chờ 1 phút trước khi gửi lại.',
+        });
+      }
+    }
+
+    // Xác thực nghiêm ngặt: Kiểm tra xem người dùng có vé hợp lệ/đã xem rạp phim này hay không
+    const customerId = req.user?.customerId || req.user?.id;
+    const ticketCheck = await db.query(
+      `SELECT t.id FROM tickets t 
+       JOIN screening_schedules s ON t.screening_id = s.id 
+       JOIN bookings b ON t.booking_id = b.id 
+       WHERE s.movie_id = ? AND (b.customer_id = ? OR t.customer_id = ? OR b.customer_id = ? OR t.customer_id = ?) AND (b.status = 'paid' OR t.status IN ('active', 'used'))
+       LIMIT 1`,
+      [id, customerId, customerId, userId, userId]
+    );
+    const isVerifiedBuyer = ticketCheck && ticketCheck.length > 0 ? 1 : 0;
+
     const result = await db.query(
-      `INSERT INTO movie_reviews (movie_id, user_id, user_name, rating, comment) VALUES (?, ?, ?, ?, ?)`,
-      [id, userId, userName, numRating, comment.trim()]
+      `INSERT INTO movie_reviews (movie_id, user_id, user_name, rating, comment, is_verified_buyer) VALUES (?, ?, ?, ?, ?, ?)`,
+      [id, userId, userName, numRating, cleanComment, isVerifiedBuyer]
     );
 
     return res.status(201).json({
@@ -305,7 +341,8 @@ async function addMovieReview(req, res, next) {
         user_id: userId,
         user_name: userName,
         rating: numRating,
-        comment: comment.trim(),
+        comment: cleanComment,
+        is_verified_buyer: isVerifiedBuyer,
         created_at: new Date().toISOString(),
       },
     });

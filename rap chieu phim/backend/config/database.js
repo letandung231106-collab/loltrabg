@@ -310,6 +310,11 @@ async function query(sql, params = []) {
   // 2.1. MOVIE REVIEWS (Đánh giá & Bình luận phim)
   // =========================================================================
   if (normalized.startsWith('select') && normalized.includes('from movie_reviews')) {
+    if (normalized.includes('where movie_id = ? and user_id = ?')) {
+      const movieId = parseInt(params[0], 10);
+      const userId = parseInt(params[1], 10);
+      return (memory.movie_reviews || []).filter((r) => r.movie_id === movieId && r.user_id === userId);
+    }
     if (normalized.includes('where movie_id = ?')) {
       const movieId = parseInt(params[0], 10);
       const reviews = (memory.movie_reviews || []).filter((r) => r.movie_id === movieId);
@@ -646,6 +651,19 @@ async function query(sql, params = []) {
         total_amount: b?.total_amount || 100000,
       };
     });
+
+    if (normalized.includes('s.movie_id = ?')) {
+      const movieId = parseInt(params[0], 10);
+      const custId = parseInt(params[1], 10);
+      const custId2 = params[3] ? parseInt(params[3], 10) : custId;
+      return list.filter((t) => {
+        const s = memory.schedules.find((item) => item.id === t.screening_id);
+        const b = memory.bookings.find((item) => item.id === t.booking_id);
+        const mId = s ? s.movie_id : null;
+        const matchesCustomer = t.customer_id === custId || b?.customer_id === custId || t.customer_id === custId2 || b?.customer_id === custId2;
+        return mId === movieId && matchesCustomer && ['active', 'used'].includes(t.status);
+      });
+    }
 
     if (normalized.includes('where t.id = ?') || normalized.includes('where id = ?')) {
       const tId = parseInt(params[0], 10);
@@ -1107,7 +1125,8 @@ async function query(sql, params = []) {
       user_name: params[2] || 'Khách hàng',
       rating: parseInt(params[3], 10) || 5,
       comment: params[4] || '',
-      created_at: now.toISOString().slice(0, 19).replace('T', ' '),
+      is_verified_buyer: params[5] ? 1 : 0,
+      created_at: new Date().toISOString(),
     };
     if (!memory.movie_reviews) memory.movie_reviews = [];
     memory.movie_reviews.unshift(newReview);

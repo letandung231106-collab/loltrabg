@@ -115,13 +115,15 @@ async function verifyTicket(req, res, next) {
               s.start_time, s.end_time,
               r.name AS room_name,
               st.row_number, st.seat_number,
-              c.name AS customer_name
+              c.name AS customer_name,
+              b.status AS booking_status
        FROM tickets t
        JOIN screening_schedules s ON t.screening_id = s.id
        JOIN movies m ON s.movie_id = m.id
        JOIN cinema_rooms r ON s.room_id = r.id
        JOIN seats st ON t.seat_id = st.id
        JOIN customers c ON t.customer_id = c.id
+       JOIN bookings b ON t.booking_id = b.id
        WHERE t.ticket_code = ?`,
       [ticket_code]
     );
@@ -134,6 +136,28 @@ async function verifyTicket(req, res, next) {
     }
 
     const ticket = tickets[0];
+
+    // 1. Kiểm tra đơn hàng đã thanh toán thành công chưa
+    if (ticket.booking_status && ticket.booking_status !== 'paid') {
+      return res.status(400).json({
+        success: false,
+        message: 'Vé thuộc đơn hàng chưa thanh toán hợp lệ.',
+        data: ticket,
+      });
+    }
+
+    // 2. Kiểm tra thời hạn suất chiếu: Từ chối nếu suất chiếu đã kết thúc hơn 4 tiếng
+    if (ticket.end_time) {
+      const endTime = new Date(ticket.end_time);
+      const fourHoursAfter = new Date(endTime.getTime() + 4 * 60 * 60 * 1000);
+      if (new Date() > fourHoursAfter) {
+        return res.status(400).json({
+          success: false,
+          message: 'Suất chiếu của vé này đã kết thúc quá 4 tiếng. Vé không còn hiệu lực vào rạp.',
+          data: ticket,
+        });
+      }
+    }
 
     if (ticket.status === 'used') {
       return res.status(400).json({
