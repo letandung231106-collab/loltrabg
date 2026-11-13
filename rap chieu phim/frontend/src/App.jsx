@@ -7,6 +7,7 @@ import { Header } from './components/common/Header';
 import { LoginModal } from './components/common/LoginModal';
 import { LuckyWheelModal } from './components/customer/LuckyWheelModal';
 import { InSeatDeliveryModal } from './components/customer/InSeatDeliveryModal';
+import { CinemaBotModal } from './components/customer/CinemaBotModal';
 import { HomePage } from './pages/customer/HomePage';
 import { MoviesPage } from './pages/customer/MoviesPage';
 import { SchedulesPage } from './pages/customer/SchedulesPage';
@@ -255,6 +256,15 @@ function MainApp() {
       <InSeatDeliveryModal
         isOpen={isInSeatDeliveryOpen}
         onClose={() => setIsInSeatDeliveryOpen(false)}
+      />
+
+      {/* AI CinemaBot Voice & Chat Assistant */}
+      <CinemaBotModal
+        onSelectMovie={handleSelectMovie}
+        onSelectSchedule={handleSelectSchedule}
+        onNavigate={handleNavigate}
+        onOpenLuckyWheel={() => setIsLuckyWheelOpen(true)}
+        onOpenInSeatDelivery={() => setIsInSeatDeliveryOpen(true)}
       />
     </div>
   );

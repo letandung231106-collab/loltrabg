@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import { TicketCard } from '../../components/customer/TicketCard';
 import { TicketDetailModal } from '../../components/customer/TicketDetailModal';
+import { SeatNavigatorModal } from '../../components/customer/SeatNavigatorModal';
 import { Ticket, Film, AlertCircle, RefreshCw, Eye } from 'lucide-react';
 
 export function MyTicketsPage({ onNavigateBooking }) {
@@ -9,6 +10,7 @@ export function MyTicketsPage({ onNavigateBooking }) {
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState({ text: '', type: '' });
   const [selectedTicket, setSelectedTicket] = useState(null);
+  const [navigatorTicket, setNavigatorTicket] = useState(null);
 
   useEffect(() => {
     fetchMyTickets();
@@ -101,6 +103,7 @@ export function MyTicketsPage({ onNavigateBooking }) {
               ticket={ticket}
               onCancel={handleCancelTicket}
               onSelectDetail={(t) => setSelectedTicket(t)}
+              onOpenNavigator={(t) => setNavigatorTicket(t)}
             />
           ))}
         </div>
@@ -112,6 +115,13 @@ export function MyTicketsPage({ onNavigateBooking }) {
         isOpen={Boolean(selectedTicket)}
         onClose={() => setSelectedTicket(null)}
         onCancelTicket={handleCancelTicket}
+      />
+
+      {/* In-Theater Seat Navigator in Darkness Modal */}
+      <SeatNavigatorModal
+        ticket={navigatorTicket}
+        isOpen={Boolean(navigatorTicket)}
+        onClose={() => setNavigatorTicket(null)}
       />
     </div>
   );

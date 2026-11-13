@@ -1,8 +1,8 @@
 import React from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { Film, Calendar, Clock, MapPin, CheckCircle, Sparkles, XCircle, Eye } from 'lucide-react';
+import { Film, Calendar, Clock, MapPin, CheckCircle, Sparkles, XCircle, Eye, Compass } from 'lucide-react';
 
-export function TicketCard({ ticket, onCancel, onSelectDetail }) {
+export function TicketCard({ ticket, onCancel, onSelectDetail, onOpenNavigator }) {
   const isUsed = ticket.status === 'used';
   const isCancelled = ticket.status === 'cancelled';
   const isActive = ticket.status === 'active';
@@ -43,7 +43,7 @@ export function TicketCard({ ticket, onCancel, onSelectDetail }) {
               VÉ ĐIỆN TỬ NIGHT MOVIE
             </div>
             <span className="text-[11px] text-amber-400 group-hover:text-amber-300 font-bold flex items-center gap-1 opacity-90">
-              <Eye className="w-3.5 h-3.5" /> Bấm để xem chi tiết
+              <Eye className="w-3.5 h-3.5" /> Bấm xem chi tiết
             </span>
           </div>
 
@@ -75,7 +75,7 @@ export function TicketCard({ ticket, onCancel, onSelectDetail }) {
           </div>
         </div>
 
-        {/* Seat Badge & Code */}
+        {/* Seat Badge & In-Theater Navigator Action */}
         <div className="pt-3 border-t border-cinema-700/60 flex items-center justify-between flex-wrap gap-2">
           <div>
             <div className="text-[10px] text-slate-400">VỊ TRÍ GHẾ</div>
@@ -83,6 +83,22 @@ export function TicketCard({ ticket, onCancel, onSelectDetail }) {
               HÀNG {ticket.row_number} - GHẾ {ticket.seat_number}
             </div>
           </div>
+
+          {/* Dẫn đường tìm ghế trong bóng tối */}
+          {isActive && onOpenNavigator && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenNavigator(ticket);
+              }}
+              className="px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
+              title="Hướng dẫn di chuyển và soi đèn tìm ghế"
+            >
+              <Compass className="w-3.5 h-3.5 text-amber-400 animate-spin" style={{ animationDuration: '6s' }} />
+              <span>Dẫn Đường Vào Ghế</span>
+            </button>
+          )}
+
           <div>
             <div className="text-[10px] text-slate-400 text-right">MÃ VÉ</div>
             <div className="text-xs font-mono font-bold text-slate-200">{ticket.ticket_code}</div>
@@ -91,7 +107,7 @@ export function TicketCard({ ticket, onCancel, onSelectDetail }) {
 
         {/* Cancel Action if applicable */}
         {isActive && onCancel && (
-          <div className="mt-4 pt-2 text-right">
+          <div className="mt-3 pt-2 text-right">
             <button
               onClick={(e) => {
                 e.stopPropagation();
