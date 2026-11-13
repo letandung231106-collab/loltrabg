@@ -426,7 +426,17 @@ async function query(sql, params = []) {
       list = list.filter((s) => s.status !== 'cancelled');
     }
 
+    // In scheduleController, clauses are appended in order: date -> movie_id -> room_id -> status
     let pIdx = 0;
+    if (normalized.includes('and date(s.start_time) = ?')) {
+      const dateStr = params[pIdx++];
+      const matched = list.filter((s) => String(s.start_time).slice(0, 10) === dateStr);
+      if (matched.length > 0) {
+        list = matched;
+      } else {
+        list = list.filter((s) => String(s.start_time).slice(0, 10) === todayStr);
+      }
+    }
     if (normalized.includes('and s.movie_id = ?')) {
       const mId = parseInt(params[pIdx++], 10);
       list = list.filter((s) => s.movie_id === mId);
@@ -434,17 +444,6 @@ async function query(sql, params = []) {
     if (normalized.includes('and s.room_id = ?')) {
       const rId = parseInt(params[pIdx++], 10);
       list = list.filter((s) => s.room_id === rId);
-    }
-    if (normalized.includes('and date(s.start_time) = ?')) {
-      const dateStr = params[pIdx++];
-      const matched = list.filter((s) => String(s.start_time).slice(0, 10) === dateStr);
-      // If user selects a future date on demo calendar that has no explicit seed rows,
-      // project today's scheduled screenings onto that date so demo browsing works on all 7 days!
-      if (matched.length > 0) {
-        list = matched;
-      } else {
-        list = list.filter((s) => String(s.start_time).slice(0, 10) === todayStr);
-      }
     }
     if (normalized.includes('and s.status = ?')) {
       const st = params[pIdx++];
