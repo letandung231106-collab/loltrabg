@@ -2,14 +2,18 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import { Calendar, Clock, Film, MapPin, Sparkles, ChevronRight, Ticket, Filter } from 'lucide-react';
 
-export function SchedulesPage({ onSelectSchedule }) {
+export function SchedulesPage({ onSelectSchedule, initialMovieId = 'all' }) {
   const [schedules, setSchedules] = useState([]);
   const [movies, setMovies] = useState([]);
   const [rooms, setRooms] = useState([]);
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const [selectedMovieId, setSelectedMovieId] = useState('all');
+  const [selectedMovieId, setSelectedMovieId] = useState(initialMovieId || 'all');
   const [selectedRoomType, setSelectedRoomType] = useState('all');
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setSelectedMovieId(initialMovieId || 'all');
+  }, [initialMovieId]);
 
   // Generate 7 days for the date selector
   const dateOptions = Array.from({ length: 7 }).map((_, idx) => {

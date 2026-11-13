@@ -34,6 +34,7 @@ function MainApp() {
   const [currentView, setCurrentView] = useState('home'); // 'home' | 'movies' | 'schedules' | 'booking-flow' | 'my-tickets' | 'admin-dashboard'
   const [adminTab, setAdminTab] = useState('dashboard');
   const [selectedScheduleId, setSelectedScheduleId] = useState(null);
+  const [selectedMovieIdFilter, setSelectedMovieIdFilter] = useState('all');
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
 
   // Navigate to schedule booking flow
@@ -45,11 +46,19 @@ function MainApp() {
 
   // Navigate to schedules view for a specific movie
   const handleSelectMovie = (movie) => {
+    if (movie && movie.id) {
+      setSelectedMovieIdFilter(String(movie.id));
+    } else {
+      setSelectedMovieIdFilter('all');
+    }
     setCurrentView('schedules');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleNavigate = (view) => {
+    if (view === 'schedules') {
+      setSelectedMovieIdFilter('all');
+    }
     setCurrentView(view);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -78,7 +87,10 @@ function MainApp() {
         )}
 
         {currentView === 'schedules' && (
-          <SchedulesPage onSelectSchedule={handleSelectSchedule} />
+          <SchedulesPage
+            onSelectSchedule={handleSelectSchedule}
+            initialMovieId={selectedMovieIdFilter}
+          />
         )}
 
         {currentView === 'booking-flow' && (

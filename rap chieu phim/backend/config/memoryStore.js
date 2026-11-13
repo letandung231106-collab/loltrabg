@@ -220,6 +220,8 @@ let seatIdCounter = 1;
 });
 
 const todayStr = new Date().toISOString().slice(0, 10);
+const tomorrowDate = new Date(); tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+const tomorrowStr = tomorrowDate.toISOString().slice(0, 10);
 const schedules = [
   { id: 1, movie_id: 1, room_id: 4, start_time: `${todayStr} 14:00:00`, end_time: `${todayStr} 16:50:00`, format: 'IMAX 2D Phụ đề', ticket_price: 150000, status: 'screening' },
   { id: 2, movie_id: 1, room_id: 4, start_time: `${todayStr} 18:00:00`, end_time: `${todayStr} 20:50:00`, format: 'IMAX 2D Phụ đề', ticket_price: 160000, status: 'scheduled' },
