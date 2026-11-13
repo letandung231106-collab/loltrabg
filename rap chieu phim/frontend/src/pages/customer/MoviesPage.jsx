@@ -111,10 +111,6 @@ export function MoviesPage({ onSelectMovie }) {
                   alt={movie.name}
                   className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                   loading="lazy"
-                  onError={(e) => {
-                    e.target.onerror = null;
-                    e.target.src = 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?q=80&w=800';
-                  }}
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-cinema-950 via-transparent to-transparent opacity-90" />
                 <div className="absolute top-2.5 left-2.5 flex flex-col gap-1">

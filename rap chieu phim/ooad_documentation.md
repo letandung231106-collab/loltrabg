@@ -27,7 +27,6 @@
    - 4.9. Lập lịch chiếu với kiểm tra ràng buộc phòng & thiết bị
 5. [Class Diagram](#5-class-diagram)
 6. [Business Rules (Quy tắc nghiệp vụ cốt lõi)](#6-business-rules)
-7. [Định hướng mở rộng & Phát triển tương lai (Future Roadmap)](#7-định-hướng-mở-rộng--phát-triển-tương-lai)
 
 ---
 
@@ -827,54 +826,3 @@ classDiagram
 | **BR14** | Thẩm quyền đóng sự cố | Chỉ có Manager hoặc Admin mới có quyền nghiệm thu và chuyển sự cố sang trạng thái `closed`. |
 | **BR15** | Lưu vết lịch sử bảo trì & sự cố | Toàn bộ các thao tác thay đổi linh kiện, chi phí, giải pháp xử lý bắt buộc phải ghi log vào `incident_histories`. |
 | **BR16** | Checklist kích hoạt sự cố tự động | Trong quá trình kiểm tra phòng 9 tiêu chí, nếu có bất kỳ hạng mục nào bị đánh dấu `fail`, hệ thống tự động sinh 1 bản ghi `incidents` tương ứng. |
-
----
-
-## 7. ĐỊNH HƯỚNG MỞ RỘNG & PHÁT TRIỂN TƯƠNG LAI (FUTURE ROADMAP)
-
-Dựa trên nền tảng kiến trúc vững chắc hiện tại của đồ án OOAD (đã hoàn thiện 22 lớp thực thể, phân quyền 5 Actors RBAC, giao dịch MySQL InnoDB Row-level Lock), hệ thống định hướng mở rộng thành một hệ sinh thái rạp chiếu phim thế hệ mới theo 5 trụ cột chiến lược:
-
-### 7.1. Phân Hệ Trải Nghiệm Khách Hàng (Customer Experience 4.0)
-1. **Sơ đồ ghế 3D góc nhìn thực tế (3D Seat View Simulation):**
-   * Sử dụng thư viện WebGL / Three.js để mô phỏng không gian khán phòng 3D.
-   * Khách hàng có thể nhấn vào từng ghế (Standard, VIP, Sweetbox) để "nhìn thử" góc nhìn thực tế tới màn chiếu, kiểm tra độ dốc và loại trừ các góc khuất.
-2. **Đặt trước Combo Bắp Nước (F&B Express Fast-Track):**
-   * Tích hợp giỏ hàng chọn bắp, nước, snack ngay sau bước chọn ghế.
-   * Sinh mã QR nhận F&B riêng biệt; khi đến rạp, khách hàng đi vào luồng nhận nhanh "Fast Track" để nhận phần ăn mà không phải xếp hàng thanh toán.
-3. **Vé động chống gian lận & Hỗ trợ Apple/Google Wallet:**
-   * Tích hợp lưu thẻ vé xem phim trực tiếp vào Apple Wallet / Google Wallet.
-   * Mã QR động (Dynamic QR / TOTP) làm mới mỗi 30 giây để ngăn chặn tình trạng chụp ảnh màn hình bán lại vé lậu.
-4. **Chia tiền vé nhóm (Split-Bill & Group Booking):**
-   * Một người đại diện giữ một cụm ghế và tạo link chia tiền; các thành viên trong nhóm có thời gian quy định (10–15 phút) để thanh toán phần ghế của mình.
-
-### 7.2. Phân Hệ Tối Ưu Doanh Thu & Giá Động (Dynamic Pricing Engine)
-1. **Thuật toán định giá động (Dynamic Pricing):**
-   * Tự động điều chỉnh giá vé dựa trên nhu cầu thời gian thực: Tăng giá vé vào khung giờ cao điểm (tối thứ 6, cuối tuần), các vị trí ghế trung tâm đẹp của phim bom tấn; đồng thời tự động giảm giá sâu các suất sáng sớm/khuya muộn để kích cầu và tối ưu tỷ lệ lấp đầy phòng chiếu.
-2. **Gói thành viên Cinema Pass (Subscription Model):**
-   * Cung cấp gói thuê bao xem phim cố định theo tháng (tương tự AMC Stubs A-List), tích điểm đổi quà và các ưu đãi thành viên hạng VIP, Diamond.
-
-### 7.3. Phân Hệ Vận Hành Thông Minh & Tự Động Hóa IoT (Smart Cinema & IoT)
-1. **Tự động hóa phòng chiếu Green Cinema:**
-   * Tích hợp bộ điều khiển phần cứng IoT (MQTT / Zigbee): Tự động bật máy lạnh phòng chiếu trước giờ phim 15 phút, tự động làm mờ đèn khán phòng khi phim bắt đầu chiếu và bật sáng đèn dọn dẹp khi hết phần credit.
-   * Tự động tắt toàn bộ thiết bị phòng chiếu khi không có lịch chiếu kế tiếp, tiết kiệm tới 25% điện năng tiêu thụ.
-2. **Bảo trì dự đoán (Predictive Maintenance):**
-   * Lũy kế số giờ hoạt động thực tế của bóng đèn máy chiếu Laser, động cơ máy lạnh và màng loa âm thanh.
-   * Đưa ra cảnh báo chủ động cho Kỹ thuật viên khi linh kiện đạt 80%–90% tuổi thọ khuyến nghị, ngăn ngừa sự cố gián đoạn suất chiếu.
-3. **Bảng hiển thị số sảnh chờ (Digital Signage Real-time):**
-   * Đồng bộ dữ liệu qua WebSocket: Màn hình lớn tại sảnh rạp tự động hiển thị tình trạng vé các suất sắp chiếu, quầy gọi số nhận bắp nước theo thời gian thực.
-
-### 7.4. Phân Hệ Ứng Dụng AI & Xử Lý Ngôn Ngữ Tự Nhiên
-1. **Trợ lý AI tư vấn phim (AI Movie Concierge):**
-   * Chatbot AI tích hợp mô hình ngôn ngữ lớn (LLM): Hiểu câu hỏi tự nhiên của khách (*"Tìm giúp mình phim kinh dị hoặc trinh thám chiếu sau 20h tối nay cho 2 người ở phòng IMAX"*) và tự động gợi ý suất chiếu + chuyển thẳng sang màn hình chọn ghế.
-2. **Hệ thống gợi ý phim cá nhân hóa (Recommendation Engine):**
-   * Ứng dụng giải thuật lọc cộng tác (Collaborative Filtering) và lọc dựa trên nội dung (Content-based Filtering) dựa trên lịch sử mua vé và diễn viên/đạo diễn yêu thích của khách hàng.
-3. **Phân tích cảm xúc phản hồi (Review Sentiment Analysis):**
-   * Tự động quét và phân loại mức độ hài lòng của khán giả từ đánh giá văn bản (Positive, Neutral, Negative), giúp ban quản lý nhanh chóng phát hiện các phàn nàn về vệ sinh, máy lạnh hay phục vụ tại rạp.
-
-### 7.5. Thiết Kế Mở Rộng Mô Hình OOAD (Proposed OOAD Extensions)
-Để hiện thực hóa các định hướng trên, hệ thống có thể mở rộng thêm các lớp thực thể trong mô hình Class Diagram:
-* **Gói F&B:** `FoodItem`, `ComboPackage`, `BookingFoodItem` (kết hợp với `Booking`).
-* **Gói Dynamic Pricing:** `DynamicPricingRule`, `PriceModifier` (áp dụng chiến lược *Strategy Pattern* để tính giá linh hoạt).
-* **Gói Khách Hàng VIP:** `MembershipTier`, `CinemaPassSubscription`, `RewardPoint`.
-* **Gói IoT & Thiết Bị:** `IoTDeviceController`, `EquipmentTelemetryLog` (kế thừa hoặc liên kết với `Equipment`).
-* **Gói AI & Đánh Giá:** `MovieRecommendation`, `MovieReview`, `SentimentLog`.

@@ -7,31 +7,18 @@ import { PaymentModal } from '../../components/customer/PaymentModal';
 import { TicketCard } from '../../components/customer/TicketCard';
 import { ArrowLeft, Clock, Calendar, Film, MapPin, AlertTriangle, CheckCircle, RefreshCw } from 'lucide-react';
 
-export function BookingFlowPage({
-  scheduleId,
-  onBack,
-  onNavigateMyTickets,
-  onOpenAuth,
-  initialIssuedTickets = null,
-}) {
+export function BookingFlowPage({ scheduleId, onBack, onNavigateMyTickets, onOpenAuth }) {
   const { setSelectedSchedule, proceedToHoldSeats, cancelHold, activeBooking, isHolding, resetBookingState } = useBooking();
   const { isAuthenticated } = useAuth();
 
   const [scheduleData, setScheduleData] = useState(null);
-  const [loading, setLoading] = useState(Boolean(scheduleId) && !initialIssuedTickets);
+  const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
-  const [issuedTickets, setIssuedTickets] = useState(initialIssuedTickets);
+  const [issuedTickets, setIssuedTickets] = useState(null);
 
   useEffect(() => {
-    if (initialIssuedTickets) {
-      setIssuedTickets(initialIssuedTickets);
-      setLoading(false);
-    }
-  }, [initialIssuedTickets]);
-
-  useEffect(() => {
-    if (scheduleId && !initialIssuedTickets) {
+    if (scheduleId) {
       fetchSeatMap();
     }
     return () => {
