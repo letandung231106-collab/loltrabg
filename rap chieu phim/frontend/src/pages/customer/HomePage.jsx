@@ -52,6 +52,10 @@ export function HomePage({ onSelectMovie, onSelectSchedule, onNavigate }) {
               src={spotlightMovie.poster}
               alt={spotlightMovie.name}
               className="w-full h-full object-cover object-center scale-105 filter brightness-75 transition-transform duration-1000 hover:scale-100"
+              onError={(e) => {
+                e.target.onerror = null;
+                e.target.src = 'https://image.tmdb.org/t/p/w780/1pdfLvkbY9ohJlCjQH2CZjjYVvJ.jpg';
+              }}
             />
             {/* Gradient Overlays */}
             <div className="absolute inset-0 bg-gradient-to-t from-cinema-950 via-cinema-950/60 to-transparent" />
@@ -195,6 +199,10 @@ export function HomePage({ onSelectMovie, onSelectSchedule, onNavigate }) {
                       alt={movie.name}
                       className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                       loading="lazy"
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.src = 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?q=80&w=800';
+                      }}
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-cinema-950 via-transparent to-transparent opacity-90" />
 

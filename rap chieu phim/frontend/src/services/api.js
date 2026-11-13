@@ -73,6 +73,8 @@ export const api = {
 
   // Payments & Tickets
   processPayment: (paymentData) => request('/payments/process', { method: 'POST', body: JSON.stringify(paymentData) }),
+  createMomoPayment: (data) => request('/payments/momo/create', { method: 'POST', body: JSON.stringify(data) }),
+  verifyMomoReturn: (data) => request('/payments/momo/momo-return', { method: 'POST', body: JSON.stringify(data) }),
   getAllTickets: (params = {}) => {
     const query = new URLSearchParams(params).toString();
     return request(`/tickets${query ? `?${query}` : ''}`);
