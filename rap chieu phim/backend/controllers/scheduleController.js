@@ -311,9 +311,99 @@ async function cancelSchedule(req, res, next) {
   }
 }
 
+/**
+ * Cập nhật thông tin suất chiếu
+ */
+async function updateSchedule(req, res, next) {
+  try {
+    const { id } = req.params;
+    const { movie_id, room_id, start_time, ticket_price, format, status } = req.body;
+
+    const existingSchedules = await db.query(`SELECT * FROM screening_schedules WHERE id = ?`, [id]);
+    if (!existingSchedules || existingSchedules.length === 0) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy suất chiếu.' });
+    }
+    const current = existingSchedules[0];
+
+    const targetMovieId = movie_id || current.movie_id;
+    const targetRoomId = room_id || current.room_id;
+    const targetStartTime = start_time || current.start_time;
+
+    // Tính end_time
+    const movies = await db.query(`SELECT id, name, duration FROM movies WHERE id = ?`, [targetMovieId]);
+    if (!movies || movies.length === 0) {
+      return res.status(400).json({ success: false, message: 'Phim không tồn tại.' });
+    }
+    const movie = movies[0];
+
+    const startDateTime = new Date(targetStartTime);
+    const endDateTime = new Date(startDateTime.getTime() + (movie.duration + 20) * 60000);
+    const pad = (n) => String(n).padStart(2, '0');
+    const endTimeStr = `${endDateTime.getFullYear()}-${pad(endDateTime.getMonth() + 1)}-${pad(endDateTime.getDate())} ` +
+      `${pad(endDateTime.getHours())}:${pad(endDateTime.getMinutes())}:${pad(endDateTime.getSeconds())}`;
+
+    // Kiểm tra BR02
+    const rooms = await db.query(`SELECT id, name, status FROM cinema_rooms WHERE id = ?`, [targetRoomId]);
+    if (rooms && rooms.length > 0 && ['maintenance', 'incident'].includes(rooms[0].status)) {
+      return res.status(400).json({
+        success: false,
+        message: `BR02: Không thể xếp lịch cho phòng ${rooms[0].name} vì đang trong trạng thái ${rooms[0].status.toUpperCase()}.`,
+      });
+    }
+
+    // Kiểm tra BR01 xung đột (trừ chính suất chiếu này)
+    const conflicts = await db.query(
+      `SELECT s.id, s.start_time, s.end_time, m.name AS movie_name
+       FROM screening_schedules s
+       JOIN movies m ON s.movie_id = m.id
+       WHERE s.room_id = ? 
+         AND s.id != ?
+         AND s.status IN ('scheduled', 'screening')
+         AND (
+           (? >= s.start_time AND ? < s.end_time)
+           OR (? > s.start_time AND ? <= s.end_time)
+           OR (? <= s.start_time AND ? >= s.end_time)
+         )`,
+      [targetRoomId, id, targetStartTime, targetStartTime, endTimeStr, endTimeStr, targetStartTime, endTimeStr]
+    );
+
+    if (conflicts.length > 0) {
+      const c = conflicts[0];
+      return res.status(409).json({
+        success: false,
+        message: `BR01: Xung đột lịch chiếu! Phòng đã có suất chiếu phim "${c.movie_name}" từ ${c.start_time} đến ${c.end_time}.`,
+      });
+    }
+
+    await db.query(
+      `UPDATE screening_schedules
+       SET movie_id = ?, room_id = ?, start_time = ?, end_time = ?, ticket_price = ?, format = ?, status = ?
+       WHERE id = ?`,
+      [
+        targetMovieId,
+        targetRoomId,
+        targetStartTime,
+        endTimeStr,
+        ticket_price !== undefined ? ticket_price : current.ticket_price,
+        format || current.format,
+        status || current.status,
+        id,
+      ]
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: `Đã cập nhật suất chiếu thành công!`,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   getSchedules,
   getScheduleSeatMap,
   createSchedule,
   cancelSchedule,
+  updateSchedule,
 };

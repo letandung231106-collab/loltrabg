@@ -7,6 +7,7 @@ const { authorizeRoles } = require('../middlewares/roleMiddleware');
 router.get('/', scheduleController.getSchedules);
 router.get('/:id/seats', scheduleController.getScheduleSeatMap);
 router.post('/', authenticateToken, authorizeRoles('admin', 'manager'), scheduleController.createSchedule);
+router.put('/:id', authenticateToken, authorizeRoles('admin', 'manager'), scheduleController.updateSchedule);
 router.delete('/:id', authenticateToken, authorizeRoles('admin', 'manager'), scheduleController.cancelSchedule);
 
 module.exports = router;

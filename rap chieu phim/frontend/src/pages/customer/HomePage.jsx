@@ -3,6 +3,7 @@ import { api } from '../../services/api';
 import { Play, Calendar, Clock, Star, Film, Sparkles, Flame, ChevronRight, Ticket, Video, Volume2 } from 'lucide-react';
 import { cinemaSound } from '../../services/cinemaSound';
 import { TrailerModal } from '../../components/customer/TrailerModal';
+import { MovieDetailModal } from '../../components/customer/MovieDetailModal';
 
 export function HomePage({ onSelectMovie, onSelectSchedule, onNavigate }) {
   const [movies, setMovies] = useState([]);
@@ -10,6 +11,7 @@ export function HomePage({ onSelectMovie, onSelectSchedule, onNavigate }) {
   const [activeTab, setActiveTab] = useState('now_showing'); // 'now_showing' | 'coming_soon'
   const [selectedGenre, setSelectedGenre] = useState('all');
   const [trailerData, setTrailerData] = useState({ isOpen: false, url: '', name: '' });
+  const [detailMovie, setDetailMovie] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -92,13 +94,20 @@ export function HomePage({ onSelectMovie, onSelectSchedule, onNavigate }) {
                 <span>{spotlightMovie.genre}</span>
               </div>
 
-              <div className="flex items-center gap-3 pt-2">
+              <div className="flex flex-wrap items-center gap-3 pt-2">
                 <button
                   onClick={() => onSelectMovie(spotlightMovie)}
                   className="px-6 py-3.5 rounded-xl bg-gradient-to-r from-ruby-600 to-rose-600 hover:from-ruby-500 hover:to-rose-500 text-white font-extrabold text-sm shadow-glow-red transition-all flex items-center gap-2 hover:scale-105"
                 >
                   <Ticket className="w-4 h-4" />
                   Đặt Vé Ngay
+                </button>
+                <button
+                  onClick={() => setDetailMovie(spotlightMovie)}
+                  className="px-5 py-3.5 rounded-xl bg-cinema-800/80 hover:bg-cinema-700 text-white font-bold text-sm border border-cinema-600/60 backdrop-blur-md transition-all flex items-center gap-2"
+                >
+                  <Film className="w-4 h-4 text-ruby-400" />
+                  Chi Tiết Phim
                 </button>
                 <button
                   onClick={() =>
@@ -108,10 +117,10 @@ export function HomePage({ onSelectMovie, onSelectSchedule, onNavigate }) {
                       name: spotlightMovie.name,
                     })
                   }
-                  className="px-5 py-3.5 rounded-xl bg-cinema-800/80 hover:bg-cinema-700 text-white font-bold text-sm border border-cinema-600/60 backdrop-blur-md transition-all flex items-center gap-2"
+                  className="px-4 py-3.5 rounded-xl bg-cinema-800/80 hover:bg-cinema-700 text-slate-300 hover:text-white font-semibold text-sm border border-cinema-600/60 backdrop-blur-md transition-all flex items-center gap-2"
                 >
                   <Play className="w-4 h-4 text-ruby-400 fill-ruby-400" />
-                  Xem Trailer
+                  Trailer
                 </button>
                 <button
                   type="button"
@@ -203,7 +212,10 @@ export function HomePage({ onSelectMovie, onSelectSchedule, onNavigate }) {
                   className="group relative glass-panel rounded-2xl overflow-hidden border border-cinema-700/60 shadow-xl transition-all duration-300 hover:border-ruby-500/60 hover:shadow-glow-red hover:-translate-y-1.5 flex flex-col"
                 >
                   {/* Poster Thumbnail */}
-                  <div className="relative aspect-[2/3] overflow-hidden bg-cinema-900">
+                  <div
+                    onClick={() => setDetailMovie(movie)}
+                    className="relative aspect-[2/3] overflow-hidden bg-cinema-900 cursor-pointer"
+                  >
                     <img
                       src={movie.poster}
                       alt={movie.name}
@@ -243,7 +255,7 @@ export function HomePage({ onSelectMovie, onSelectSchedule, onNavigate }) {
 
                   {/* Movie Info */}
                   <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
-                    <div>
+                    <div onClick={() => setDetailMovie(movie)} className="cursor-pointer">
                       <div className="text-[11px] text-ruby-400 font-semibold truncate mb-1">
                         {movie.genre}
                       </div>
@@ -259,14 +271,23 @@ export function HomePage({ onSelectMovie, onSelectSchedule, onNavigate }) {
                       </div>
                     </div>
 
-                    {/* Action Button */}
-                    <button
-                      onClick={() => onSelectMovie(movie)}
-                      className="w-full py-2.5 rounded-xl bg-cinema-800 hover:bg-ruby-600 text-white text-xs font-bold transition-colors flex items-center justify-center gap-1.5 border border-cinema-600/50 group-hover:border-ruby-500"
-                    >
-                      <Ticket className="w-3.5 h-3.5" />
-                      Xem Suất Chiếu
-                    </button>
+                    {/* Action Buttons */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        onClick={() => setDetailMovie(movie)}
+                        className="py-2 rounded-xl bg-cinema-850 hover:bg-cinema-800 text-slate-300 hover:text-white text-xs font-bold transition-colors flex items-center justify-center gap-1 border border-cinema-700/60"
+                        title="Xem chi tiết nội dung, diễn viên & lịch chiếu"
+                      >
+                        <Film className="w-3.5 h-3.5 text-ruby-400" /> Chi Tiết
+                      </button>
+                      <button
+                        onClick={() => onSelectMovie(movie)}
+                        className="py-2 rounded-xl bg-ruby-600 hover:bg-ruby-500 text-white text-xs font-bold transition-all shadow-glow-red flex items-center justify-center gap-1"
+                        title="Xem các suất chiếu để đặt vé"
+                      >
+                        <Ticket className="w-3.5 h-3.5" /> Đặt Vé
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -323,6 +344,18 @@ export function HomePage({ onSelectMovie, onSelectSchedule, onNavigate }) {
         onClose={() => setTrailerData({ isOpen: false, url: '', name: '' })}
         trailerUrl={trailerData.url}
         movieName={trailerData.name}
+      />
+
+      {/* Full Movie Detail & Screening Modal */}
+      <MovieDetailModal
+        isOpen={Boolean(detailMovie)}
+        movie={detailMovie}
+        onClose={() => setDetailMovie(null)}
+        onSelectSchedule={(schedId) => {
+          setDetailMovie(null);
+          if (onSelectSchedule) onSelectSchedule(schedId);
+          else onSelectMovie(detailMovie);
+        }}
       />
     </div>
   );

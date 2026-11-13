@@ -5,6 +5,7 @@ import { api } from './services/api';
 import confetti from 'canvas-confetti';
 import { Header } from './components/common/Header';
 import { LoginModal } from './components/common/LoginModal';
+import { UserProfileModal } from './components/customer/UserProfileModal';
 import { LuckyWheelModal } from './components/customer/LuckyWheelModal';
 import { InSeatDeliveryModal } from './components/customer/InSeatDeliveryModal';
 import { CinemaBotModal } from './components/customer/CinemaBotModal';
@@ -42,6 +43,7 @@ function MainApp() {
   const [selectedScheduleId, setSelectedScheduleId] = useState(null);
   const [selectedMovieIdFilter, setSelectedMovieIdFilter] = useState('all');
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isLuckyWheelOpen, setIsLuckyWheelOpen] = useState(false);
   const [isInSeatDeliveryOpen, setIsInSeatDeliveryOpen] = useState(false);
   const [momoIssuedTickets, setMomoIssuedTickets] = useState(null);
@@ -126,6 +128,7 @@ function MainApp() {
         {/* Global Navigation Header */}
         <Header
           onOpenAuth={() => setIsLoginModalOpen(true)}
+          onOpenProfile={() => setIsProfileModalOpen(true)}
           onNavigate={handleNavigate}
           currentView={currentView}
           onOpenLuckyWheel={() => setIsLuckyWheelOpen(true)}
@@ -163,7 +166,10 @@ function MainApp() {
         )}
 
         {currentView === 'movies' && (
-          <MoviesPage onSelectMovie={handleSelectMovie} />
+          <MoviesPage
+            onSelectMovie={handleSelectMovie}
+            onSelectSchedule={handleSelectSchedule}
+          />
         )}
 
         {currentView === 'schedules' && (
@@ -242,6 +248,16 @@ function MainApp() {
       <LoginModal
         isOpen={isLoginModalOpen}
         onClose={() => setIsLoginModalOpen(false)}
+      />
+
+      {/* User Profile & Password Change Modal */}
+      <UserProfileModal
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+        onNavigateMyTickets={() => {
+          setIsProfileModalOpen(false);
+          setCurrentView('my-tickets');
+        }}
       />
 
       {/* Lucky Wheel Modal */}

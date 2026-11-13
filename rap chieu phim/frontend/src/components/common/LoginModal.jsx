@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { api } from '../../services/api';
 import { X, Lock, User, Mail, Phone, KeyRound, Sparkles, CheckCircle } from 'lucide-react';
 
 export function LoginModal({ isOpen, onClose }) {
   const { login, register, switchRole, loading } = useAuth();
   const [isRegisterMode, setIsRegisterMode] = useState(false);
+  const [isForgotMode, setIsForgotMode] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
@@ -14,6 +16,8 @@ export function LoginModal({ isOpen, onClose }) {
     name: '',
     email: '',
     phone: '',
+    forgotIdentifier: '',
+    forgotNewPassword: 'password123',
   });
 
   if (!isOpen) return null;
@@ -22,6 +26,26 @@ export function LoginModal({ isOpen, onClose }) {
     e.preventDefault();
     setErrorMsg('');
     setSuccessMsg('');
+
+    if (isForgotMode) {
+      try {
+        const res = await api.forgotPassword({
+          username: formData.forgotIdentifier.includes('@') ? undefined : formData.forgotIdentifier,
+          email: formData.forgotIdentifier.includes('@') ? formData.forgotIdentifier : undefined,
+          newPassword: formData.forgotNewPassword || 'password123',
+        });
+        if (res.success) {
+          setSuccessMsg(res.message);
+          setTimeout(() => {
+            setIsForgotMode(false);
+            setFormData((prev) => ({ ...prev, password: prev.forgotNewPassword || 'password123' }));
+          }, 1500);
+        }
+      } catch (err) {
+        setErrorMsg(err.message || 'Lỗi khôi phục mật khẩu.');
+      }
+      return;
+    }
 
     if (isRegisterMode) {
       const res = await register(formData);
@@ -45,6 +69,7 @@ export function LoginModal({ isOpen, onClose }) {
   const handleQuickFill = (u, p) => {
     setFormData((prev) => ({ ...prev, username: u, password: p }));
     setIsRegisterMode(false);
+    setIsForgotMode(false);
   };
 
   return (
@@ -67,10 +92,12 @@ export function LoginModal({ isOpen, onClose }) {
             <Lock className="w-6 h-6" />
           </div>
           <h3 className="text-2xl font-extrabold text-white">
-            {isRegisterMode ? 'Đăng Ký Khách Hàng' : 'Đăng Nhập Hệ Thống'}
+            {isForgotMode ? 'Khôi Phục Mật Khẩu' : isRegisterMode ? 'Đăng Ký Khách Hàng' : 'Đăng Nhập Hệ Thống'}
           </h3>
           <p className="text-xs text-slate-400 mt-1">
-            Hệ Thống Quản Lý Vận Hành & Đặt Vé Rạp Phim (OOAD)
+            {isForgotMode
+              ? 'Nhập username hoặc email của bạn để cấp lại mật khẩu'
+              : 'Hệ Thống Quản Lý Vận Hành & Đặt Vé Rạp Phim (OOAD)'}
           </p>
         </div>
 
@@ -88,73 +115,123 @@ export function LoginModal({ isOpen, onClose }) {
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-3.5">
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">Tên đăng nhập</label>
-            <div className="relative">
-              <User className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                required
-                value={formData.username}
-                onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white text-sm focus:outline-none focus:border-ruby-500 focus:ring-1 focus:ring-ruby-500"
-                placeholder="Nhập username"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">Mật khẩu</label>
-            <div className="relative">
-              <KeyRound className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="password"
-                required
-                value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white text-sm focus:outline-none focus:border-ruby-500 focus:ring-1 focus:ring-ruby-500"
-                placeholder="Nhập password"
-              />
-            </div>
-          </div>
-
-          {isRegisterMode && (
+          {isForgotMode ? (
             <>
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Họ và tên</label>
-                <input
-                  type="text"
-                  required
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-4 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white text-sm focus:outline-none focus:border-ruby-500"
-                  placeholder="Nguyễn Văn A"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Email</label>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Tên đăng nhập hoặc Email</label>
+                <div className="relative">
+                  <User className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
-                    type="email"
+                    type="text"
                     required
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="w-full px-4 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white text-sm focus:outline-none focus:border-ruby-500"
-                    placeholder="email@example.com"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Số điện thoại</label>
-                  <input
-                    type="tel"
-                    required
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    className="w-full px-4 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white text-sm focus:outline-none focus:border-ruby-500"
-                    placeholder="0901234567"
+                    value={formData.forgotIdentifier}
+                    onChange={(e) => setFormData({ ...formData, forgotIdentifier: e.target.value })}
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white text-sm focus:outline-none focus:border-ruby-500"
+                    placeholder="customer1 hoặc email@example.com"
                   />
                 </div>
               </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Mật khẩu mới muốn đặt</label>
+                <div className="relative">
+                  <KeyRound className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="password"
+                    required
+                    value={formData.forgotNewPassword}
+                    onChange={(e) => setFormData({ ...formData, forgotNewPassword: e.target.value })}
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white text-sm focus:outline-none focus:border-ruby-500"
+                    placeholder="Mật khẩu mới (ví dụ: password123)"
+                  />
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Tên đăng nhập</label>
+                <div className="relative">
+                  <User className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    required
+                    value={formData.username}
+                    onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white text-sm focus:outline-none focus:border-ruby-500 focus:ring-1 focus:ring-ruby-500"
+                    placeholder="Nhập username"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-semibold text-slate-300">Mật khẩu</label>
+                  {!isRegisterMode && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsForgotMode(true);
+                        setErrorMsg('');
+                        setSuccessMsg('');
+                      }}
+                      className="text-[11px] text-ruby-400 hover:text-ruby-300 font-semibold"
+                    >
+                      Quên mật khẩu?
+                    </button>
+                  )}
+                </div>
+                <div className="relative">
+                  <KeyRound className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="password"
+                    required
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white text-sm focus:outline-none focus:border-ruby-500 focus:ring-1 focus:ring-ruby-500"
+                    placeholder="Nhập password"
+                  />
+                </div>
+              </div>
+
+              {isRegisterMode && (
+                <>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Họ và tên</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      className="w-full px-4 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white text-sm focus:outline-none focus:border-ruby-500"
+                      placeholder="Nguyễn Văn A"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1">Email</label>
+                      <input
+                        type="email"
+                        required
+                        value={formData.email}
+                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                        className="w-full px-4 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white text-sm focus:outline-none focus:border-ruby-500"
+                        placeholder="email@example.com"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1">Số điện thoại</label>
+                      <input
+                        type="tel"
+                        required
+                        value={formData.phone}
+                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                        className="w-full px-4 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white text-sm focus:outline-none focus:border-ruby-500"
+                        placeholder="0901234567"
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
             </>
           )}
 
@@ -163,12 +240,12 @@ export function LoginModal({ isOpen, onClose }) {
             disabled={loading}
             className="w-full py-3 rounded-xl bg-gradient-to-r from-ruby-600 via-ruby-700 to-rose-700 hover:from-ruby-500 hover:to-rose-600 text-white font-bold text-sm shadow-glow-red transition-all mt-4 disabled:opacity-50"
           >
-            {loading ? 'Đang xử lý...' : isRegisterMode ? 'Đăng Ký Ngay' : 'Đăng Nhập'}
+            {loading ? 'Đang xử lý...' : isForgotMode ? 'Khôi Phục Mật Khẩu' : isRegisterMode ? 'Đăng Ký Ngay' : 'Đăng Nhập'}
           </button>
         </form>
 
         {/* Demo Accounts Cheat-sheet */}
-        {!isRegisterMode && (
+        {!isRegisterMode && !isForgotMode && (
           <div className="mt-6 pt-4 border-t border-cinema-700/60">
             <div className="text-[11px] font-bold text-gold-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5" /> Tài khoản mẫu (Bấm để điền nhanh):
@@ -212,7 +289,19 @@ export function LoginModal({ isOpen, onClose }) {
 
         {/* Toggle Mode */}
         <div className="mt-4 text-center text-xs text-slate-400">
-          {isRegisterMode ? (
+          {isForgotMode ? (
+            <button
+              type="button"
+              onClick={() => {
+                setIsForgotMode(false);
+                setErrorMsg('');
+                setSuccessMsg('');
+              }}
+              className="text-ruby-400 hover:underline font-bold"
+            >
+              ← Quay lại Đăng nhập
+            </button>
+          ) : isRegisterMode ? (
             <span>
               Đã có tài khoản?{' '}
               <button

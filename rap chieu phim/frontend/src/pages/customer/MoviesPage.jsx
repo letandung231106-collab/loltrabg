@@ -2,13 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import { Film, Search, Clock, Play, Ticket, Filter } from 'lucide-react';
 import { TrailerModal } from '../../components/customer/TrailerModal';
+import { MovieDetailModal } from '../../components/customer/MovieDetailModal';
 
-export function MoviesPage({ onSelectMovie }) {
+export function MoviesPage({ onSelectMovie, onSelectSchedule }) {
   const [movies, setMovies] = useState([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [genreFilter, setGenreFilter] = useState('all');
   const [trailerData, setTrailerData] = useState({ isOpen: false, url: '', name: '' });
+  const [detailMovie, setDetailMovie] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -105,7 +107,10 @@ export function MoviesPage({ onSelectMovie }) {
               key={movie.id}
               className="group glass-panel rounded-2xl overflow-hidden border border-cinema-700/60 shadow-xl transition-all duration-300 hover:border-ruby-500/60 hover:-translate-y-1.5 flex flex-col"
             >
-              <div className="relative aspect-[2/3] overflow-hidden bg-cinema-900">
+              <div
+                onClick={() => setDetailMovie(movie)}
+                className="relative aspect-[2/3] overflow-hidden bg-cinema-900 cursor-pointer"
+              >
                 <img
                   src={movie.poster}
                   alt={movie.name}
@@ -123,7 +128,10 @@ export function MoviesPage({ onSelectMovie }) {
                   </span>
                 </div>
                 <button
-                  onClick={() => setTrailerData({ isOpen: true, url: movie.trailer, name: movie.name })}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setTrailerData({ isOpen: true, url: movie.trailer, name: movie.name });
+                  }}
                   className="absolute bottom-3 right-3 w-8 h-8 rounded-full bg-black/70 hover:bg-ruby-600 text-white flex items-center justify-center transition-colors shadow-lg"
                   title="Xem trailer"
                 >
@@ -132,7 +140,7 @@ export function MoviesPage({ onSelectMovie }) {
               </div>
 
               <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
-                <div>
+                <div onClick={() => setDetailMovie(movie)} className="cursor-pointer">
                   <div className="text-[10px] text-ruby-400 font-semibold truncate mb-1">
                     {movie.genre}
                   </div>
@@ -144,13 +152,20 @@ export function MoviesPage({ onSelectMovie }) {
                   </div>
                 </div>
 
-                <button
-                  onClick={() => onSelectMovie(movie)}
-                  className="w-full py-2.5 rounded-xl bg-cinema-800 hover:bg-ruby-600 text-white text-xs font-bold transition-colors flex items-center justify-center gap-1.5 border border-cinema-600/50"
-                >
-                  <Ticket className="w-3.5 h-3.5" />
-                  Chọn Suất Chiếu
-                </button>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => setDetailMovie(movie)}
+                    className="py-2 rounded-xl bg-cinema-850 hover:bg-cinema-800 text-slate-300 hover:text-white text-xs font-bold transition-colors flex items-center justify-center gap-1 border border-cinema-700/60"
+                  >
+                    <Film className="w-3.5 h-3.5 text-ruby-400" /> Chi Tiết
+                  </button>
+                  <button
+                    onClick={() => onSelectMovie(movie)}
+                    className="py-2 rounded-xl bg-ruby-600 hover:bg-ruby-500 text-white text-xs font-bold transition-all shadow-glow-red flex items-center justify-center gap-1"
+                  >
+                    <Ticket className="w-3.5 h-3.5" /> Suất Chiếu
+                  </button>
+                </div>
               </div>
             </div>
           ))}
@@ -163,6 +178,18 @@ export function MoviesPage({ onSelectMovie }) {
         onClose={() => setTrailerData({ isOpen: false, url: '', name: '' })}
         trailerUrl={trailerData.url}
         movieName={trailerData.name}
+      />
+
+      {/* Movie Details & Schedules Modal */}
+      <MovieDetailModal
+        isOpen={Boolean(detailMovie)}
+        movie={detailMovie}
+        onClose={() => setDetailMovie(null)}
+        onSelectSchedule={(schedId) => {
+          setDetailMovie(null);
+          if (onSelectSchedule) onSelectSchedule(schedId);
+          else onSelectMovie(detailMovie);
+        }}
       />
     </div>
   );

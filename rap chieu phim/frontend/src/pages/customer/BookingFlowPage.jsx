@@ -105,6 +105,24 @@ export function BookingFlowPage({
     );
   }
 
+  if (!scheduleId && !issuedTickets) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-20 text-center space-y-5 animate-fade-in">
+        <Film className="w-16 h-16 text-slate-600 mx-auto" />
+        <h3 className="text-xl font-black text-white">Chưa Chọn Suất Chiếu</h3>
+        <p className="text-slate-400 text-xs sm:text-sm">
+          Vui lòng chọn phim và suất chiếu bạn muốn thưởng thức trước khi vào sơ đồ chọn ghế.
+        </p>
+        <button
+          onClick={onBack}
+          className="px-6 py-3 rounded-xl bg-ruby-600 hover:bg-ruby-500 text-white font-bold text-xs shadow-glow-red transition-all inline-flex items-center gap-2"
+        >
+          <Calendar className="w-4 h-4" /> Xem Danh Sách Lịch Chiếu
+        </button>
+      </div>
+    );
+  }
+
   // Màn hình hoàn tất đặt vé & Hiển thị vé điện tử
   if (issuedTickets) {
     return (

@@ -80,7 +80,40 @@ async function getCustomerById(req, res, next) {
   }
 }
 
+/**
+ * Cập nhật thông tin khách hàng & Hạng thẻ thành viên
+ */
+async function updateCustomer(req, res, next) {
+  try {
+    const { id } = req.params;
+    const { name, email, phone, membership_level } = req.body;
+
+    const existing = await db.query(`SELECT * FROM customers WHERE id = ?`, [id]);
+    if (!existing || existing.length === 0) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy khách hàng.' });
+    }
+
+    await db.query(
+      `UPDATE customers
+       SET name = COALESCE(?, name),
+           email = COALESCE(?, email),
+           phone = COALESCE(?, phone),
+           membership_level = COALESCE(?, membership_level)
+       WHERE id = ?`,
+      [name, email, phone, membership_level, id]
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: `Đã cập nhật thông tin khách hàng ${name || existing[0].name} thành công!`,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   getCustomers,
   getCustomerById,
+  updateCustomer,
 };
