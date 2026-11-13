@@ -233,15 +233,15 @@ function MainApp() {
               NIGHT <span className="text-ruby-500">MOVIE</span> CINEMA MANAGEMENT SYSTEM
             </div>
             <p className="max-w-md text-slate-400">
-              Đồ án môn học <strong>Phân tích và Thiết kế Hướng Đối Tượng (OOAD)</strong>. Hệ thống quản lý toàn diện rạp phim: Quản lý vận hành + Phòng chiếu & Thiết bị + Nhân sự & Sự cố + Đặt vé & Giữ ghế 10 phút.
+              Hệ thống rạp chiếu phim kỹ thuật số tiêu chuẩn quốc tế – Trải nghiệm điện ảnh đỉnh cao với âm thanh Dolby Atmos và màn hình IMAX Laser sắc nét.
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-4 text-xs font-semibold">
-            <span className="text-slate-300">Stack: React + Node.js/Express + MySQL (InnoDB)</span>
+          <div className="flex flex-wrap items-center gap-4 text-xs text-slate-400">
+            <span>© 2026 Night Movie Cinema. All rights reserved.</span>
             <span>•</span>
-            <span className="text-emerald-400">MySQL Workbench Ready</span>
+            <span className="text-slate-300">Hotline CSKH: 1900 6868</span>
             <span>•</span>
-            <span className="text-gold-400">OOAD Mermaid Diagrams Included</span>
+            <span className="text-slate-300">Email: contact@nightmovie.vn</span>
           </div>
         </div>
       </footer>

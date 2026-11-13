@@ -60,9 +60,9 @@ export function AdminLayout({ currentTab, onSelectTab, children }) {
           Tài khoản hiện tại của bạn là <strong>Khách Hàng (Customer)</strong>. Phân hệ Quản trị & Vận hành chỉ dành riêng cho Admin, Quản lý rạp, Nhân sự và Kỹ thuật viên (RBAC).
         </p>
         <div className="p-4 rounded-2xl bg-cinema-900 border border-cinema-700 max-w-md mx-auto text-xs text-left space-y-2">
-          <div className="font-bold text-gold-400">💡 Thử nghiệm đồ án (OOAD Quick Switch):</div>
+          <div className="font-bold text-ruby-400">🔒 Yêu cầu quyền truy cập:</div>
           <p className="text-slate-300">
-            Bạn hãy bấm vào nút <strong>👑 Admin</strong> hoặc <strong>👔 Manager</strong> trên thanh Demo Switcher ở đầu trang để chuyển vai trò và trải nghiệm toàn bộ các chức năng quản trị!
+            Vui lòng đăng nhập với tài khoản nhân viên hoặc quản trị viên (Admin, Manager, Staff hoặc Technician) để truy cập hệ thống quản lý rạp.
           </p>
         </div>
       </div>
@@ -121,7 +121,7 @@ export function AdminLayout({ currentTab, onSelectTab, children }) {
 
         {/* Footer info */}
         <div className="p-4 border-t border-cinema-700/60 text-[10px] text-slate-500 flex justify-between items-center">
-          <span>NIGHT MOVIE v1.0 (OOAD)</span>
+          <span>NIGHT MOVIE v1.0</span>
           <span className="text-emerald-400">● Live MySQL</span>
         </div>
       </aside>

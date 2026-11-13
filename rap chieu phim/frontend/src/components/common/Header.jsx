@@ -26,56 +26,12 @@ export function Header({
   onOpenInSeatDelivery,
   onOpenProfile,
 }) {
-  const { user, isAuthenticated, logout, switchRole, notifications, unreadNotifCount, isManager, isStaff, isTechnician } = useAuth();
-  const [showRoleMenu, setShowRoleMenu] = useState(false);
+  const { user, isAuthenticated, logout, notifications, unreadNotifCount, isManager, isStaff, isTechnician } = useAuth();
   const [showNotifMenu, setShowNotifMenu] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  const roles = [
-    { id: 'admin', label: '👑 Admin (Quản trị)', desc: 'Toàn quyền quản lý hệ thống' },
-    { id: 'manager', label: '👔 Manager (Quản lý)', desc: 'Lịch chiếu, vận hành & sự cố' },
-    { id: 'staff', label: '📋 Staff (Nhân viên)', desc: 'Checklist phòng & soát vé' },
-    { id: 'technician', label: '🔧 Technician (Kỹ thuật)', desc: 'Sửa chữa & bảo trì thiết bị' },
-    { id: 'customer', label: '🍿 Customer (Khách hàng)', desc: 'Xem phim, chọn ghế & mua vé' },
-  ];
-
-  const handleRoleSelect = async (roleId) => {
-    setShowRoleMenu(false);
-    await switchRole(roleId);
-  };
-
   return (
     <header className="sticky top-0 z-40 bg-cinema-950/85 backdrop-blur-md border-b border-cinema-700/50">
-      {/* 1-Click Fast Role Switcher Banner */}
-      <div className="bg-gradient-to-r from-cinema-900 via-cinema-850 to-cinema-900 border-b border-cinema-700/40 px-4 py-1.5 text-xs">
-        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2 text-slate-300">
-            <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="font-semibold text-gold-400">⚡ OOAD DEMO SWITCHER:</span>
-            <span className="hidden sm:inline text-slate-400">Đổi vai trò 1 chạm để kiểm thử nhanh:</span>
-          </div>
-          <div className="flex items-center gap-1.5 overflow-x-auto py-0.5">
-            {roles.map((r) => {
-              const isActive = user?.role === r.id;
-              return (
-                <button
-                  key={r.id}
-                  onClick={() => handleRoleSelect(r.id)}
-                  className={`px-2.5 py-1 rounded-md font-medium text-xs transition-all flex items-center gap-1 whitespace-nowrap ${
-                    isActive
-                      ? 'bg-ruby-600 text-white shadow-glow-red font-bold ring-1 ring-ruby-400'
-                      : 'bg-cinema-800/80 text-slate-300 hover:bg-cinema-700 hover:text-white border border-cinema-600/30'
-                  }`}
-                  title={r.desc}
-                >
-                  {r.label.split(' ')[0]} <span className="hidden md:inline">{r.label.split(' ').slice(1).join(' ')}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
       {/* Main Navbar */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">

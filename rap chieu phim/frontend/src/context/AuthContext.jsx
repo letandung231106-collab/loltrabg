@@ -91,7 +91,7 @@ export function AuthProvider({ children }) {
   };
 
   /**
-   * 1-Click Fast Role Switcher phục vụ bảo vệ đồ án & chấm điểm môn học
+   * Chuyển đổi vai trò tài khoản trong môi trường kiểm thử
    */
   const switchRole = async (targetRole) => {
     setLoading(true);
