@@ -250,8 +250,8 @@ async function getMovieReviews(req, res, next) {
     const totalReviews = reviews.length;
     const averageRating =
       totalReviews > 0
-        ? Math.round((reviews.reduce((acc, r) => acc + Number(r.rating || 5), 0) / totalReviews) * 10) / 10
-        : 5.0;
+        ? Math.round((reviews.reduce((acc, r) => acc + Number(r.rating || 0), 0) / totalReviews) * 10) / 10
+        : null;
 
     return res.status(200).json({
       success: true,
@@ -276,11 +276,12 @@ async function addMovieReview(req, res, next) {
     const userId = req.user?.id;
     const userName = req.user?.name || req.user?.username || 'Khách hàng';
 
-    const numRating = parseInt(rating, 10);
-    if (isNaN(numRating) || numRating < 1 || numRating > 5) {
+    // Chỉ chấp nhận rating là số nguyên từ 1 đến 5 sao
+    const numRating = Number(rating);
+    if (!Number.isInteger(numRating) || numRating < 1 || numRating > 5) {
       return res.status(400).json({
         success: false,
-        message: 'Điểm đánh giá phải từ 1 đến 5 sao.',
+        message: 'Điểm đánh giá phải là số nguyên từ 1 đến 5 sao.',
       });
     }
 
@@ -315,13 +316,21 @@ async function addMovieReview(req, res, next) {
       }
     }
 
-    // Xác thực nghiêm ngặt: Kiểm tra xem người dùng có vé hợp lệ/đã xem rạp phim này hay không
+    // Xác thực nghiêm ngặt: Huy hiệu "Đã xem rạp" (is_verified_buyer = 1)
+    // CHỈ ĐƯỢC CẤP KHI:
+    // 1. Vé thuộc đúng khách hàng và đúng phim đang đánh giá
+    // 2. Giao dịch đặt vé đã thanh toán thành công (b.status = 'paid')
+    // 3. Vé đã được sử dụng/soát vào rạp hợp lệ (t.status = 'used')
+    // Tuyệt đối không tin tưởng bất kỳ cờ is_verified_buyer nào truyền lên từ client
     const customerId = req.user?.customerId || req.user?.id;
     const ticketCheck = await db.query(
       `SELECT t.id FROM tickets t 
        JOIN screening_schedules s ON t.screening_id = s.id 
        JOIN bookings b ON t.booking_id = b.id 
-       WHERE s.movie_id = ? AND (b.customer_id = ? OR t.customer_id = ? OR b.customer_id = ? OR t.customer_id = ?) AND (b.status = 'paid' OR t.status IN ('active', 'used'))
+       WHERE s.movie_id = ? 
+         AND (b.customer_id = ? OR t.customer_id = ? OR b.customer_id = ? OR t.customer_id = ?) 
+         AND b.status = 'paid' 
+         AND t.status = 'used'
        LIMIT 1`,
       [id, customerId, customerId, userId, userId]
     );

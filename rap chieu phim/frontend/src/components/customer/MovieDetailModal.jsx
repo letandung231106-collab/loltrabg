@@ -29,7 +29,7 @@ export function MovieDetailModal({ isOpen, onClose, movie, onSelectSchedule }) {
 
   // Reviews state
   const [reviews, setReviews] = useState([]);
-  const [averageRating, setAverageRating] = useState(5.0);
+  const [averageRating, setAverageRating] = useState(null);
   const [totalReviews, setTotalReviews] = useState(0);
   const [newRating, setNewRating] = useState(5);
   const [hoverRating, setHoverRating] = useState(0);
@@ -67,7 +67,7 @@ export function MovieDetailModal({ isOpen, onClose, movie, onSelectSchedule }) {
       const res = await api.getMovieReviews(movieId);
       if (res.success && res.data) {
         setReviews(res.data.reviews || []);
-        setAverageRating(res.data.averageRating || 5.0);
+        setAverageRating(res.data.averageRating ?? null);
         setTotalReviews(res.data.totalReviews || 0);
       }
     } catch (err) {
@@ -381,23 +381,31 @@ export function MovieDetailModal({ isOpen, onClose, movie, onSelectSchedule }) {
 
               {/* Rating summary pill */}
               <div className="flex items-center gap-3 px-4 py-2 rounded-2xl bg-cinema-850 border border-cinema-700/80 self-start sm:self-auto">
-                <div className="text-2xl font-black text-amber-400 font-mono flex items-center gap-1">
-                  <span>{averageRating.toFixed(1)}</span>
-                  <span className="text-xs text-slate-400 font-normal">/ 5</span>
-                </div>
-                <div className="text-left border-l border-cinema-700 pl-3">
-                  <div className="flex items-center text-amber-400 text-xs">
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <Star
-                        key={star}
-                        className={`w-3 h-3 ${
-                          star <= Math.round(averageRating) ? 'fill-amber-400 text-amber-400' : 'text-slate-600'
-                        }`}
-                      />
-                    ))}
+                {averageRating !== null && averageRating > 0 ? (
+                  <>
+                    <div className="text-2xl font-black text-amber-400 font-mono flex items-center gap-1">
+                      <span>{Number(averageRating).toFixed(1)}</span>
+                      <span className="text-xs text-slate-400 font-normal">/ 5</span>
+                    </div>
+                    <div className="text-left border-l border-cinema-700 pl-3">
+                      <div className="flex items-center text-amber-400 text-xs">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <Star
+                            key={star}
+                            className={`w-3 h-3 ${
+                              star <= Math.round(averageRating) ? 'fill-amber-400 text-amber-400' : 'text-slate-600'
+                            }`}
+                          />
+                        ))}
+                      </div>
+                      <div className="text-[10px] text-slate-400 mt-0.5 font-medium">{totalReviews} lượt đánh giá</div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-xs text-slate-400 font-semibold py-1">
+                    Chưa có đánh giá
                   </div>
-                  <div className="text-[10px] text-slate-400 mt-0.5 font-medium">{totalReviews} lượt đánh giá</div>
-                </div>
+                )}
               </div>
             </div>
 

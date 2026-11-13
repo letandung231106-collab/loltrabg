@@ -21,12 +21,15 @@ Dự án là một hệ sinh thái Web App hoàn chỉnh phục vụ báo cáo v
 
 ---
 
-## 👥 5 ACTORS & TÀI KHOẢN TRUY CẬP MẪU
+## 👥 5 ACTORS & TÀI KHOẢN TRUY CẬP MẪU (MÔI TRƯỜNG DEV & BẢO VỆ ĐỒ ÁN)
 
-> [!TIP]
-> Hệ thống tích hợp tính năng **⚡ 1-Click Fast Role Switcher** trên thanh Header của giao diện để giảng viên và sinh viên có thể chuyển đổi tức thì giữa 5 vai trò khi bảo vệ đồ án!
+> [!WARNING]
+> **Lưu ý bảo mật quan trọng:**
+> - Các tài khoản mẫu dưới đây và tiện ích **⚡ 1-Click Fast Role Switcher** trên thanh Header chỉ được kích hoạt trong môi trường phát triển (`import.meta.env.DEV`) phục vụ chấm điểm và bảo vệ đồ án.
+> - Tiện ích chuyển nhanh vai trò bị vô hiệu hóa hoàn toàn trong môi trường Production để ngăn chặn hành vi tự nâng quyền (Privilege Escalation).
+> - Mã nguồn không lưu trữ bất kỳ mật khẩu thật, khóa bí mật hay API token thực tế nào.
 
-| STT | Vai Trò (Actor) | Tên Đăng Nhập | Mật Khẩu | Quyền Hạn Chính |
+| STT | Vai Trò (Actor) | Tên Đăng Nhập | Mật Khẩu Mẫu | Quyền Hạn Chính |
 |---|---|---|---|---|
 | 1 | 👑 **Admin** | `admin` | `password123` | Toàn quyền quản trị hệ thống, tài khoản, phim, phòng, lịch chiếu, báo cáo |
 | 2 | 👔 **Manager** | `manager1` | `password123` | Lập lịch chiếu, phân công KTV xử lý sự cố, kế hoạch bảo trì, nghiệm thu |
@@ -77,14 +80,22 @@ Database bắt buộc có tên: **`cinema_management`** và engine **InnoDB**.
    ```
 2. Mở trình duyệt tại địa chỉ: **`http://localhost:5173`**
 
-### Bước 3: Chạy Kiểm Thử Tự Động Toàn Diện (57/57 Tests)
+### Bước 3: Chạy Kiểm Thử Tự Động Toàn Diện (76/76 Tests)
+
+Hệ thống cung cấp 2 bộ test case tự động độc lập kiểm tra toàn diện API Backend, Transaction và Quy tắc Nghiệp vụ:
+
 ```bash
-# Chạy bộ kiểm thử E2E & Business Rules (40 ca test)
+# Bộ 1: Kiểm thử End-to-End quy trình rạp & 16 Business Rules (40 ca test)
 node "rap chieu phim/backend/scripts/testAllEndpoints.js"
 
-# Chạy bộ kiểm thử tính năng mới & API đánh giá phim (17 ca test)
+# Bộ 2: Kiểm thử bảo mật F&B POS, Transaction Rollback, Huy hiệu "Đã xem rạp" & Rating (36 ca test)
 node "rap chieu phim/backend/scripts/testNewFeatures.js"
 ```
+
+> [!NOTE]
+> **Phân biệt kiểm thử API và kiểm thử giao diện:**
+> - **Kiểm thử tự động API (Headless Node.js):** Thực thi trực tiếp các kịch bản tấn công giả mạo (Price Tampering, Staff ID Spoofing, Concurrency Seat Hold, XSS Sanitization, Cross-room validation).
+> - **Kiểm thử giao diện (Browser UI):** Sử dụng trình duyệt truy cập `http://localhost:5173` để trải nghiệm trực quan hiệu ứng chuyển động, sơ đồ ghế thời gian thực tự động refresh 4s, giỏ hàng F&B và modal chi tiết phim.
 
 ---
 

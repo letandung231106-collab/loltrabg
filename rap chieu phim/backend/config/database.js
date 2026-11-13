@@ -656,12 +656,17 @@ async function query(sql, params = []) {
       const movieId = parseInt(params[0], 10);
       const custId = parseInt(params[1], 10);
       const custId2 = params[3] ? parseInt(params[3], 10) : custId;
+      const requiresUsed = normalized.includes("t.status = 'used'");
+      const requiresPaid = normalized.includes("b.status = 'paid'");
       return list.filter((t) => {
         const s = memory.schedules.find((item) => item.id === t.screening_id);
         const b = memory.bookings.find((item) => item.id === t.booking_id);
         const mId = s ? s.movie_id : null;
         const matchesCustomer = t.customer_id === custId || b?.customer_id === custId || t.customer_id === custId2 || b?.customer_id === custId2;
-        return mId === movieId && matchesCustomer && ['active', 'used'].includes(t.status);
+        const matchesMovie = mId === movieId;
+        const paidOk = requiresPaid ? b?.status === 'paid' : true;
+        const statusOk = requiresUsed ? t.status === 'used' : true;
+        return matchesMovie && matchesCustomer && paidOk && statusOk;
       });
     }
 
@@ -1017,7 +1022,29 @@ async function query(sql, params = []) {
     return memory.notifications;
   }
   if (normalized.includes('from concession_items')) {
+    if (normalized.includes('where id in (?)')) {
+      const ids = (Array.isArray(params[0]) ? params[0] : [params[0]]).map((x) => parseInt(x, 10));
+      return (memory.concession_items || []).filter((c) => ids.includes(c.id));
+    }
     return memory.concession_items;
+  }
+  if (normalized.includes('from concession_orders')) {
+    if (normalized.includes('where idempotency_key = ?')) {
+      const key = params[0];
+      return (memory.concession_orders || []).filter((o) => o.idempotency_key === key);
+    }
+    if (normalized.includes('where id = ?')) {
+      const id = parseInt(params[0], 10);
+      return (memory.concession_orders || []).filter((o) => o.id === id);
+    }
+    return memory.concession_orders || [];
+  }
+  if (normalized.includes('from concession_order_items')) {
+    if (normalized.includes('where order_id = ?')) {
+      const ordId = parseInt(params[0], 10);
+      return (memory.concession_order_items || []).filter((oi) => oi.order_id === ordId);
+    }
+    return memory.concession_order_items || [];
   }
   if (normalized.includes('from inventory_ingredients')) {
     return memory.inventory_ingredients;
@@ -1631,6 +1658,40 @@ async function query(sql, params = []) {
     return { affectedRows: ing ? 1 : 0 };
   }
 
+  if (normalized.startsWith('insert into concession_orders')) {
+    if (!memory.concession_orders) memory.concession_orders = [];
+    const newId = memory.concession_orders.length > 0 ? Math.max(...memory.concession_orders.map((o) => o.id)) + 1 : 1;
+    const newOrder = {
+      id: newId,
+      order_code: params[0],
+      employee_id: parseInt(params[1], 10),
+      customer_id: params[2] ? parseInt(params[2], 10) : null,
+      total_amount: parseFloat(params[3]),
+      payment_method: params[4] || 'cash',
+      notes: params[5] || '',
+      idempotency_key: params[6] || null,
+      created_at: params[7] || new Date().toISOString(),
+    };
+    memory.concession_orders.push(newOrder);
+    return { insertId: newId, affectedRows: 1 };
+  }
+
+  if (normalized.startsWith('insert into concession_order_items')) {
+    if (!memory.concession_order_items) memory.concession_order_items = [];
+    const newId = memory.concession_order_items.length > 0 ? Math.max(...memory.concession_order_items.map((oi) => oi.id)) + 1 : 1;
+    const newItem = {
+      id: newId,
+      order_id: parseInt(params[0], 10),
+      item_id: parseInt(params[1], 10),
+      item_name: params[2] || '',
+      quantity: parseInt(params[3], 10),
+      unit_price: parseFloat(params[4]),
+      total_price: parseFloat(params[5]),
+    };
+    memory.concession_order_items.push(newItem);
+    return { insertId: newId, affectedRows: 1 };
+  }
+
   if (normalized.startsWith('insert into inventory_logs')) {
     const newId = memory.inventory_logs.length > 0 ? Math.max(...memory.inventory_logs.map((l) => l.id)) + 1 : 1;
     const newLog = {
@@ -1946,7 +2007,17 @@ async function withTransaction(callback) {
     }
   }
 
-  // Fallback in-memory transaction mockup
+  // Fallback in-memory transaction with snapshot & rollback capability
+  const snapshot = {
+    inventory_ingredients: JSON.parse(JSON.stringify(memory.inventory_ingredients || [])),
+    inventory_logs: JSON.parse(JSON.stringify(memory.inventory_logs || [])),
+    concession_orders: JSON.parse(JSON.stringify(memory.concession_orders || [])),
+    concession_order_items: JSON.parse(JSON.stringify(memory.concession_order_items || [])),
+    bookings: JSON.parse(JSON.stringify(memory.bookings || [])),
+    booking_seats: JSON.parse(JSON.stringify(memory.booking_seats || [])),
+    tickets: JSON.parse(JSON.stringify(memory.tickets || [])),
+  };
+
   const fakeConnection = {
     query: async (sql, params = []) => {
       const res = await query(sql, params);
@@ -1954,7 +2025,19 @@ async function withTransaction(callback) {
     },
   };
 
-  return await callback(fakeConnection);
+  try {
+    return await callback(fakeConnection);
+  } catch (error) {
+    // Rollback snapshot on error
+    if (memory.inventory_ingredients) memory.inventory_ingredients = snapshot.inventory_ingredients;
+    if (memory.inventory_logs) memory.inventory_logs = snapshot.inventory_logs;
+    if (memory.concession_orders) memory.concession_orders = snapshot.concession_orders;
+    if (memory.concession_order_items) memory.concession_order_items = snapshot.concession_order_items;
+    if (memory.bookings) memory.bookings = snapshot.bookings;
+    if (memory.booking_seats) memory.booking_seats = snapshot.booking_seats;
+    if (memory.tickets) memory.tickets = snapshot.tickets;
+    throw error;
+  }
 }
 
 module.exports = {

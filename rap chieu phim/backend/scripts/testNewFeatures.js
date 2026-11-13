@@ -183,74 +183,14 @@ async function runNewFeatureTests() {
     `Điểm TB: ${getReviews.data?.data?.averageRating}/5 (${getReviews.data?.data?.totalReviews} nhận xét)`
   );
 
-  // 14. Test Movie Review POST - Verified Buyer (Phim 4: khách hàng An đã mua vé)
-  const postReview = await req(
-    'POST',
-    '/movies/4/reviews',
-    {
-      rating: 5,
-      comment: 'Trải nghiệm xem phim tuyệt vời, màn hình sắc nét và ghế ngồi rất thoải mái!',
-    },
-    custToken
-  );
-  check(
-    postReview.status === 201 && postReview.data?.data?.rating === 5 && postReview.data?.data?.is_verified_buyer === 1,
-    'POST /api/movies/4/reviews khách hàng đã mua vé nhận đúng huy hiệu Verified Spectator (is_verified_buyer = 1)'
-  );
-
-  // 14b. Test Movie Review POST - Unverified Buyer (Phim 2: khách hàng An CHƯA mua vé)
-  const unverifiedReview = await req(
-    'POST',
-    '/movies/2/reviews',
-    {
-      rating: 4,
-      comment: 'Hóng phim này chiếu lại quá!',
-    },
-    custToken
-  );
-  check(
-    unverifiedReview.status === 201 && unverifiedReview.data?.data?.is_verified_buyer === 0,
-    'POST /api/movies/2/reviews khách chưa mua vé KHÔNG có huy hiệu (is_verified_buyer = 0)'
-  );
-
-  // 15. Test Movie Review Validation (rating ngoài phạm vi 1-5)
-  const invalidReview = await req(
-    'POST',
-    '/movies/1/reviews',
-    {
-      rating: 99,
-      comment: 'Điểm rating không hợp lệ',
-    },
-    custToken
-  );
-  check(
-    invalidReview.status === 400,
-    'POST /api/movies/1/reviews kiểm tra dữ liệu đầu vào chặn rating không hợp lệ (>5 sao)'
-  );
-
-  // 16. Test Movie Review Anti-Spam (chặn gửi trùng phim 4 trong vòng 60s)
-  const spamReview = await req(
-    'POST',
-    '/movies/4/reviews',
-    {
-      rating: 4,
-      comment: 'Thử gửi đánh giá spam liên tục...',
-    },
-    custToken
-  );
-  check(
-    spamReview.status === 429,
-    'POST /api/movies/4/reviews chặn đánh giá spam liên tục trong 60 giây (429 Too Many Requests)'
-  );
-
-  // 17. Test Cross-Room Seat Hold Guard
-  // Ghế ID 1 thuộc phòng 1, nhưng ta thử giữ nó trong suất chiếu của phòng 2 (suất 2)
+  // 14. Test Cross-Room Seat Hold Guard
+  // Ghế ID 1 thuộc phòng 1, nhưng ta thử giữ nó trong suất chiếu của phòng 4 (suất 2)
   const crossRoomHold = await req(
     'POST',
     '/bookings/hold',
     {
       screening_id: 2,
-      seat_ids: [1], // ID 1 là của phòng 1, suất 2 chiếu ở phòng 2
+      seat_ids: [1], // ID 1 là của phòng 1, suất 2 chiếu ở phòng 4
     },
     custToken
   );
@@ -259,22 +199,348 @@ async function runNewFeatureTests() {
     'POST /api/bookings/hold chặn giữ ghế không thuộc phòng chiếu của suất chiếu'
   );
 
-  // 18. Test Concession Order Validation (chặn số lượng <= 0)
-  const invalidConcession = await req(
+  // =========================================================================
+  // PHẦN A: BẢO MẬT VÀ NGHIỆP VỤ BÁN BẮP NƯỚC F&B (CONCESSION SECURITY)
+  // =========================================================================
+  console.log('\n--- [A. F&B POS SECURITY & TRANSACTION TEST SUITE] ---');
+
+  // 18. Khách sửa giá từ 69.000đ xuống 1đ (Price Tampering Attack)
+  const tamperedPriceRes = await req(
     'POST',
     '/concessions/sell',
     {
-      items: [{ id: 1, name: 'Bắp Rang Bơ', quantity: 0, price: 45000 }],
+      items: [{ id: 1, name: 'Bắp Rang Bơ Phô Mai (L)', quantity: 2, price: 1 }], // Client gửi giá 1đ
+    },
+    adminToken
+  );
+  const expectedAmount = 69000 * 2; // Giá thực trong DB là 69.000đ
+  check(
+    tamperedPriceRes.status === 200 && tamperedPriceRes.data?.data?.total_amount === expectedAmount,
+    'POST /api/concessions/sell chống sửa giá lậu: tính tiền theo giá DB thật (69.000đ x 2 = 138.000đ, bỏ qua 1đ)',
+    `Tổng tiền thực: ${tamperedPriceRes.data?.data?.total_amount?.toLocaleString('vi-VN')} VNĐ`
+  );
+
+  // 19. Gửi ID sản phẩm không tồn tại
+  const notFoundItemRes = await req(
+    'POST',
+    '/concessions/sell',
+    {
+      items: [{ id: 9999, name: 'Món Ảo', quantity: 1, price: 50000 }],
     },
     adminToken
   );
   check(
-    invalidConcession.status === 400,
-    'POST /api/concessions/sell chặn đơn hàng có số lượng món <= 0'
+    notFoundItemRes.status === 400 && notFoundItemRes.data?.message?.includes('không tồn tại'),
+    'POST /api/concessions/sell từ chối đơn hàng chứa ID món không tồn tại trong hệ thống (400 Bad Request)'
+  );
+
+  // 20. Gửi sản phẩm tạm ngưng kinh doanh (is_active = false)
+  const inactiveItemRes = await req(
+    'POST',
+    '/concessions/sell',
+    {
+      items: [{ id: 8, name: 'Kem Trái Cây Mùa Hè', quantity: 1 }],
+    },
+    adminToken
+  );
+  check(
+    inactiveItemRes.status === 400 && inactiveItemRes.data?.message?.includes('tạm ngừng'),
+    'POST /api/concessions/sell từ chối sản phẩm đang tạm ngừng kinh doanh (is_active = false)'
+  );
+
+  // 21. Gửi số lượng âm hoặc bằng 0
+  const zeroQtyRes = await req(
+    'POST',
+    '/concessions/sell',
+    {
+      items: [{ id: 1, quantity: 0 }],
+    },
+    adminToken
+  );
+  const negQtyRes = await req(
+    'POST',
+    '/concessions/sell',
+    {
+      items: [{ id: 1, quantity: -3 }],
+    },
+    adminToken
+  );
+  check(
+    zeroQtyRes.status === 400 && negQtyRes.status === 400,
+    'POST /api/concessions/sell từ chối đơn hàng có số lượng <= 0 hoặc số âm'
+  );
+
+  // 22. Gửi staff_id giả mạo từ client (Staff Identity Spoofing)
+  const spoofStaffRes = await req(
+    'POST',
+    '/concessions/sell',
+    {
+      items: [{ id: 3, quantity: 1 }],
+      staff_id: 9999, // Cố tình truyền staff_id giả
+    },
+    adminToken
+  );
+  check(
+    spoofStaffRes.status === 200 && spoofStaffRes.data?.data?.staff_id !== 9999,
+    'POST /api/concessions/sell không tin tưởng staff_id giả: lấy danh tính nhân viên từ token đã xác thực'
+  );
+
+  // 23. Kiểm tra đơn hàng được lưu thật vào database (concession_orders)
+  const orderData = spoofStaffRes.data?.data;
+  check(
+    orderData?.order_id && orderData?.order_code?.startsWith('ORD-POS-'),
+    'POST /api/concessions/sell lưu đơn hàng thật vào bảng concession_orders với mã định danh tuần tự',
+    `Mã đơn: ${orderData?.order_code}`
+  );
+
+  // 24. Kiểm tra tự động khấu trừ kho nguyên vật liệu theo định lượng BOM
+  const logsRes = await req('GET', '/inventory/logs', null, adminToken);
+  const latestUsage = logsRes.data?.data?.find((l) => l.change_type === 'usage' && l.reason?.includes(orderData?.order_code));
+  check(
+    latestUsage && latestUsage.quantity < 0,
+    'POST /api/concessions/sell tự động ghi nhận nhật ký xuất kho nguyên vật liệu (BOM) chính xác'
+  );
+
+  // 25. Kiểm tra tính năng Idempotency (chống trừ kho 2 lần khi gửi lại cùng yêu cầu)
+  const idemKey = `IDEM-TEST-${Date.now()}`;
+  const idemFirst = await req(
+    'POST',
+    '/concessions/sell',
+    {
+      items: [{ id: 3, quantity: 1 }],
+      idempotency_key: idemKey,
+    },
+    adminToken
+  );
+  const idemSecond = await req(
+    'POST',
+    '/concessions/sell',
+    {
+      items: [{ id: 3, quantity: 1 }],
+      idempotency_key: idemKey,
+    },
+    adminToken
+  );
+  check(
+    idemFirst.status === 200 && idemSecond.status === 200 && idemSecond.data?.message?.includes('Idempotent'),
+    'POST /api/concessions/sell hỗ trợ Idempotency Key: không trừ kho hai lần khi gửi lại cùng một yêu cầu'
+  );
+
+  // 26. Kiểm tra Database Transaction Rollback khi xảy ra lỗi giữa chừng
+  // Gửi đơn gồm 1 món hợp lệ (ID 1) và 1 món không tồn tại (ID 9999)
+  const initialStockRes = await req('GET', '/concessions', null, adminToken);
+  const rollbackAttempt = await req(
+    'POST',
+    '/concessions/sell',
+    {
+      items: [
+        { id: 1, quantity: 5 },
+        { id: 9999, quantity: 1 },
+      ],
+    },
+    adminToken
+  );
+  check(
+    rollbackAttempt.status === 400,
+    'POST /api/concessions/sell kích hoạt rollback toàn bộ transaction khi có lỗi giữa chừng'
+  );
+
+  // =========================================================================
+  // PHẦN B: XÁC THỰC HUY HIỆU "ĐÃ XEM RẠP" (VERIFIED SPECTATOR BADGE)
+  // =========================================================================
+  console.log('\n--- [B. VERIFIED SPECTATOR BADGE TEST SUITE] ---');
+
+  // 27. Vé ĐÃ SOÁT hợp lệ (status: 'used', booking: 'paid') -> ĐƯỢC CẤP HUY HIỆU
+  // Khách 1 đã mua và soát vé Phim 1 (Suất 1, Ticket 3 có status = 'used')
+  const reviewWatched = await req(
+    'POST',
+    '/movies/1/reviews',
+    {
+      rating: 5,
+      comment: 'Phim Dune 2 xem tại phòng IMAX phê đỉnh nóc! Âm thanh rung chuyển cả rạp.',
+    },
+    custToken
+  );
+  check(
+    reviewWatched.status === 201 && reviewWatched.data?.data?.is_verified_buyer === 1,
+    'Huy hiệu "Đã xem rạp": CẤP THÀNH CÔNG cho khách có vé đã soát hợp lệ (status: used & booking: paid)'
+  );
+
+  // 28. Vé ĐÃ THANH TOÁN nhưng CHƯA SOÁT (status: 'active', booking: 'paid') -> KHÔNG CẤP HUY HIỆU "ĐÃ XEM RẠP"
+  // Khách 1 mua vé Phim 4 (Suất 5, Ticket 1 có status = 'active', chưa soát vào phòng)
+  const reviewUnscanned = await req(
+    'POST',
+    '/movies/4/reviews',
+    {
+      rating: 4,
+      comment: 'Đã mua vé suất tối nay, hóng vào rạp xem quá!',
+    },
+    custToken
+  );
+  check(
+    reviewUnscanned.status === 201 && reviewUnscanned.data?.data?.is_verified_buyer === 0,
+    'Huy hiệu "Đã xem rạp": TỪ CHỐI cấp nếu vé mới thanh toán nhưng chưa soát vào rạp (status: active)'
+  );
+
+  // 29. Vé CHƯA THANH TOÁN (booking: 'pending') -> KHÔNG CẤP HUY HIỆU
+  // Khách 1 giữ vé Phim 2 nhưng đơn hàng chưa thanh toán (Booking 3 status = 'pending')
+  const reviewUnpaid = await req(
+    'POST',
+    '/movies/2/reviews',
+    {
+      rating: 5,
+      comment: 'Định đi xem phim này.',
+    },
+    custToken
+  );
+  check(
+    reviewUnpaid.status === 201 && reviewUnpaid.data?.data?.is_verified_buyer === 0,
+    'Huy hiệu "Đã xem rạp": TỪ CHỐI cấp nếu đơn đặt vé chưa hoàn tất thanh toán (booking: pending)'
+  );
+
+  // 30. Vé ĐÃ BỊ HỦY (status: 'cancelled') -> KHÔNG CẤP HUY HIỆU
+  // Khách 1 có vé Phim 5 nhưng đã bị hủy (Ticket 5 status = 'cancelled')
+  const reviewCancelled = await req(
+    'POST',
+    '/movies/5/reviews',
+    {
+      rating: 3,
+      comment: 'Vé bị hủy mất tiêu rồi.',
+    },
+    custToken
+  );
+  check(
+    reviewCancelled.status === 201 && reviewCancelled.data?.data?.is_verified_buyer === 0,
+    'Huy hiệu "Đã xem rạp": TỪ CHỐI cấp nếu vé đã bị hủy (status: cancelled)'
+  );
+
+  // 31. Vé thuộc PHIM KHÁC -> KHÔNG CẤP HUY HIỆU
+  // Khách 1 có vé Phim 1 nhưng lại đánh giá Phim 7 (chưa từng mua vé Phim 7)
+  const reviewOtherMovie = await req(
+    'POST',
+    '/movies/7/reviews',
+    {
+      rating: 4,
+      comment: 'Xem trailer thấy hay hay.',
+    },
+    custToken
+  );
+  check(
+    reviewOtherMovie.status === 201 && reviewOtherMovie.data?.data?.is_verified_buyer === 0,
+    'Huy hiệu "Đã xem rạp": TỪ CHỐI cấp nếu vé không thuộc đúng bộ phim đang đánh giá'
+  );
+
+  // 32. Khách hàng tự truyền cờ is_verified_buyer = 1 từ Frontend (Client Spoofing)
+  const spoofBadgeRes = await req(
+    'POST',
+    '/movies/3/reviews',
+    {
+      rating: 5,
+      comment: 'Cố tình gửi cờ is_verified_buyer = 1 dù chưa từng xem rạp.',
+      is_verified_buyer: 1, // Hack frontend
+    },
+    custToken
+  );
+  check(
+    spoofBadgeRes.status === 201 && spoofBadgeRes.data?.data?.is_verified_buyer === 0,
+    'Huy hiệu "Đã xem rạp": CHỐNG GIAN LẬN: Bỏ qua hoàn toàn cờ is_verified_buyer do client tự gửi lên'
+  );
+
+  // 33. Vé của KHÁCH HÀNG KHÁC (Ticket của Khách 2 không thể gán cho Khách 1)
+  // Khách 1 không thể mạo nhận vé đã xem của Khách 2
+  const reviewOtherCustomer = await req(
+    'POST',
+    '/movies/8/reviews',
+    {
+      rating: 4,
+      comment: 'Bạn tôi đã xem khen hay.',
+    },
+    custToken
+  );
+  check(
+    reviewOtherCustomer.status === 201 && reviewOtherCustomer.data?.data?.is_verified_buyer === 0,
+    'Huy hiệu "Đã xem rạp": TỪ CHỐI cấp nếu vé thuộc về tài khoản khách hàng khác'
+  );
+
+  // =========================================================================
+  // PHẦN C: ĐIỂM ĐÁNH GIÁ TRUNG BÌNH (AVERAGE RATING PRECISION)
+  // =========================================================================
+  console.log('\n--- [C. MOVIE AVERAGE RATING PRECISION TEST SUITE] ---');
+
+  // 34. Phim chưa có đánh giá nào (Movie 6: Avatar)
+  const emptyMovieReviews = await req('GET', '/movies/6/reviews');
+  check(
+    emptyMovieReviews.status === 200 &&
+      emptyMovieReviews.data?.data?.totalReviews === 0 &&
+      emptyMovieReviews.data?.data?.averageRating === null,
+    'GET /api/movies/:id/reviews trả về averageRating = null và totalReviews = 0 khi phim chưa có đánh giá (KHÔNG mặc định 5 sao)'
+  );
+
+  // 35. Phim đã có đánh giá (Movie 1: Dune 2)
+  const hasReviewsRes = await req('GET', '/movies/1/reviews');
+  const avg = hasReviewsRes.data?.data?.averageRating;
+  check(
+    hasReviewsRes.status === 200 && typeof avg === 'number' && avg >= 1 && avg <= 5,
+    'GET /api/movies/:id/reviews tính điểm trung bình chính xác khi phim đã có đánh giá',
+    `Điểm trung bình thực: ${avg}/5 (${hasReviewsRes.data?.data?.totalReviews} lượt đánh giá)`
+  );
+
+  // 36. Chặn rating không phải số nguyên (ví dụ: rating = 4.5)
+  const floatRatingRes = await req(
+    'POST',
+    '/movies/1/reviews',
+    {
+      rating: 4.5,
+      comment: 'Thử chấm điểm lẻ 4.5 sao.',
+    },
+    custToken
+  );
+  check(
+    floatRatingRes.status === 400 && floatRatingRes.data?.message?.includes('số nguyên'),
+    'POST /api/movies/:id/reviews chỉ chấp nhận số sao nguyên từ 1 đến 5 (từ chối 4.5 sao)'
+  );
+
+  // 37. Chặn rating ngoài phạm vi 1 đến 5 (ví dụ: 0 hoặc 6)
+  const outOfRangeZero = await req(
+    'POST',
+    '/movies/1/reviews',
+    {
+      rating: 0,
+      comment: '0 sao',
+    },
+    custToken
+  );
+  const outOfRangeSix = await req(
+    'POST',
+    '/movies/1/reviews',
+    {
+      rating: 6,
+      comment: '6 sao',
+    },
+    custToken
+  );
+  check(
+    outOfRangeZero.status === 400 && outOfRangeSix.status === 400,
+    'POST /api/movies/:id/reviews chặn điểm số ngoài phạm vi [1, 5] (0 sao hoặc 6 sao)'
+  );
+
+  // 38. Chống spam: Chặn gửi review liên tiếp cùng phim trong 60s
+  const spamReview = await req(
+    'POST',
+    '/movies/1/reviews',
+    {
+      rating: 5,
+      comment: 'Spam đánh giá liên tục...',
+    },
+    custToken
+  );
+  check(
+    spamReview.status === 429,
+    'POST /api/movies/:id/reviews chặn đánh giá spam liên tục trong 60 giây (429 Too Many Requests)'
   );
 
   console.log('\n================================================================');
-  console.log('  TẤT CẢ TÍNH NĂNG MỚI ĐÃ VƯỢT QUA KIỂM THỬ THÀNH CÔNG 100%!');
+  console.log('  TẤT CẢ TÍNH NĂNG MỚI & BẢO MẬT ĐÃ VƯỢT QUA KIỂM THỬ THÀNH CÔNG 100%!');
   console.log('================================================================');
 }
 
