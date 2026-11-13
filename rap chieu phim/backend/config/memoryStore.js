@@ -325,9 +325,10 @@ let seatIdCounter = 1;
   });
 });
 
-const todayStr = new Date().toISOString().slice(0, 10);
+const localDateStr = (d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'));
+const todayStr = localDateStr(new Date());
 const tomorrowDate = new Date(); tomorrowDate.setDate(tomorrowDate.getDate() + 1);
-const tomorrowStr = tomorrowDate.toISOString().slice(0, 10);
+const tomorrowStr = localDateStr(tomorrowDate);
 const schedules = [
   { id: 1, movie_id: 1, room_id: 4, start_time: `${todayStr} 14:00:00`, end_time: `${todayStr} 16:50:00`, format: 'IMAX 2D Phụ đề', ticket_price: 150000, status: 'screening' },
   { id: 2, movie_id: 1, room_id: 4, start_time: `${todayStr} 18:00:00`, end_time: `${todayStr} 20:50:00`, format: 'IMAX 2D Phụ đề', ticket_price: 160000, status: 'scheduled' },
@@ -343,6 +344,37 @@ const schedules = [
   { id: 13, movie_id: 11, room_id: 1, start_time: `${todayStr} 13:00:00`, end_time: `${todayStr} 14:40:00`, format: '2D Lồng tiếng', ticket_price: 90000, status: 'scheduled' },
   { id: 14, movie_id: 16, room_id: 4, start_time: `${todayStr} 10:00:00`, end_time: `${todayStr} 12:50:00`, format: 'IMAX 2D 70mm', ticket_price: 160000, status: 'scheduled' },
 ];
+
+// Tự động sinh suất chiếu cho 7 ngày tới (mọi phim đang chiếu) để luôn có lịch chọn khi chạy demo
+(function generateUpcomingSchedules() {
+  const pad = (n) => String(n).padStart(2, '0');
+  const fmt = (d) => `${localDateStr(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
+  const roomIds = [1, 2, 3, 4, 5, 7];
+  const slots = [[9, 0], [12, 0], [15, 0], [18, 0], [20, 30]];
+  const showing = movies.filter((m) => m.status === 'now_showing');
+  let nextId = 100;
+  const overlaps = (roomId, a, b) =>
+    schedules.some((s) => s.room_id === roomId && s.status !== 'cancelled' &&
+      a < new Date(s.end_time.replace(' ', 'T')) && b > new Date(s.start_time.replace(' ', 'T')));
+  for (let day = 0; day < 7; day++) {
+    showing.forEach((m, mi) => {
+      [0, 1].forEach((k) => {
+        const slot = slots[(mi + k * 2) % slots.length];
+        const roomId = roomIds[(mi + k * 3 + day) % roomIds.length];
+        const start = new Date();
+        start.setDate(start.getDate() + day);
+        start.setHours(slot[0], slot[1], 0, 0);
+        const end = new Date(start.getTime() + ((m.duration || 120) + 15) * 60000);
+        if (overlaps(roomId, start, end)) return;
+        schedules.push({
+          id: nextId++, movie_id: m.id, room_id: roomId,
+          start_time: fmt(start), end_time: fmt(end),
+          format: m.format || '2D Digital', ticket_price: 90000 + (roomId % 3) * 20000, status: 'scheduled',
+        });
+      });
+    });
+  }
+})();
 
 const bookings = [
   { id: 1, customer_id: 1, screening_id: 5, booking_code: 'BK-20260914-001', booking_time: `${todayStr} 10:15:00`, total_amount: 220000, status: 'paid' },

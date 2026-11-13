@@ -60,7 +60,7 @@ async function query(sql, params = []) {
   // In-memory fallback query handler
   const normalized = sql.toLowerCase().replace(/\s+/g, ' ').trim();
   const now = new Date();
-  const todayStr = now.toISOString().slice(0, 10);
+  const todayStr = (d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'))(now);
 
   // =========================================================================
   // 0. DASHBOARD & ANALYTICS AGGREGATION QUERIES
