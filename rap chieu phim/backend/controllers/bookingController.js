@@ -94,9 +94,15 @@ async function holdSeats(req, res, next) {
 
       const bookingId = bookRes.insertId;
 
-      // Tính thời gian hết hạn giữ ghế: NOW() + SEAT_HOLD_MINUTES phút (10 phút)
-      const holdExpireDate = new Date(Date.now() + SEAT_HOLD_MINUTES * 60 * 1000);
-      const holdExpireStr = holdExpireDate.toISOString().slice(0, 19).replace('T', ' ');
+      // Tính thời gian hết hạn giữ ghế: NOW() + SEAT_HOLD_MINUTES phút (10 phút) theo giờ Local
+      const toLocalDatetime = (d) => {
+        const offsetMs = d.getTimezoneOffset() * 60 * 1000;
+        return new Date(d.getTime() - offsetMs).toISOString().slice(0, 19).replace('T', ' ');
+      };
+      const nowDate = new Date();
+      const holdExpireDate = new Date(nowDate.getTime() + SEAT_HOLD_MINUTES * 60 * 1000);
+      const holdStartStr = toLocalDatetime(nowDate);
+      const holdExpireStr = toLocalDatetime(holdExpireDate);
 
       // Lưu chi tiết từng ghế vào booking_seats (status: holding)
       const bookingSeatRows = calculatedSeats.map((s) => [
@@ -104,7 +110,7 @@ async function holdSeats(req, res, next) {
         s.seat_id,
         s.price,
         'holding',
-        new Date().toISOString().slice(0, 19).replace('T', ' '),
+        holdStartStr,
         holdExpireStr,
       ]);
 
