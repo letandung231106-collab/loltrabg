@@ -1,11 +1,14 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useBooking } from '../../context/BookingContext';
 import { useAuth } from '../../context/AuthContext';
-import { Clock, ShieldAlert, Sparkles, Check, AlertCircle } from 'lucide-react';
+import { Clock, ShieldAlert, Sparkles, Check, AlertCircle, Eye } from 'lucide-react';
+import { Virtual3DSeatViewModal } from './Virtual3DSeatViewModal';
 
 export function SeatMap({ scheduleData, onProceedToPayment, onCancelHold }) {
   const { selectedSeats, toggleSeatSelection, activeBooking, formattedHoldTime, isHolding } = useBooking();
   const { isAuthenticated } = useAuth();
+
+  const [previewSeat, setPreviewSeat] = useState(null);
 
   const seats = scheduleData?.seats || [];
   const schedule = scheduleData?.schedule;
@@ -67,8 +70,11 @@ export function SeatMap({ scheduleData, onProceedToPayment, onCancelHold }) {
       <div className="w-full max-w-3xl mb-12 text-center">
         <div className="cinema-screen-curve w-full mx-auto" />
         <div className="cinema-screen-glow h-12 w-full -mt-2 pointer-events-none" />
-        <div className="text-[11px] font-bold tracking-widest text-slate-400 uppercase mt-1">
-          MÀN HÌNH CHIẾU ({schedule?.room_name})
+        <div className="text-[11px] font-bold tracking-widest text-slate-400 uppercase mt-1 flex items-center justify-center gap-2">
+          <span>MÀN HÌNH CHIẾU ({schedule?.room_name})</span>
+          <span className="text-[10px] px-2 py-0.5 rounded-md bg-cinema-800 text-amber-300 border border-amber-500/30 font-semibold">
+            Click vào ghế đã chọn để xem góc nhìn 3D
+          </span>
         </div>
       </div>
 
@@ -174,17 +180,23 @@ export function SeatMap({ scheduleData, onProceedToPayment, onCancelHold }) {
           <div className="text-xs text-slate-400 mb-1">
             Ghế đã chọn: ({selectedSeats.length} ghế)
           </div>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-1.5 items-center">
             {selectedSeats.length === 0 ? (
               <span className="text-sm text-slate-500 italic">Chưa chọn ghế nào</span>
             ) : (
               selectedSeats.map((s) => (
-                <span
-                  key={s.id}
-                  className="px-2.5 py-1 rounded-lg bg-ruby-600/30 border border-ruby-500/50 text-ruby-300 font-bold text-xs"
-                >
-                  {s.row_number}{s.seat_number} ({s.seat_type.toUpperCase()} - {s.price.toLocaleString('vi-VN')}đ)
-                </span>
+                <div key={s.id} className="inline-flex items-center gap-1">
+                  <span className="px-2.5 py-1 rounded-lg bg-ruby-600/30 border border-ruby-500/50 text-ruby-300 font-bold text-xs">
+                    {s.row_number}{s.seat_number} ({s.seat_type.toUpperCase()} - {s.price.toLocaleString('vi-VN')}đ)
+                  </span>
+                  <button
+                    onClick={() => setPreviewSeat(s)}
+                    className="p-1 rounded-md bg-cinema-800 hover:bg-amber-600/30 text-amber-400 border border-amber-500/30 text-[10px] flex items-center gap-1 transition-colors"
+                    title="Xem góc nhìn 3D"
+                  >
+                    <Eye className="w-3 h-3" /> 3D View
+                  </button>
+                </div>
               ))
             )}
           </div>
@@ -224,6 +236,14 @@ export function SeatMap({ scheduleData, onProceedToPayment, onCancelHold }) {
           )}
         </div>
       </div>
+
+      {/* Virtual 3D Seat View Modal */}
+      <Virtual3DSeatViewModal
+        seat={previewSeat}
+        schedule={schedule}
+        isOpen={Boolean(previewSeat)}
+        onClose={() => setPreviewSeat(null)}
+      />
     </div>
   );
 }

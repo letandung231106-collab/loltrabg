@@ -1,21 +1,28 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
-import { Calendar, Clock, Film, MapPin, Sparkles, ChevronRight, Ticket, Filter } from 'lucide-react';
+import { Calendar, Clock, Film, MapPin, Sparkles, ChevronRight, Ticket, Filter, Zap, TrendingUp } from 'lucide-react';
 
-export function SchedulesPage({ onSelectSchedule }) {
+const toLocalDate = (d) =>
+  d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+
+export function SchedulesPage({ onSelectSchedule, initialMovieId = 'all' }) {
   const [schedules, setSchedules] = useState([]);
   const [movies, setMovies] = useState([]);
   const [rooms, setRooms] = useState([]);
-  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const [selectedMovieId, setSelectedMovieId] = useState('all');
+  const [selectedDate, setSelectedDate] = useState(() => toLocalDate(new Date()));
+  const [selectedMovieId, setSelectedMovieId] = useState(initialMovieId || 'all');
   const [selectedRoomType, setSelectedRoomType] = useState('all');
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setSelectedMovieId(initialMovieId || 'all');
+  }, [initialMovieId]);
 
   // Generate 7 days for the date selector
   const dateOptions = Array.from({ length: 7 }).map((_, idx) => {
     const d = new Date();
     d.setDate(d.getDate() + idx);
-    const dateStr = d.toISOString().slice(0, 10);
+    const dateStr = toLocalDate(d);
     const dayName = idx === 0 ? 'Hôm nay' : idx === 1 ? 'Ngày mai' : `Thứ ${d.getDay() === 0 ? 'CN' : d.getDay() + 1}`;
     return {
       dateStr,
@@ -71,17 +78,56 @@ export function SchedulesPage({ onSelectSchedule }) {
 
   const movieGroupList = Object.values(schedulesByMovie);
 
+  // Thuật toán phân tích dự báo khung giờ cao điểm (Ý tưởng 5)
+  const getHourPrediction = (dateString, hour) => {
+    const d = new Date(dateString);
+    const dayOfWeek = d.getDay(); // 0 is Sunday, 6 is Saturday
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+
+    if (hour >= 18 && hour <= 21) {
+      return {
+        label: 'Giờ Vàng (Cháy vé)',
+        badgeClass: 'bg-rose-500/20 text-rose-300 border-rose-500/40',
+        isHot: true,
+      };
+    }
+    if (isWeekend && hour >= 14 && hour < 18) {
+      return {
+        label: 'Đông khách',
+        badgeClass: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+        isHot: false,
+      };
+    }
+    if (hour < 12) {
+      return {
+        label: 'Giảm 15% Early',
+        badgeClass: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
+        isDiscount: true,
+      };
+    }
+    return null;
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 animate-fade-in">
       {/* Title */}
-      <div>
-        <h1 className="text-3xl font-black text-white flex items-center gap-3">
-          <Calendar className="w-8 h-8 text-ruby-500" />
-          Lịch Chiếu Phim Rạp NIGHT MOVIE
-        </h1>
-        <p className="text-xs text-slate-400 mt-1">
-          Chọn ngày và khung giờ chiếu để đặt ghế yêu thích của bạn
-        </p>
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-black text-white flex items-center gap-3">
+            <Calendar className="w-8 h-8 text-ruby-500" />
+            Lịch Chiếu Phim Rạp NIGHT MOVIE
+          </h1>
+          <p className="text-xs text-slate-400 mt-1">
+            Chọn ngày và khung giờ chiếu. Hệ thống tự động dự báo khung giờ vàng cao điểm!
+          </p>
+        </div>
+
+        {/* AI Peak Indicator Pill */}
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-cinema-900 border border-cinema-700 text-xs">
+          <Zap className="w-4 h-4 text-amber-400 animate-pulse" />
+          <span className="text-slate-300 font-semibold">AI Predictor:</span>
+          <span className="text-rose-400 font-bold">18:00 - 21:00 Cao Điểm</span>
+        </div>
       </div>
 
       {/* Date Bar Selector */}
@@ -119,7 +165,9 @@ export function SchedulesPage({ onSelectSchedule }) {
             >
               <option value="all">Tất cả phim ({movies.length})</option>
               {movies.map((m) => (
-                <option key={m.id} value={m.id}>{m.name}</option>
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
               ))}
             </select>
           </div>
@@ -132,10 +180,10 @@ export function SchedulesPage({ onSelectSchedule }) {
               className="px-3 py-1.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white text-xs focus:outline-none focus:border-ruby-500"
             >
               <option value="all">Tất cả định dạng</option>
-              <option value="standard">Standard (Dolby 7.1)</option>
-              <option value="vip">VIP Prime Lounge</option>
-              <option value="imax">IMAX Laser Theater</option>
-              <option value="4dx">4DX Motion Dynamic</option>
+              <option value="imax">IMAX Laser</option>
+              <option value="standard">Dolby Standard</option>
+              <option value="4dx">4DX Motion</option>
+              <option value="gold_class">Gold Class Luxury</option>
             </select>
           </div>
         </div>
@@ -166,11 +214,7 @@ export function SchedulesPage({ onSelectSchedule }) {
             >
               {/* Poster Thumbnail */}
               <div className="w-24 sm:w-32 aspect-[2/3] shrink-0 rounded-2xl overflow-hidden border border-cinema-700 bg-cinema-900 shadow-md">
-                <img
-                  src={group.movie_poster}
-                  alt={group.movie_name}
-                  className="w-full h-full object-cover"
-                />
+                <img src={group.movie_poster} alt={group.movie_name} className="w-full h-full object-cover" />
               </div>
 
               {/* Movie Info & Screenings */}
@@ -195,7 +239,9 @@ export function SchedulesPage({ onSelectSchedule }) {
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
                     {group.schedules.map((s) => {
-                      const startTimeStr = new Date(s.start_time).toLocaleTimeString('vi-VN', {
+                      const startDate = new Date(s.start_time);
+                      const hour = startDate.getHours();
+                      const startTimeStr = startDate.toLocaleTimeString('vi-VN', {
                         hour: '2-digit',
                         minute: '2-digit',
                       });
@@ -203,20 +249,30 @@ export function SchedulesPage({ onSelectSchedule }) {
                         hour: '2-digit',
                         minute: '2-digit',
                       });
-                      const isPast = new Date(s.start_time) < new Date();
+                      const isPast = startDate < new Date();
+                      const prediction = getHourPrediction(s.start_time, hour);
 
                       return (
                         <button
                           key={s.id}
                           disabled={isPast}
                           onClick={() => onSelectSchedule(s.id)}
-                          className={`p-3 rounded-2xl border text-left transition-all flex flex-col justify-between ${
+                          className={`p-3 rounded-2xl border text-left transition-all flex flex-col justify-between relative group ${
                             isPast
                               ? 'bg-cinema-950/50 border-cinema-800 text-slate-600 cursor-not-allowed'
-                              : 'bg-cinema-900 hover:bg-ruby-600/20 border-cinema-700/70 hover:border-ruby-500 hover:scale-105 group'
+                              : 'bg-cinema-900 hover:bg-ruby-600/20 border-cinema-700/70 hover:border-ruby-500 hover:scale-105'
                           }`}
                         >
-                          <div className="flex items-center justify-between mb-1">
+                          {/* AI Peak / Hot Prediction Badge */}
+                          {prediction && !isPast && (
+                            <span
+                              className={`absolute -top-2.5 left-2 px-1.5 py-0.2 rounded-md text-[9px] font-bold border tracking-tighter ${prediction.badgeClass}`}
+                            >
+                              {prediction.label}
+                            </span>
+                          )}
+
+                          <div className="flex items-center justify-between mb-1 mt-1">
                             <span className="text-base font-black text-white group-hover:text-ruby-400 font-mono">
                               {startTimeStr}
                             </span>
@@ -224,9 +280,7 @@ export function SchedulesPage({ onSelectSchedule }) {
                               {s.room_type}
                             </span>
                           </div>
-                          <div className="text-[10px] text-slate-400 truncate">
-                            {s.room_name}
-                          </div>
+                          <div className="text-[10px] text-slate-400 truncate">{s.room_name}</div>
                           <div className="text-[10px] text-slate-500 mt-1 pt-1 border-t border-cinema-800 flex justify-between">
                             <span>~{endTimeStr}</span>
                             <span className="font-bold text-slate-300">

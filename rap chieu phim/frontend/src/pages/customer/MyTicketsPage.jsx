@@ -1,12 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import { TicketCard } from '../../components/customer/TicketCard';
-import { Ticket, Film, AlertCircle, RefreshCw } from 'lucide-react';
+import { TicketDetailModal } from '../../components/customer/TicketDetailModal';
+import { SeatNavigatorModal } from '../../components/customer/SeatNavigatorModal';
+import { Ticket, Film, AlertCircle, RefreshCw, Eye } from 'lucide-react';
 
 export function MyTicketsPage({ onNavigateBooking }) {
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState({ text: '', type: '' });
+  const [selectedTicket, setSelectedTicket] = useState(null);
+  const [navigatorTicket, setNavigatorTicket] = useState(null);
 
   useEffect(() => {
     fetchMyTickets();
@@ -45,7 +49,7 @@ export function MyTicketsPage({ onNavigateBooking }) {
             <Ticket className="w-8 h-8 text-ruby-500" /> Vé Của Tôi & Lịch Sử Đặt Vé
           </h1>
           <p className="text-xs text-slate-400 mt-1">
-            Quản lý vé điện tử và xuất trình mã QR tại cửa kiểm soát
+            Quản lý vé điện tử. <strong>Bấm trực tiếp vào từng vé</strong> để xem chi tiết bắp nước kèm theo và mã QR toàn màn hình!
           </p>
         </div>
         <button
@@ -98,10 +102,27 @@ export function MyTicketsPage({ onNavigateBooking }) {
               key={ticket.id}
               ticket={ticket}
               onCancel={handleCancelTicket}
+              onSelectDetail={(t) => setSelectedTicket(t)}
+              onOpenNavigator={(t) => setNavigatorTicket(t)}
             />
           ))}
         </div>
       )}
+
+      {/* Full Ticket & Concession Details Modal */}
+      <TicketDetailModal
+        ticket={selectedTicket}
+        isOpen={Boolean(selectedTicket)}
+        onClose={() => setSelectedTicket(null)}
+        onCancelTicket={handleCancelTicket}
+      />
+
+      {/* In-Theater Seat Navigator in Darkness Modal */}
+      <SeatNavigatorModal
+        ticket={navigatorTicket}
+        isOpen={Boolean(navigatorTicket)}
+        onClose={() => setNavigatorTicket(null)}
+      />
     </div>
   );
 }

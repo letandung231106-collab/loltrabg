@@ -4,21 +4,37 @@ import { useBooking } from '../../context/BookingContext';
 import { useAuth } from '../../context/AuthContext';
 import { SeatMap } from '../../components/customer/SeatMap';
 import { PaymentModal } from '../../components/customer/PaymentModal';
+import { ConcessionSelectionModal } from '../../components/customer/ConcessionSelectionModal';
 import { TicketCard } from '../../components/customer/TicketCard';
 import { ArrowLeft, Clock, Calendar, Film, MapPin, AlertTriangle, CheckCircle, RefreshCw } from 'lucide-react';
 
-export function BookingFlowPage({ scheduleId, onBack, onNavigateMyTickets, onOpenAuth }) {
+export function BookingFlowPage({
+  scheduleId,
+  onBack,
+  onNavigateMyTickets,
+  onOpenAuth,
+  initialIssuedTickets = null,
+}) {
   const { setSelectedSchedule, proceedToHoldSeats, cancelHold, activeBooking, isHolding, resetBookingState } = useBooking();
   const { isAuthenticated } = useAuth();
 
   const [scheduleData, setScheduleData] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(Boolean(scheduleId) && !initialIssuedTickets);
   const [errorMsg, setErrorMsg] = useState('');
+  const [isConcessionOpen, setIsConcessionOpen] = useState(false);
+  const [selectedConcessions, setSelectedConcessions] = useState([]);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
-  const [issuedTickets, setIssuedTickets] = useState(null);
+  const [issuedTickets, setIssuedTickets] = useState(initialIssuedTickets);
 
   useEffect(() => {
-    if (scheduleId) {
+    if (initialIssuedTickets) {
+      setIssuedTickets(initialIssuedTickets);
+      setLoading(false);
+    }
+  }, [initialIssuedTickets]);
+
+  useEffect(() => {
+    if (scheduleId && !initialIssuedTickets) {
       fetchSeatMap();
     }
     return () => {
@@ -53,7 +69,7 @@ export function BookingFlowPage({ scheduleId, onBack, onNavigateMyTickets, onOpe
       if (!isHolding) {
         await proceedToHoldSeats();
       }
-      setIsPaymentOpen(true);
+      setIsConcessionOpen(true);
       // Refresh seat map to show updated holding state
       fetchSeatMap();
     } catch (err) {
@@ -61,6 +77,12 @@ export function BookingFlowPage({ scheduleId, onBack, onNavigateMyTickets, onOpe
       // Refresh seat map to see which seat was conflicted
       fetchSeatMap();
     }
+  };
+
+  const handleConcessionProceed = (chosenConcessions) => {
+    setSelectedConcessions(chosenConcessions || []);
+    setIsConcessionOpen(false);
+    setIsPaymentOpen(true);
   };
 
   const handlePaymentSuccess = (paymentResult) => {
@@ -197,10 +219,18 @@ export function BookingFlowPage({ scheduleId, onBack, onNavigateMyTickets, onOpe
       />
 
       {/* Payment Simulator Modal */}
+      <ConcessionSelectionModal
+        isOpen={isConcessionOpen}
+        onClose={() => handleConcessionProceed([])}
+        onProceed={handleConcessionProceed}
+        selectedSeatsCount={scheduleData?.seats?.length || 1}
+      />
+
       <PaymentModal
         isOpen={isPaymentOpen}
         onClose={() => setIsPaymentOpen(false)}
         onSuccess={handlePaymentSuccess}
+        selectedConcessions={selectedConcessions}
       />
     </div>
   );

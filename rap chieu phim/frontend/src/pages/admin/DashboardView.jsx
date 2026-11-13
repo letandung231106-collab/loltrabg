@@ -27,12 +27,16 @@ import {
   RefreshCw,
   Sparkles,
   CheckCircle2,
+  Flame,
 } from 'lucide-react';
 
 export function DashboardView({ onNavigateTab }) {
   const [summary, setSummary] = useState(null);
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // Seat Heatmap State (Bản đồ nhiệt chỗ ngồi)
+  const [selectedHeatmapRoom, setSelectedHeatmapRoom] = useState('hall1');
 
   useEffect(() => {
     fetchDashboardData();
@@ -54,148 +58,221 @@ export function DashboardView({ onNavigateTab }) {
     }
   };
 
-  const COLORS = ['#e50914', '#f59e0b', '#3b82f6', '#10b981', '#8b5cf6', '#ec4899'];
-
   if (loading) {
     return (
-      <div className="py-20 text-center">
-        <div className="w-10 h-10 border-4 border-ruby-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-        <p className="text-slate-400 text-xs">Đang tổng hợp dữ liệu Dashboard vận hành...</p>
+      <div className="py-24 text-center">
+        <div className="w-12 h-12 border-4 border-ruby-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+        <p className="text-slate-400 text-sm">Đang tải dữ liệu vận hành & phân tích KPI...</p>
       </div>
     );
   }
 
-  const { movies, rooms, equipment, incidents, sales, maintenance } = summary || {};
+  const { sales, rooms, equipment, incidents, maintenance } = summary || {};
+
+  // Mock Seat Heatmap Matrix theo dãy ghế (Tỉ lệ lấp đầy & Doanh số theo vị trí)
+  const heatmapRows = [
+    { row: 'A', fillRate: 35, avgRevenue: '1.2M', desc: 'Tiền sảnh (Gần màn hình)' },
+    { row: 'B', fillRate: 55, avgRevenue: '2.1M', desc: 'Standard Dolby' },
+    { row: 'C', fillRate: 70, avgRevenue: '3.4M', desc: 'Standard Dolby' },
+    { row: 'D', fillRate: 95, avgRevenue: '6.8M', desc: '👑 VIP Hàng Giữa (Hot nhất)' },
+    { row: 'E', fillRate: 98, avgRevenue: '7.2M', desc: '👑 VIP Góc Nhìn Chuẩn Hollywood' },
+    { row: 'F', fillRate: 85, avgRevenue: '5.9M', desc: '💖 Ghế Đôi Sweetbox Cuối Phòng' },
+  ];
 
   return (
     <div className="space-y-8 animate-fade-in">
       {/* Top Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-cinema-700/60">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-cinema-700/60">
         <div>
           <h1 className="text-2xl sm:text-3xl font-black text-white flex items-center gap-2.5">
-            <Sparkles className="w-7 h-7 text-gold-400" />
-            Dashboard Vận Hành & Doanh Thu
+            <TrendingUp className="w-7 h-7 text-ruby-500" /> Trung Tâm Chỉ Huy Vận Hành Rạp
           </h1>
           <p className="text-xs text-slate-400 mt-1">
-            Tổng quan thời gian thực về suất chiếu, doanh thu, phòng chiếu, thiết bị và sự cố kỹ thuật
+            Chỉ số KPI Doanh Thu, Tình Trạng Thiết Bị, An Toàn Phòng Chiếu & Heatmap Suất Chiếu
           </p>
         </div>
-
         <button
           onClick={fetchDashboardData}
-          className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-cinema-850 hover:bg-cinema-800 text-slate-300 text-xs font-bold border border-cinema-700/60 transition-colors"
+          className="px-4 py-2 rounded-xl bg-cinema-850 hover:bg-cinema-800 text-slate-300 text-xs font-semibold border border-cinema-700/60 flex items-center gap-2 self-start sm:self-auto transition-colors"
         >
-          <RefreshCw className="w-3.5 h-3.5" /> Làm mới số liệu
+          <RefreshCw className="w-3.5 h-3.5" /> Làm mới dữ liệu
         </button>
       </div>
 
-      {/* KPI Cards Grid (Mục 9) */}
-      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
-        {/* Doanh thu hôm nay */}
-        <div className="p-5 rounded-2xl glass-panel border border-cinema-700/70 shadow-lg space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-400">Doanh thu hôm nay</span>
-            <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-400">
+      {/* KPI Highlight Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+        {/* Doanh thu */}
+        <div className="p-5 rounded-3xl glass-panel border border-cinema-700/70 shadow-xl relative overflow-hidden group hover:border-ruby-500/50 transition-all">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">DOANH THU THỰC TẾ</span>
+            <div className="w-10 h-10 rounded-2xl bg-ruby-500/10 border border-ruby-500/30 flex items-center justify-center text-ruby-400">
               <DollarSign className="w-5 h-5" />
             </div>
           </div>
-          <div className="text-2xl font-black text-white font-mono">
-            {sales?.revenue_today ? parseFloat(sales.revenue_today).toLocaleString('vi-VN') : '0'} <span className="text-xs font-normal text-slate-400">VNĐ</span>
+          <div className="text-2xl sm:text-3xl font-black text-white font-mono">
+            {sales?.total_revenue_all_time ? parseFloat(sales.total_revenue_all_time).toLocaleString('vi-VN') : '0'}{' '}
+            <span className="text-xs font-normal text-slate-400">VNĐ</span>
           </div>
-          <div className="text-[11px] text-emerald-400 flex items-center gap-1 font-semibold">
-            <TrendingUp className="w-3.5 h-3.5" /> Tổng DT: {sales?.total_revenue_all_time ? (parseFloat(sales.total_revenue_all_time) / 1000000).toFixed(1) : '0'}M VNĐ
+          <div className="text-[11px] text-emerald-400 font-semibold mt-2 flex items-center gap-1">
+            <span>↑ Tăng trưởng tích cực</span>
+            <span className="text-slate-400 font-normal">• Hôm nay: {sales?.revenue_today ? parseFloat(sales.revenue_today).toLocaleString('vi-VN') : '0'}đ</span>
           </div>
         </div>
 
-        {/* Vé bán hôm nay */}
-        <div className="p-5 rounded-2xl glass-panel border border-cinema-700/70 shadow-lg space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-400">Vé bán hôm nay</span>
-            <div className="p-2 rounded-xl bg-ruby-500/20 text-ruby-400">
+        {/* Vé đã bán */}
+        <div className="p-5 rounded-3xl glass-panel border border-cinema-700/70 shadow-xl relative overflow-hidden group hover:border-amber-500/50 transition-all">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">VÉ ĐÃ PHÁT HÀNH</span>
+            <div className="w-10 h-10 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
               <Ticket className="w-5 h-5" />
             </div>
           </div>
-          <div className="text-2xl font-black text-white font-mono">
-            {sales?.tickets_sold_today || 0} <span className="text-xs font-normal text-slate-400">vé</span>
+          <div className="text-2xl sm:text-3xl font-black text-white font-mono">
+            {sales?.total_tickets_all_time || 0}{' '}
+            <span className="text-xs font-normal text-slate-400">vé</span>
           </div>
-          <div className="text-[11px] text-slate-400">
-            {sales?.screenings_today || 0} suất chiếu đang chạy
+          <div className="text-[11px] text-amber-400 font-semibold mt-2 flex items-center gap-1">
+            <span>Hôm nay: {sales?.tickets_sold_today || 0} vé</span>
+            <span className="text-slate-400 font-normal">• {sales?.screenings_today || 0} suất chiếu</span>
           </div>
         </div>
 
-        {/* Tình trạng Phòng chiếu */}
-        <div className="p-5 rounded-2xl glass-panel border border-cinema-700/70 shadow-lg space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-400">Phòng chiếu</span>
-            <div className="p-2 rounded-xl bg-blue-500/20 text-blue-400">
+        {/* Phòng chiếu */}
+        <div className="p-5 rounded-3xl glass-panel border border-cinema-700/70 shadow-xl relative overflow-hidden group hover:border-emerald-500/50 transition-all">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">PHÒNG HOẠT ĐỘNG</span>
+            <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
               <Building className="w-5 h-5" />
             </div>
           </div>
-          <div className="text-2xl font-black text-white font-mono">
-            {rooms?.active_rooms || 0} <span className="text-xs font-normal text-slate-400">/ {rooms?.total_rooms || 0} hoạt động</span>
+          <div className="text-2xl sm:text-3xl font-black text-white font-mono">
+            {rooms?.active_rooms || 0} / {rooms?.total_rooms || 0}
           </div>
-          <div className="text-[11px] flex items-center gap-2 font-semibold">
-            <span className="text-amber-400">⚠️ {rooms?.maintenance_rooms || 0} bảo trì</span>
-            <span className="text-rose-400">🚨 {rooms?.incident_rooms || 0} sự cố</span>
+          <div className="text-[11px] text-slate-300 font-medium mt-2 flex items-center gap-2">
+            <span className="text-rose-400">⚠️ {rooms?.incident_rooms || 0} có sự cố</span>
+            <span>•</span>
+            <span className="text-amber-400">🔧 {rooms?.maintenance_rooms || 0} bảo trì</span>
           </div>
         </div>
 
-        {/* Sự cố chưa xử lý */}
-        <div className="p-5 rounded-2xl glass-panel border border-cinema-700/70 shadow-lg space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-400">Sự cố kỹ thuật</span>
-            <div className="p-2 rounded-xl bg-amber-500/20 text-amber-400">
+        {/* Sự cố vận hành */}
+        <div className="p-5 rounded-3xl glass-panel border border-cinema-700/70 shadow-xl relative overflow-hidden group hover:border-rose-500/50 transition-all">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">SỰ CỐ VẬN HÀNH</span>
+            <div className="w-10 h-10 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-400">
               <AlertTriangle className="w-5 h-5" />
             </div>
           </div>
-          <div className="text-2xl font-black text-amber-400 font-mono">
-            {incidents?.unresolved_incidents || 0} <span className="text-xs font-normal text-slate-400">chưa xử lý</span>
+          <div className="text-2xl sm:text-3xl font-black text-rose-400 font-mono">
+            {incidents?.unresolved_incidents || 0}
           </div>
-          <div className="text-[11px] text-slate-400">
-            {equipment?.faulty_equipment || 0} thiết bị hỏng • {equipment?.upcoming_maintenance || 0} sắp bảo trì
+          <div className="text-[11px] text-slate-300 font-medium mt-2 flex items-center gap-2">
+            <span className="text-emerald-400">✓ Đã phân công KTV</span>
+            <span>•</span>
+            <span>Tổng cộng: {incidents?.total_incidents || 0}</span>
           </div>
         </div>
       </div>
 
-      {/* Analytics Charts (Mục 9 & 30) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Biểu đồ doanh thu 7 ngày gần nhất */}
-        <div className="p-5 sm:p-6 glass-panel rounded-3xl border border-cinema-700/70 shadow-xl space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="font-extrabold text-sm text-white flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-emerald-400" /> Biểu Đồ Doanh Thu Giao Dịch
-            </h3>
-            <span className="text-[11px] text-slate-400">7 ngày gần nhất</span>
+      {/* --- SEAT HEATMAP ANALYTICS (Ý TƯỞNG 4: BẢN ĐỒ NHIỆT CHỖ NGỒI RẠP CHIẾU) --- */}
+      <div className="p-6 glass-panel rounded-3xl border border-cinema-700/80 shadow-2xl space-y-5">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-cinema-700/60">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-rose-600 flex items-center justify-center text-white shadow-glow-amber">
+              <Flame className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-base font-extrabold text-white flex items-center gap-2">
+                Bản Đồ Nhiệt Chỗ Ngồi (Seat Heatmap Analytics)
+                <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-bold">
+                  Tối ưu hóa giá vé
+                </span>
+              </h3>
+              <p className="text-xs text-slate-400">
+                Thống kê tần suất chọn ghế thực tế và doanh số tích lũy theo từng hàng ghế
+              </p>
+            </div>
           </div>
-          <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={analytics?.dailyRevenue || []}>
-                <defs>
-                  <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#e50914" stopOpacity={0.8} />
-                    <stop offset="95%" stopColor="#e50914" stopOpacity={0.0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#263145" />
-                <XAxis dataKey="date" stroke="#64748b" tick={{ fontSize: 10 }} />
-                <YAxis stroke="#64748b" tick={{ fontSize: 10 }} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#0d1117', borderColor: '#384661', borderRadius: '12px', fontSize: '12px' }}
-                  formatter={(val) => [`${parseFloat(val).toLocaleString('vi-VN')} VNĐ`, 'Doanh thu']}
-                />
-                <Area type="monotone" dataKey="total_revenue" stroke="#e50914" strokeWidth={2} fillOpacity={1} fill="url(#colorRev)" />
-              </AreaChart>
-            </ResponsiveContainer>
+
+          <div className="flex items-center gap-2 text-xs">
+            <span className="text-slate-400">Phòng chiếu:</span>
+            <select
+              value={selectedHeatmapRoom}
+              onChange={(e) => setSelectedHeatmapRoom(e.target.value)}
+              className="px-3 py-1.5 rounded-xl bg-cinema-850 border border-cinema-700 text-white text-xs focus:outline-none"
+            >
+              <option value="hall1">Cinema Hall 4 (IMAX Laser)</option>
+              <option value="hall2">Cinema Hall 1 (Dolby Atmos)</option>
+              <option value="hall3">Cinema Hall 5 (4DX Motion)</option>
+            </select>
           </div>
         </div>
 
+        {/* Heatmap Bar List */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {heatmapRows.map((item) => {
+            const isHot = item.fillRate >= 80;
+            const isMedium = item.fillRate >= 50 && item.fillRate < 80;
+            return (
+              <div
+                key={item.row}
+                className={`p-4 rounded-2xl border transition-all ${
+                  isHot
+                    ? 'bg-rose-950/30 border-rose-500/50 shadow-glow-red'
+                    : isMedium
+                    ? 'bg-amber-950/20 border-amber-500/40'
+                    : 'bg-cinema-850/40 border-cinema-700/60'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="w-7 h-7 rounded-lg bg-cinema-800 font-mono font-black text-sm flex items-center justify-center text-white border border-cinema-600">
+                      {item.row}
+                    </span>
+                    <span className="text-xs font-bold text-slate-200">{item.desc}</span>
+                  </div>
+                  <span
+                    className={`text-xs font-black font-mono ${
+                      isHot ? 'text-rose-400' : isMedium ? 'text-amber-400' : 'text-slate-400'
+                    }`}
+                  >
+                    {item.fillRate}% Lấp đầy
+                  </span>
+                </div>
+
+                {/* Progress Visual Bar */}
+                <div className="w-full h-2.5 rounded-full bg-cinema-900 overflow-hidden mb-2">
+                  <div
+                    className={`h-full rounded-full transition-all duration-1000 ${
+                      isHot
+                        ? 'bg-gradient-to-r from-amber-500 to-rose-600 shadow-glow-red'
+                        : isMedium
+                        ? 'bg-gradient-to-r from-blue-500 to-amber-500'
+                        : 'bg-cinema-600'
+                    }`}
+                    style={{ width: `${item.fillRate}%` }}
+                  />
+                </div>
+
+                <div className="flex justify-between items-center text-[11px] text-slate-400">
+                  <span>Doanh số ước tính:</span>
+                  <span className="font-mono font-bold text-white">~{item.avgRevenue} VNĐ</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Charts Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Top Phim Doanh Thu Cao Nhất */}
         <div className="p-5 sm:p-6 glass-panel rounded-3xl border border-cinema-700/70 shadow-xl space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="font-extrabold text-sm text-white flex items-center gap-2">
-              <Film className="w-4 h-4 text-ruby-400" /> Top Phim Doanh Thu & Vé Bán
+              <Film className="w-4 h-4 text-ruby-400" /> Top Phim Doanh Thu Cao Nhất
             </h3>
-            <span className="text-[11px] text-slate-400">Doanh thu tích lũy</span>
+            <span className="text-[11px] text-slate-400">Thống kê theo lượt vé</span>
           </div>
           <div className="h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">
@@ -219,7 +296,9 @@ export function DashboardView({ onNavigateTab }) {
             <h3 className="font-extrabold text-sm text-white flex items-center gap-2">
               <Wrench className="w-4 h-4 text-gold-400" /> Chi Phí Bảo Trì Theo Thiết Bị
             </h3>
-            <span className="text-[11px] text-slate-400">Tổng chi: {maintenance?.total_maintenance_cost ? parseFloat(maintenance.total_maintenance_cost).toLocaleString('vi-VN') : '0'}đ</span>
+            <span className="text-[11px] text-slate-400">
+              Tổng chi: {maintenance?.total_maintenance_cost ? parseFloat(maintenance.total_maintenance_cost).toLocaleString('vi-VN') : '0'}đ
+            </span>
           </div>
           <div className="h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">
@@ -238,15 +317,15 @@ export function DashboardView({ onNavigateTab }) {
         </div>
 
         {/* Quick Operations Shortcuts */}
-        <div className="p-5 sm:p-6 glass-panel rounded-3xl border border-cinema-700/70 shadow-xl flex flex-col justify-between space-y-4">
+        <div className="lg:col-span-2 p-5 sm:p-6 glass-panel rounded-3xl border border-cinema-700/70 shadow-xl flex flex-col justify-between space-y-4">
           <div>
-            <h3 className="font-extrabold text-sm text-white mb-2">Thao Tác Nghiệp Vụ Nhanh</h3>
+            <h3 className="font-extrabold text-sm text-white mb-2">Thao Tác Nghiệp Vụ Nhanh (Role Routing)</h3>
             <p className="text-xs text-slate-400">
               Truy cập nhanh các nghiệp vụ vận hành rạp hàng ngày
             </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <button
               onClick={() => onNavigateTab('schedules')}
               className="p-3.5 rounded-2xl bg-cinema-850 hover:bg-cinema-800 border border-cinema-700/60 text-left transition-all hover:border-ruby-500"

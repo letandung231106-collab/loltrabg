@@ -188,7 +188,11 @@ async function createSchedule(req, res, next) {
 
     const startDateTime = new Date(start_time);
     const endDateTime = new Date(startDateTime.getTime() + (movie.duration + 15) * 60000);
-    const endTimeStr = endDateTime.toISOString().slice(0, 19).replace('T', ' ');
+    // Định dạng theo giờ địa phương (tránh lệch múi giờ khi dùng toISOString/UTC)
+    const pad = (n) => String(n).padStart(2, '0');
+    const endTimeStr =
+      `${endDateTime.getFullYear()}-${pad(endDateTime.getMonth() + 1)}-${pad(endDateTime.getDate())} ` +
+      `${pad(endDateTime.getHours())}:${pad(endDateTime.getMinutes())}:${pad(endDateTime.getSeconds())}`;
 
     // 2. BR02: Kiểm tra tình trạng phòng (không được là maintenance hoặc incident)
     const rooms = await db.query(`SELECT id, name, status FROM cinema_rooms WHERE id = ?`, [room_id]);

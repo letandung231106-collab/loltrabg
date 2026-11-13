@@ -1,6 +1,20 @@
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 /**
+ * Helper to build clean query strings without undefined/null/empty values
+ */
+function buildQueryString(params = {}) {
+  const cleanParams = {};
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== null && value !== '' && value !== 'all') {
+      cleanParams[key] = value;
+    }
+  }
+  const query = new URLSearchParams(cleanParams).toString();
+  return query ? `?${query}` : '';
+}
+
+/**
  * Fetch wrapper có tự động đính kèm JWT Bearer Token
  */
 async function request(endpoint, options = {}) {
@@ -38,10 +52,7 @@ export const api = {
   switchRole: (targetRole) => request('/auth/switch-role', { method: 'POST', body: JSON.stringify({ targetRole }) }),
 
   // Movies
-  getMovies: (params = {}) => {
-    const query = new URLSearchParams(params).toString();
-    return request(`/movies${query ? `?${query}` : ''}`);
-  },
+  getMovies: (params = {}) => request(`/movies${buildQueryString(params)}`),
   getMovieById: (id) => request(`/movies/${id}`),
   createMovie: (data) => request('/movies', { method: 'POST', body: JSON.stringify(data) }),
   updateMovie: (id, data) => request(`/movies/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
@@ -55,10 +66,7 @@ export const api = {
   createRoom: (data) => request('/rooms', { method: 'POST', body: JSON.stringify(data) }),
 
   // Schedules
-  getSchedules: (params = {}) => {
-    const query = new URLSearchParams(params).toString();
-    return request(`/schedules${query ? `?${query}` : ''}`);
-  },
+  getSchedules: (params = {}) => request(`/schedules${buildQueryString(params)}`),
   getScheduleSeatMap: (id) => request(`/schedules/${id}/seats`),
   createSchedule: (data) => request('/schedules', { method: 'POST', body: JSON.stringify(data) }),
   cancelSchedule: (id) => request(`/schedules/${id}`, { method: 'DELETE' }),
@@ -73,29 +81,33 @@ export const api = {
 
   // Payments & Tickets
   processPayment: (paymentData) => request('/payments/process', { method: 'POST', body: JSON.stringify(paymentData) }),
-  getAllTickets: (params = {}) => {
-    const query = new URLSearchParams(params).toString();
-    return request(`/tickets${query ? `?${query}` : ''}`);
-  },
+  createMomoPayment: (data) => request('/payments/momo/create', { method: 'POST', body: JSON.stringify(data) }),
+  verifyMomoReturn: (data) => request('/payments/momo/momo-return', { method: 'POST', body: JSON.stringify(data) }),
+  getAllTickets: (params = {}) => request(`/tickets${buildQueryString(params)}`),
   getMyTickets: () => request('/tickets/my-tickets'),
-  verifyTicket: (ticket_code) => request('/tickets/verify', { method: 'POST', body: JSON.stringify({ ticket_code }) }),
-  cancelTicket: (id) => request(`/tickets/${id}/cancel`, { method: 'POST' }),
+  getTicketById: (id) => request(`/tickets/${id}`),
+  verifyTicketQr: (ticket_code) =>
+    request('/tickets/verify', { method: 'POST', body: JSON.stringify({ ticket_code }) }),
+  cancelTicket: (id, reason) =>
+    request(`/tickets/${id}/cancel`, { method: 'POST', body: JSON.stringify({ reason }) }),
 
-  // Equipment
-  getEquipment: (params = {}) => {
-    const query = new URLSearchParams(params).toString();
-    return request(`/equipment${query ? `?${query}` : ''}`);
-  },
-  getEquipmentTypes: () => request('/equipment/types'),
-  getMaintenanceAlerts: () => request('/equipment/alerts'),
+  // Dashboard & Analytics
+  getDashboardSummary: () => request('/dashboard/summary'),
+  getRevenueAnalytics: () => request('/dashboard/analytics'),
+
+  // Equipment & Maintenance
+  getEquipment: (params = {}) => request(`/equipment${buildQueryString(params)}`),
+  getEquipmentById: (id) => request(`/equipment/${id}`),
   createEquipment: (data) => request('/equipment', { method: 'POST', body: JSON.stringify(data) }),
   updateEquipment: (id, data) => request(`/equipment/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  getMaintenanceAlerts: () => request('/equipment/maintenance-alerts'),
+  getEquipmentTypes: () => request('/equipment/types'),
+  getMaintenances: () => request('/equipment/maintenances/list'),
+  createMaintenance: (data) =>
+    request('/equipment/maintenances', { method: 'POST', body: JSON.stringify(data) }),
 
   // Incidents
-  getIncidents: (params = {}) => {
-    const query = new URLSearchParams(params).toString();
-    return request(`/incidents${query ? `?${query}` : ''}`);
-  },
+  getIncidents: (params = {}) => request(`/incidents${buildQueryString(params)}`),
   getIncidentById: (id) => request(`/incidents/${id}`),
   createIncident: (data) => request('/incidents', { method: 'POST', body: JSON.stringify(data) }),
   assignTechnician: (id, technician_id) =>
@@ -103,68 +115,38 @@ export const api = {
   resolveIncident: (id, data) => request(`/incidents/${id}/resolve`, { method: 'POST', body: JSON.stringify(data) }),
   closeIncident: (id, note) => request(`/incidents/${id}/close`, { method: 'POST', body: JSON.stringify({ note }) }),
 
-  // Maintenances
-  getMaintenances: (params = {}) => {
-    const query = new URLSearchParams(params).toString();
-    return request(`/maintenances${query ? `?${query}` : ''}`);
-  },
-  createMaintenance: (data) => request('/maintenances', { method: 'POST', body: JSON.stringify(data) }),
-  updateMaintenance: (id, data) => request(`/maintenances/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-
-  // Room Inspections (Checklists)
-  getInspections: (params = {}) => {
-    const query = new URLSearchParams(params).toString();
-    return request(`/inspections${query ? `?${query}` : ''}`);
-  },
+  // Inspections
+  getInspections: (params = {}) => request(`/inspections${buildQueryString(params)}`),
   getInspectionById: (id) => request(`/inspections/${id}`),
-  submitInspection: (data) => request('/inspections', { method: 'POST', body: JSON.stringify(data) }),
+  createInspection: (data) => request('/inspections', { method: 'POST', body: JSON.stringify(data) }),
 
-  // Shifts
-  getShifts: (params = {}) => {
-    const query = new URLSearchParams(params).toString();
-    return request(`/shifts${query ? `?${query}` : ''}`);
-  },
+  // Shifts & Staff
+  getShifts: (params = {}) => request(`/shifts${buildQueryString(params)}`),
   createShift: (data) => request('/shifts', { method: 'POST', body: JSON.stringify(data) }),
-  checkInShift: (id, status) => request(`/shifts/${id}/status`, { method: 'PUT', body: JSON.stringify({ status }) }),
-
-  // Employees & Customers
-  getEmployees: (params = {}) => {
-    const query = new URLSearchParams(params).toString();
-    return request(`/employees${query ? `?${query}` : ''}`);
-  },
+  updateShiftStatus: (id, status) =>
+    request(`/shifts/${id}/status`, { method: 'PUT', body: JSON.stringify({ status }) }),
+  getShiftHandovers: () => request('/shifts/handovers/list'),
+  createShiftHandover: (data) => request('/shifts/handovers', { method: 'POST', body: JSON.stringify(data) }),
+  approveShiftHandover: (id, status, notes) =>
+    request(`/shifts/handovers/${id}/status`, { method: 'PUT', body: JSON.stringify({ status, notes }) }),
+  getEmployees: (params = {}) => request(`/employees${buildQueryString(params)}`),
   getTechnicians: () => request('/employees/technicians'),
-  getCustomers: (params = {}) => {
-    const query = new URLSearchParams(params).toString();
-    return request(`/customers${query ? `?${query}` : ''}`);
-  },
+
+  // Customers (CRM)
+  getCustomers: (params = {}) => request(`/customers${buildQueryString(params)}`),
   getCustomerById: (id) => request(`/customers/${id}`),
+  updateCustomerMembership: (id, membership_level) =>
+    request(`/customers/${id}/membership`, { method: 'PUT', body: JSON.stringify({ membership_level }) }),
 
-  // Dashboard & Notifications
-  getDashboardSummary: () => request('/dashboard/summary'),
-  getRevenueAnalytics: () => request('/dashboard/analytics'),
-  getNotifications: () => request('/notifications'),
-  markNotificationRead: (id) => request(`/notifications/${id}/read`, { method: 'PUT' }),
-
-  // Concessions & F&B
-  getConcessions: (params = {}) => {
-    const query = new URLSearchParams(params).toString();
-    return request(`/concessions${query ? `?${query}` : ''}`);
-  },
+  // Concessions (F&B) & Inventory
+  getConcessions: (params = {}) => request(`/concessions${buildQueryString(params)}`),
   createConcession: (data) => request('/concessions', { method: 'POST', body: JSON.stringify(data) }),
   updateConcession: (id, data) => request(`/concessions/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteConcession: (id) => request(`/concessions/${id}`, { method: 'DELETE' }),
-  sellConcessionOrder: (data) => request('/concessions/sell', { method: 'POST', body: JSON.stringify(data) }),
-
-  // Inventory Ingredients & Logs
-  getIngredients: () => request('/inventory/ingredients'),
-  createIngredient: (data) => request('/inventory/ingredients', { method: 'POST', body: JSON.stringify(data) }),
+  sellConcessions: (orderData) => request('/concessions/sell', { method: 'POST', body: JSON.stringify(orderData) }),
+  getInventory: () => request('/inventory'),
   getInventoryLogs: () => request('/inventory/logs'),
-  createInventoryLog: (data) => request('/inventory/logs', { method: 'POST', body: JSON.stringify(data) }),
-
-  // Cash Handover & Shift Float
-  getHandovers: () => request('/handovers'),
-  createHandover: (data) => request('/handovers', { method: 'POST', body: JSON.stringify(data) }),
-  approveHandover: (id, data) => request(`/handovers/${id}/approve`, { method: 'PUT', body: JSON.stringify(data) }),
+  importInventory: (data) => request('/inventory/import', { method: 'POST', body: JSON.stringify(data) }),
 
   // KDM & Projector Lamps
   getKdmLicenses: () => request('/kdm/licenses'),
@@ -173,7 +155,11 @@ export const api = {
   getProjectorLamps: () => request('/kdm/lamps'),
   updateProjectorLamp: (id, data) => request(`/kdm/lamps/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
 
-  // Turnaround Cleaning Checklist
-  getTurnaroundChecklists: () => request('/turnaround'),
-  submitTurnaround: (data) => request('/turnaround', { method: 'POST', body: JSON.stringify(data) }),
+  // Turnaround Quick Clean
+  getTurnaroundChecklists: (params = {}) => request(`/turnaround${buildQueryString(params)}`),
+  createTurnaroundChecklist: (data) => request('/turnaround', { method: 'POST', body: JSON.stringify(data) }),
+
+  // Notifications
+  getNotifications: () => request('/notifications'),
+  markNotificationAsRead: (id) => request(`/notifications/${id}/read`, { method: 'PUT' }),
 };
