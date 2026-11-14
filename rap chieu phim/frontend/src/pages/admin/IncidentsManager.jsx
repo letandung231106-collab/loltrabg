@@ -168,11 +168,11 @@ export function IncidentsManager() {
               <tr>
                 <th className="p-4">Mã & Tiêu Đề Sự Cố</th>
                 <th className="p-4">Vị trí / Thiết bị</th>
-                <th className="p-4">Mức độ</th>
-                <th className="p-4">Người báo cáo</th>
-                <th className="p-4">Kỹ thuật viên</th>
-                <th className="p-4">Trạng thái</th>
-                <th className="p-4 text-right">Quy trình xử lý</th>
+                <th className="p-4 whitespace-nowrap">Mức độ</th>
+                <th className="p-4 whitespace-nowrap">Người báo cáo</th>
+                <th className="p-4 whitespace-nowrap">Kỹ thuật viên</th>
+                <th className="p-4 whitespace-nowrap">Trạng thái</th>
+                <th className="p-4 text-right whitespace-nowrap">Quy trình xử lý</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-cinema-800">
@@ -193,19 +193,28 @@ export function IncidentsManager() {
                       <div className="font-semibold text-white">{inc.room_name || 'Khu Vực Chung'}</div>
                       <div className="text-[10px] text-slate-400">{inc.equipment_name || 'Không gắn thiết bị cụ thể'}</div>
                     </td>
-                    <td className="p-4">
-                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                        inc.severity === 'critical' ? 'bg-rose-950 text-rose-400 border border-rose-600 animate-pulse' :
-                        inc.severity === 'high' ? 'bg-amber-950 text-amber-400 border border-amber-600' :
-                        'bg-blue-950 text-blue-400 border border-blue-600'
-                      }`}>
-                        {inc.severity}
-                      </span>
+                    <td className="p-4 whitespace-nowrap">
+                      {inc.severity === 'critical' ? (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-rose-500/15 text-rose-300 border border-rose-500/30 whitespace-nowrap">
+                          <span className="w-2 h-2 rounded-full bg-rose-400 shrink-0 animate-ping" />
+                          Khẩn cấp
+                        </span>
+                      ) : inc.severity === 'high' ? (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30 whitespace-nowrap">
+                          <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
+                          Nghiêm trọng
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-sky-500/15 text-sky-300 border border-sky-500/30 whitespace-nowrap">
+                          <span className="w-2 h-2 rounded-full bg-sky-400 shrink-0" />
+                          Bình thường
+                        </span>
+                      )}
                     </td>
-                    <td className="p-4 text-slate-300">
+                    <td className="p-4 text-slate-300 whitespace-nowrap">
                       {inc.reporter_name}
                     </td>
-                    <td className="p-4">
+                    <td className="p-4 whitespace-nowrap">
                       {inc.assigned_technician_name ? (
                         <span className="font-bold text-gold-400 flex items-center gap-1">
                           🔧 {inc.assigned_technician_name}
@@ -214,16 +223,33 @@ export function IncidentsManager() {
                         <span className="text-slate-500 italic">Chưa phân công</span>
                       )}
                     </td>
-                    <td className="p-4">
-                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${
-                        isNew ? 'bg-rose-950 text-rose-400 border border-rose-600' :
-                        isAccepted ? 'bg-amber-950 text-amber-400 border border-amber-600' :
-                        isInProgress ? 'bg-blue-950 text-blue-400 border border-blue-600 animate-pulse' :
-                        isResolved ? 'bg-emerald-950 text-emerald-400 border border-emerald-600' :
-                        'bg-cinema-800 text-slate-400'
-                      }`}>
-                        {inc.status}
-                      </span>
+                    <td className="p-4 whitespace-nowrap">
+                      {isResolved ? (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 whitespace-nowrap">
+                          <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+                          Đã khắc phục
+                        </span>
+                      ) : isInProgress ? (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-sky-500/15 text-sky-300 border border-sky-500/30 whitespace-nowrap">
+                          <span className="w-2 h-2 rounded-full bg-sky-400 shrink-0 animate-pulse" />
+                          Đang xử lý
+                        </span>
+                      ) : isAccepted ? (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30 whitespace-nowrap">
+                          <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
+                          Đã phân công
+                        </span>
+                      ) : isNew ? (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-rose-500/15 text-rose-300 border border-rose-500/30 whitespace-nowrap">
+                          <span className="w-2 h-2 rounded-full bg-rose-400 shrink-0 animate-pulse" />
+                          Mới tiếp nhận
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-500/15 text-slate-300 border border-slate-500/30 whitespace-nowrap">
+                          <span className="w-2 h-2 rounded-full bg-slate-400 shrink-0" />
+                          {isClosed ? 'Đã đóng' : inc.status}
+                        </span>
+                      )}
                     </td>
                     <td className="p-4 text-right">
                       <div className="flex items-center justify-end gap-1.5 flex-wrap">

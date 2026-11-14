@@ -142,10 +142,10 @@ export function SchedulesManager() {
                 <th className="p-4">Phòng chiếu</th>
                 <th className="p-4">Thời gian bắt đầu</th>
                 <th className="p-4">Thời gian kết thúc</th>
-                <th className="p-4">Giá vé cơ bản</th>
-                <th className="p-4">Vé đã bán</th>
-                <th className="p-4">Trạng thái</th>
-                <th className="p-4 text-right">Thao tác</th>
+                <th className="p-4 whitespace-nowrap">Giá vé cơ bản</th>
+                <th className="p-4 whitespace-nowrap">Vé đã bán</th>
+                <th className="p-4 whitespace-nowrap">Trạng thái</th>
+                <th className="p-4 text-right whitespace-nowrap">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-cinema-800">
@@ -176,14 +176,28 @@ export function SchedulesManager() {
                   <td className="p-4 text-slate-200">
                     <span className="font-bold text-emerald-400">{s.booked_seats_count || 0}</span> / {s.capacity} ghế
                   </td>
-                  <td className="p-4">
-                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${
-                      s.status === 'scheduled' ? 'bg-blue-950 text-blue-400 border border-blue-600' :
-                      s.status === 'screening' ? 'bg-emerald-950 text-emerald-400 border border-emerald-600 animate-pulse' :
-                      s.status === 'completed' ? 'bg-cinema-800 text-slate-400' : 'bg-rose-950 text-rose-400'
-                    }`}>
-                      {s.status}
-                    </span>
+                  <td className="p-4 whitespace-nowrap">
+                    {s.status === 'screening' ? (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 whitespace-nowrap">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0 animate-pulse" />
+                        Đang chiếu
+                      </span>
+                    ) : s.status === 'scheduled' ? (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-sky-500/15 text-sky-300 border border-sky-500/30 whitespace-nowrap">
+                        <span className="w-2 h-2 rounded-full bg-sky-400 shrink-0" />
+                        Lên lịch
+                      </span>
+                    ) : s.status === 'completed' ? (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-500/15 text-slate-300 border border-slate-500/30 whitespace-nowrap">
+                        <span className="w-2 h-2 rounded-full bg-slate-400 shrink-0" />
+                        Hoàn tất
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-rose-500/15 text-rose-300 border border-rose-500/30 whitespace-nowrap">
+                        <span className="w-2 h-2 rounded-full bg-rose-400 shrink-0" />
+                        {s.status === 'cancelled' ? 'Đã hủy' : s.status}
+                      </span>
+                    )}
                   </td>
                   <td className="p-4 text-right">
                     <div className="flex items-center justify-end gap-1.5">

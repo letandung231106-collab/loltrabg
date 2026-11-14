@@ -370,11 +370,11 @@ export function DashboardView({ onNavigateTab }) {
           <table className="w-full text-left text-xs">
             <thead>
               <tr className="text-slate-400 border-b border-cinema-800 uppercase tracking-wider font-bold">
-                <th className="py-3 px-3">Hạng</th>
+                <th className="py-3 px-3 whitespace-nowrap">Hạng</th>
                 <th className="py-3 px-4">Tên Phim</th>
-                <th className="py-3 px-3 text-center">Số Vé Đã Bán</th>
-                <th className="py-3 px-4 text-right">Tổng Doanh Thu</th>
-                <th className="py-3 px-3 text-center">Tỷ Trọng</th>
+                <th className="py-3 px-3 text-center whitespace-nowrap">Số Vé Đã Bán</th>
+                <th className="py-3 px-4 text-right whitespace-nowrap">Tổng Doanh Thu</th>
+                <th className="py-3 px-3 text-center whitespace-nowrap">Tỷ Trọng</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-cinema-800/60 font-medium">

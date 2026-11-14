@@ -146,12 +146,12 @@ export function TicketsManager() {
           <table className="w-full text-left text-xs">
             <thead className="bg-cinema-900/90 text-slate-400 uppercase tracking-wider text-[10px] border-b border-cinema-700">
               <tr>
-                <th className="p-4">Mã vé</th>
+                <th className="p-4 whitespace-nowrap">Mã vé</th>
                 <th className="p-4">Phim & Suất chiếu</th>
                 <th className="p-4">Khách hàng</th>
                 <th className="p-4">Phòng & Ghế</th>
-                <th className="p-4">Trạng thái</th>
-                <th className="p-4 text-right">Hành động</th>
+                <th className="p-4 whitespace-nowrap">Trạng thái</th>
+                <th className="p-4 text-right whitespace-nowrap">Hành động</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-cinema-800">
@@ -174,13 +174,23 @@ export function TicketsManager() {
                       Hàng {t.row_number} - Ghế {t.seat_number} ({t.seat_type})
                     </div>
                   </td>
-                  <td className="p-4">
-                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${
-                      t.status === 'active' ? 'bg-emerald-950 text-emerald-400 border border-emerald-600' :
-                      t.status === 'used' ? 'bg-cinema-800 text-slate-400' : 'bg-rose-950 text-rose-400'
-                    }`}>
-                      {t.status === 'active' ? '● Hợp lệ' : t.status === 'used' ? '✓ Đã soát vé' : '✕ Đã hủy'}
-                    </span>
+                  <td className="p-4 whitespace-nowrap">
+                    {t.status === 'active' ? (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 whitespace-nowrap">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0 animate-pulse" />
+                        Hợp lệ
+                      </span>
+                    ) : t.status === 'used' ? (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-500/15 text-slate-300 border border-slate-500/30 whitespace-nowrap">
+                        <span className="w-2 h-2 rounded-full bg-slate-400 shrink-0" />
+                        Đã soát vé
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-rose-500/15 text-rose-300 border border-rose-500/30 whitespace-nowrap">
+                        <span className="w-2 h-2 rounded-full bg-rose-400 shrink-0" />
+                        Đã hủy
+                      </span>
+                    )}
                   </td>
                   <td className="p-4 text-right">
                     {t.status === 'active' && (

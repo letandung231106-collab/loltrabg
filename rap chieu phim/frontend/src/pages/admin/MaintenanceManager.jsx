@@ -120,12 +120,12 @@ export function MaintenanceManager() {
                 <th className="p-4">Mã & Nội Dung</th>
                 <th className="p-4">Thiết bị</th>
                 <th className="p-4">Phòng chiếu</th>
-                <th className="p-4">Loại bảo trì</th>
-                <th className="p-4">Ngày dự kiến</th>
-                <th className="p-4">Kỹ thuật viên</th>
-                <th className="p-4">Chi phí</th>
-                <th className="p-4">Trạng thái</th>
-                <th className="p-4 text-right">Thao tác</th>
+                <th className="p-4 whitespace-nowrap">Loại bảo trì</th>
+                <th className="p-4 whitespace-nowrap">Ngày dự kiến</th>
+                <th className="p-4 whitespace-nowrap">Kỹ thuật viên</th>
+                <th className="p-4 whitespace-nowrap">Chi phí</th>
+                <th className="p-4 whitespace-nowrap">Trạng thái</th>
+                <th className="p-4 text-right whitespace-nowrap">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-cinema-800">
@@ -150,14 +150,23 @@ export function MaintenanceManager() {
                   <td className="p-4 font-mono font-bold text-emerald-400">
                     {parseFloat(m.cost) > 0 ? `${parseFloat(m.cost).toLocaleString('vi-VN')}đ` : '0đ'}
                   </td>
-                  <td className="p-4">
-                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${
-                      m.status === 'completed' ? 'bg-emerald-950 text-emerald-400 border border-emerald-600' :
-                      m.status === 'in_progress' ? 'bg-blue-950 text-blue-400 border border-blue-600 animate-pulse' :
-                      'bg-amber-950 text-amber-400 border border-amber-600'
-                    }`}>
-                      {m.status}
-                    </span>
+                  <td className="p-4 whitespace-nowrap">
+                    {m.status === 'completed' ? (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 whitespace-nowrap">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+                        Hoàn tất
+                      </span>
+                    ) : m.status === 'in_progress' ? (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-sky-500/15 text-sky-300 border border-sky-500/30 whitespace-nowrap">
+                        <span className="w-2 h-2 rounded-full bg-sky-400 shrink-0 animate-pulse" />
+                        Đang bảo trì
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30 whitespace-nowrap">
+                        <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
+                        Chờ bảo trì
+                      </span>
+                    )}
                   </td>
                   <td className="p-4 text-right">
                     {m.status !== 'completed' && (

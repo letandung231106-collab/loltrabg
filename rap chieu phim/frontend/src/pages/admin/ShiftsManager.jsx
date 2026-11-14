@@ -132,8 +132,8 @@ export function ShiftsManager() {
                 <th className="p-4">Ca & Giờ làm</th>
                 <th className="p-4">Vị trí trực</th>
                 <th className="p-4">Phòng phân công</th>
-                <th className="p-4">Trạng thái</th>
-                <th className="p-4 text-right">Điểm danh</th>
+                <th className="p-4 whitespace-nowrap">Trạng thái</th>
+                <th className="p-4 text-right whitespace-nowrap">Điểm danh</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-cinema-800">
@@ -154,14 +154,23 @@ export function ShiftsManager() {
                     </td>
                     <td className="p-4 text-slate-200">{s.position}</td>
                     <td className="p-4 text-slate-300">{s.room_name || 'Khu vực tiền sảnh'}</td>
-                    <td className="p-4">
-                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${
-                        s.status === 'checked_in' ? 'bg-blue-950 text-blue-400 border border-blue-600' :
-                        s.status === 'completed' ? 'bg-emerald-950 text-emerald-400 border border-emerald-600' :
-                        'bg-amber-950 text-amber-400 border border-amber-600'
-                      }`}>
-                        {s.status}
-                      </span>
+                    <td className="p-4 whitespace-nowrap">
+                      {s.status === 'completed' ? (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 whitespace-nowrap">
+                          <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+                          Hoàn thành ca
+                        </span>
+                      ) : s.status === 'checked_in' ? (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-sky-500/15 text-sky-300 border border-sky-500/30 whitespace-nowrap">
+                          <span className="w-2 h-2 rounded-full bg-sky-400 shrink-0 animate-pulse" />
+                          Đang trực ca
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30 whitespace-nowrap">
+                          <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
+                          Chưa check-in
+                        </span>
+                      )}
                     </td>
                     <td className="p-4 text-right">
                       <div className="flex items-center justify-end gap-1.5">

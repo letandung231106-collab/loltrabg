@@ -327,9 +327,9 @@ export function MoviesManager() {
                 <th className="p-4">Thể loại</th>
                 <th className="p-4">Thời lượng</th>
                 <th className="p-4">Khởi chiếu</th>
-                <th className="p-4">Định dạng</th>
-                <th className="p-4">Trạng thái</th>
-                <th className="p-4 text-right">Thao tác</th>
+                <th className="p-4 whitespace-nowrap">Định dạng</th>
+                <th className="p-4 whitespace-nowrap">Trạng thái</th>
+                <th className="p-4 text-right whitespace-nowrap">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-cinema-800">
@@ -365,13 +365,23 @@ export function MoviesManager() {
                     <div className="text-[10px] text-slate-500">Đến: {m.end_date?.slice(0, 10)}</div>
                   </td>
                   <td className="p-4 text-amber-400 font-mono font-semibold">{m.format}</td>
-                  <td className="p-4">
-                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${
-                      m.status === 'now_showing' ? 'bg-emerald-950 text-emerald-400 border border-emerald-600' :
-                      m.status === 'coming_soon' ? 'bg-blue-950 text-blue-400 border border-blue-600' : 'bg-cinema-800 text-slate-400'
-                    }`}>
-                      {m.status === 'now_showing' ? 'Đang chiếu' : m.status === 'coming_soon' ? 'Sắp chiếu' : 'Lưu trữ'}
-                    </span>
+                  <td className="p-4 whitespace-nowrap">
+                    {m.status === 'now_showing' ? (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 whitespace-nowrap">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0 animate-pulse" />
+                        Đang chiếu
+                      </span>
+                    ) : m.status === 'coming_soon' ? (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-sky-500/15 text-sky-300 border border-sky-500/30 whitespace-nowrap">
+                        <span className="w-2 h-2 rounded-full bg-sky-400 shrink-0" />
+                        Sắp chiếu
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-500/15 text-slate-300 border border-slate-500/30 whitespace-nowrap">
+                        <span className="w-2 h-2 rounded-full bg-slate-400 shrink-0" />
+                        {m.status === 'archived' ? 'Đã lưu trữ' : 'Ngừng chiếu'}
+                      </span>
+                    )}
                   </td>
                   <td className="p-4 text-right">
                     <div className="flex items-center justify-end gap-2">

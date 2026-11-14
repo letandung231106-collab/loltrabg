@@ -171,15 +171,15 @@ export function ShiftHandoverManager() {
           <table className="w-full text-left text-xs">
             <thead className="bg-cinema-900/90 text-slate-400 uppercase tracking-wider text-[10px] border-b border-cinema-700">
               <tr>
-                <th className="p-4">Thời gian & Ca</th>
+                <th className="p-4 whitespace-nowrap">Thời gian & Ca</th>
                 <th className="p-4">Nhân viên chốt ca</th>
-                <th className="p-4">Tiền đầu ca</th>
-                <th className="p-4">Tiền mặt thu</th>
-                <th className="p-4">Tiền đếm thực tế</th>
-                <th className="p-4">Chênh lệch két</th>
-                <th className="p-4">Nộp két an toàn</th>
-                <th className="p-4">Trạng thái</th>
-                <th className="p-4 text-right">Quản lý duyệt</th>
+                <th className="p-4 whitespace-nowrap">Tiền đầu ca</th>
+                <th className="p-4 whitespace-nowrap">Tiền mặt thu</th>
+                <th className="p-4 whitespace-nowrap">Tiền đếm thực tế</th>
+                <th className="p-4 whitespace-nowrap">Chênh lệch két</th>
+                <th className="p-4 whitespace-nowrap">Nộp két an toàn</th>
+                <th className="p-4 whitespace-nowrap">Trạng thái</th>
+                <th className="p-4 text-right whitespace-nowrap">Quản lý duyệt</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-cinema-800">
@@ -215,14 +215,18 @@ export function ShiftHandoverManager() {
                     <td className="p-4 font-mono text-gold-400 font-bold">
                       {h.cash_dropped_to_safe?.toLocaleString('vi-VN')} đ
                     </td>
-                    <td className="p-4">
-                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${
-                        h.status === 'approved'
-                          ? 'bg-emerald-950 text-emerald-400 border border-emerald-600'
-                          : 'bg-amber-950 text-amber-400 border border-amber-600'
-                      }`}>
-                        {h.status === 'approved' ? '✓ Đã duyệt' : '⏳ Chờ duyệt'}
-                      </span>
+                    <td className="p-4 whitespace-nowrap">
+                      {h.status === 'approved' ? (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 whitespace-nowrap">
+                          <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+                          Đã duyệt
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30 whitespace-nowrap">
+                          <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0 animate-pulse" />
+                          Chờ duyệt
+                        </span>
+                      )}
                     </td>
                     <td className="p-4 text-right">
                       {h.status !== 'approved' ? (

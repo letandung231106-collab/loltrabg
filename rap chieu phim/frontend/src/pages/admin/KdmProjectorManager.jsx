@@ -198,11 +198,11 @@ export function KdmProjectorManager() {
               <thead className="bg-cinema-900/90 text-slate-400 uppercase tracking-wider text-[10px] border-b border-cinema-700">
                 <tr>
                   <th className="p-4">Tên Phim & File KDM</th>
-                  <th className="p-4">Phòng Chiếu Áp Dụng</th>
-                  <th className="p-4">Server DCI Serial</th>
-                  <th className="p-4">Thời Hạn Khóa KDM</th>
-                  <th className="p-4">Trạng Thái Bản Quyền</th>
-                  <th className="p-4 text-right">Thao Tác</th>
+                  <th className="p-4 whitespace-nowrap">Phòng Chiếu Áp Dụng</th>
+                  <th className="p-4 whitespace-nowrap">Server DCI Serial</th>
+                  <th className="p-4 whitespace-nowrap">Thời Hạn Khóa KDM</th>
+                  <th className="p-4 whitespace-nowrap">Trạng Thái Bản Quyền</th>
+                  <th className="p-4 text-right whitespace-nowrap">Thao Tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-cinema-800">
@@ -223,16 +223,23 @@ export function KdmProjectorManager() {
                         <div className="text-[11px] font-mono text-white">Đến: {lic.valid_until}</div>
                         <div className="text-[10px] text-slate-500">Từ: {lic.valid_from}</div>
                       </td>
-                      <td className="p-4">
-                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${
-                          isExpired
-                            ? 'bg-rose-950 text-rose-400 border border-rose-600'
-                            : isExpiring
-                            ? 'bg-amber-950 text-amber-400 border border-amber-600 animate-pulse'
-                            : 'bg-emerald-950 text-emerald-400 border border-emerald-600'
-                        }`}>
-                          {isExpired ? '✕ Đã hết hạn' : isExpiring ? '⚠️ Sắp hết hạn' : '✓ Hợp lệ (Active)'}
-                        </span>
+                      <td className="p-4 whitespace-nowrap">
+                        {isExpired ? (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-rose-500/15 text-rose-300 border border-rose-500/30 whitespace-nowrap">
+                            <span className="w-2 h-2 rounded-full bg-rose-400 shrink-0" />
+                            Đã hết hạn
+                          </span>
+                        ) : isExpiring ? (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30 whitespace-nowrap">
+                            <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0 animate-pulse" />
+                            Sắp hết hạn
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 whitespace-nowrap">
+                            <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+                            Hợp lệ (Active)
+                          </span>
+                        )}
                       </td>
                       <td className="p-4 text-right">
                         <button
@@ -268,14 +275,17 @@ export function KdmProjectorManager() {
                     <div className="text-[10px] text-slate-400">{lamp.projector_model}</div>
                   </div>
 
-                  <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${
+                  <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${
                     isCritical
-                      ? 'bg-rose-950 text-rose-400 border border-rose-600 animate-pulse'
+                      ? 'bg-rose-500/15 text-rose-300 border border-rose-500/30'
                       : isWarning
-                      ? 'bg-amber-950 text-amber-400 border border-amber-600'
-                      : 'bg-emerald-950 text-emerald-400 border border-emerald-600'
+                      ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                      : 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
                   }`}>
-                    {isCritical ? '⚠️ Cần thay bóng gấp' : isWarning ? 'Cảnh báo mờ' : '● Hoạt động tốt'}
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${
+                      isCritical ? 'bg-rose-400 animate-pulse' : isWarning ? 'bg-amber-400' : 'bg-emerald-400'
+                    }`} />
+                    {isCritical ? 'Cần thay bóng gấp' : isWarning ? 'Cảnh báo mờ' : 'Hoạt động tốt'}
                   </span>
                 </div>
 
@@ -325,21 +335,21 @@ export function KdmProjectorManager() {
             <table className="w-full text-left text-xs">
               <thead className="bg-cinema-900/90 text-slate-400 uppercase tracking-wider text-[10px] border-b border-cinema-700">
                 <tr>
-                  <th className="p-4">Thời gian hoàn tất</th>
-                  <th className="p-4">Khán phòng</th>
-                  <th className="p-4">Nhân viên vệ sinh</th>
-                  <th className="p-4">Thời gian dọn dẹp</th>
+                  <th className="p-4 whitespace-nowrap">Thời gian hoàn tất</th>
+                  <th className="p-4 whitespace-nowrap">Khán phòng</th>
+                  <th className="p-4 whitespace-nowrap">Nhân viên vệ sinh</th>
+                  <th className="p-4 whitespace-nowrap">Thời gian dọn dẹp</th>
                   <th className="p-4">Hạng mục kiểm tra</th>
-                  <th className="p-4 text-right">Trạng thái rạp</th>
+                  <th className="p-4 text-right whitespace-nowrap">Trạng thái rạp</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-cinema-800">
                 {turnarounds.map((t) => (
                   <tr key={t.id} className="hover:bg-cinema-850/60 transition-colors">
-                    <td className="p-4 text-slate-400 font-mono text-[11px]">{t.verified_at}</td>
-                    <td className="p-4 font-bold text-white text-sm">{t.room_name}</td>
-                    <td className="p-4 text-slate-300 font-semibold">{t.cleaned_by_name}</td>
-                    <td className="p-4">
+                    <td className="p-4 text-slate-400 font-mono text-[11px] whitespace-nowrap">{t.verified_at}</td>
+                    <td className="p-4 font-bold text-white text-sm whitespace-nowrap">{t.room_name}</td>
+                    <td className="p-4 text-slate-300 font-semibold whitespace-nowrap">{t.cleaned_by_name}</td>
+                    <td className="p-4 whitespace-nowrap">
                       <span className="font-mono font-bold text-emerald-400 text-sm">
                         {t.actual_minutes} phút
                       </span>
@@ -347,16 +357,17 @@ export function KdmProjectorManager() {
                     </td>
                     <td className="p-4">
                       <div className="flex flex-wrap gap-1 text-[10px]">
-                        <span className="px-2 py-0.5 rounded bg-cinema-800 text-emerald-300">✓ Ghế ngồi</span>
-                        <span className="px-2 py-0.5 rounded bg-cinema-800 text-emerald-300">✓ Rác sàn</span>
-                        <span className="px-2 py-0.5 rounded bg-cinema-800 text-emerald-300">✓ Nước đổ</span>
-                        <span className="px-2 py-0.5 rounded bg-cinema-800 text-emerald-300">✓ Màn chiếu</span>
-                        <span className="px-2 py-0.5 rounded bg-cinema-800 text-emerald-300">✓ Điều hòa 22°C</span>
+                        <span className="px-2 py-0.5 rounded bg-cinema-800 text-emerald-300 whitespace-nowrap">✓ Ghế ngồi</span>
+                        <span className="px-2 py-0.5 rounded bg-cinema-800 text-emerald-300 whitespace-nowrap">✓ Rác sàn</span>
+                        <span className="px-2 py-0.5 rounded bg-cinema-800 text-emerald-300 whitespace-nowrap">✓ Nước đổ</span>
+                        <span className="px-2 py-0.5 rounded bg-cinema-800 text-emerald-300 whitespace-nowrap">✓ Màn chiếu</span>
+                        <span className="px-2 py-0.5 rounded bg-cinema-800 text-emerald-300 whitespace-nowrap">✓ Điều hòa 22°C</span>
                       </div>
                     </td>
-                    <td className="p-4 text-right">
-                      <span className="px-3 py-1 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-600 text-[10px] font-black uppercase shadow-glow-emerald">
-                        ✓ Sẵn sàng đón khách
+                    <td className="p-4 text-right whitespace-nowrap">
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 whitespace-nowrap">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+                        Sẵn sàng đón khách
                       </span>
                     </td>
                   </tr>

@@ -124,12 +124,12 @@ export function CustomersManager() {
               <tr>
                 <th className="p-4">Khách Hàng</th>
                 <th className="p-4">Email</th>
-                <th className="p-4">Điện thoại</th>
-                <th className="p-4">Hạng thẻ</th>
-                <th className="p-4">Tổng đơn đặt</th>
-                <th className="p-4">Tổng vé đã mua</th>
-                <th className="p-4">Tổng chi tiêu</th>
-                <th className="p-4 text-right">Thao tác</th>
+                <th className="p-4 whitespace-nowrap">Điện thoại</th>
+                <th className="p-4 whitespace-nowrap">Hạng thẻ</th>
+                <th className="p-4 whitespace-nowrap">Tổng đơn đặt</th>
+                <th className="p-4 whitespace-nowrap">Tổng vé đã mua</th>
+                <th className="p-4 whitespace-nowrap">Tổng chi tiêu</th>
+                <th className="p-4 text-right whitespace-nowrap">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-cinema-800">
@@ -138,17 +138,20 @@ export function CustomersManager() {
                   <td className="p-4 font-bold text-white text-sm">{c.name}</td>
                   <td className="p-4 text-slate-300">{c.email}</td>
                   <td className="p-4 font-mono text-slate-400">{c.phone}</td>
-                  <td className="p-4">
+                  <td className="p-4 whitespace-nowrap">
                     <span
-                      className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${
                         c.membership_level === 'platinum'
-                          ? 'bg-purple-950 text-purple-300 border border-purple-500'
+                          ? 'bg-purple-500/15 text-purple-300 border border-purple-500/30'
                           : c.membership_level === 'gold'
-                          ? 'bg-amber-950 text-amber-300 border border-amber-500'
-                          : 'bg-slate-800 text-slate-300'
+                          ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                          : 'bg-slate-500/15 text-slate-300 border border-slate-500/30'
                       }`}
                     >
-                      {c.membership_level}
+                      <span className={`w-2 h-2 rounded-full shrink-0 ${
+                        c.membership_level === 'platinum' ? 'bg-purple-400' : c.membership_level === 'gold' ? 'bg-amber-400' : 'bg-slate-400'
+                      }`} />
+                      {c.membership_level === 'platinum' ? 'Platinum' : c.membership_level === 'gold' ? 'Gold' : 'Standard'}
                     </span>
                   </td>
                   <td className="p-4 text-slate-300">{c.total_bookings} đơn</td>

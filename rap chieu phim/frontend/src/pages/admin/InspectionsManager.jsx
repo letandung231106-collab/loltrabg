@@ -135,12 +135,12 @@ export function InspectionsManager() {
           <table className="w-full text-left text-xs">
             <thead className="bg-cinema-900/90 text-slate-400 uppercase tracking-wider text-[10px] border-b border-cinema-700">
               <tr>
-                <th className="p-4">Phòng chiếu</th>
-                <th className="p-4">Thời gian kiểm tra</th>
-                <th className="p-4">Nhân viên thực hiện</th>
+                <th className="p-4 whitespace-nowrap">Phòng chiếu</th>
+                <th className="p-4 whitespace-nowrap">Thời gian kiểm tra</th>
+                <th className="p-4 whitespace-nowrap">Nhân viên thực hiện</th>
                 <th className="p-4">Ghi chú tổng thể</th>
-                <th className="p-4">Đánh giá chung</th>
-                <th className="p-4 text-right">Chi tiết</th>
+                <th className="p-4 whitespace-nowrap">Đánh giá chung</th>
+                <th className="p-4 text-right whitespace-nowrap">Chi tiết</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-cinema-800">
@@ -152,14 +152,23 @@ export function InspectionsManager() {
                   <td className="p-4 font-mono text-slate-300">{insp.inspection_date}</td>
                   <td className="p-4 text-slate-200">{insp.employee_name}</td>
                   <td className="p-4 text-slate-400 max-w-xs truncate">{insp.note || 'Đạt chuẩn'}</td>
-                  <td className="p-4">
-                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${
-                      insp.status === 'pass' ? 'bg-emerald-950 text-emerald-400 border border-emerald-600' :
-                      insp.status === 'fail' ? 'bg-rose-950 text-rose-400 border border-rose-600 animate-pulse' :
-                      'bg-amber-950 text-amber-400 border border-amber-600'
-                    }`}>
-                      ● {insp.status}
-                    </span>
+                  <td className="p-4 whitespace-nowrap">
+                    {insp.status === 'pass' ? (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 whitespace-nowrap">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+                        Đạt chuẩn
+                      </span>
+                    ) : insp.status === 'fail' ? (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-rose-500/15 text-rose-300 border border-rose-500/30 whitespace-nowrap">
+                        <span className="w-2 h-2 rounded-full bg-rose-400 shrink-0 animate-pulse" />
+                        Không đạt
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30 whitespace-nowrap">
+                        <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
+                        Chờ kiểm tra
+                      </span>
+                    )}
                   </td>
                   <td className="p-4 text-right">
                     <button

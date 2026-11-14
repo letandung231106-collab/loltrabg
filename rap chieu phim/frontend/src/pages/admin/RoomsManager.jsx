@@ -203,15 +203,18 @@ export function RoomsManager() {
                     {room.room_type}
                   </span>
                   <span
-                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${
+                    className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${
                       isActive
-                        ? 'bg-emerald-950 text-emerald-400 border border-emerald-600'
+                        ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
                         : isMaintenance
-                        ? 'bg-amber-950 text-amber-400 border border-amber-600'
-                        : 'bg-rose-950 text-rose-400 border border-rose-600'
+                        ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                        : 'bg-rose-500/15 text-rose-300 border border-rose-500/30'
                     }`}
                   >
-                    ● {room.status}
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${
+                      isActive ? 'bg-emerald-400' : isMaintenance ? 'bg-amber-400 animate-pulse' : 'bg-rose-400'
+                    }`} />
+                    {isActive ? 'Đang hoạt động' : isMaintenance ? 'Đang bảo trì' : 'Tạm dừng'}
                   </span>
                 </div>
 

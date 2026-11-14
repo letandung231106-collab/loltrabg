@@ -151,10 +151,10 @@ export function EquipmentManager() {
                 <th className="p-4">Loại thiết bị</th>
                 <th className="p-4">Phòng chiếu</th>
                 <th className="p-4">Hãng sản xuất</th>
-                <th className="p-4">Bảo trì gần nhất</th>
-                <th className="p-4">Kỳ bảo trì tới</th>
-                <th className="p-4">Tình trạng</th>
-                <th className="p-4 text-right">Đổi trạng thái</th>
+                <th className="p-4 whitespace-nowrap">Bảo trì gần nhất</th>
+                <th className="p-4 whitespace-nowrap">Kỳ bảo trì tới</th>
+                <th className="p-4 whitespace-nowrap">Tình trạng</th>
+                <th className="p-4 text-right whitespace-nowrap">Đổi trạng thái</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-cinema-800">
@@ -171,15 +171,28 @@ export function EquipmentManager() {
                   <td className="p-4 text-slate-400">{eq.manufacturer}</td>
                   <td className="p-4 text-slate-300 font-mono">{eq.last_maintenance || 'Chưa thực hiện'}</td>
                   <td className="p-4 text-amber-400 font-mono font-bold">{eq.next_maintenance}</td>
-                  <td className="p-4">
-                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${
-                      eq.status === 'good' ? 'bg-emerald-950 text-emerald-400 border border-emerald-600' :
-                      eq.status === 'check_needed' ? 'bg-amber-950 text-amber-400 border border-amber-600' :
-                      eq.status === 'repairing' ? 'bg-blue-950 text-blue-400 border border-blue-600' :
-                      'bg-rose-950 text-rose-400 border border-rose-600 animate-pulse'
-                    }`}>
-                      {eq.status}
-                    </span>
+                  <td className="p-4 whitespace-nowrap">
+                    {eq.status === 'good' ? (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 whitespace-nowrap">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+                        Hoạt động tốt
+                      </span>
+                    ) : eq.status === 'check_needed' ? (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30 whitespace-nowrap">
+                        <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
+                        Cần kiểm tra
+                      </span>
+                    ) : eq.status === 'repairing' ? (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-sky-500/15 text-sky-300 border border-sky-500/30 whitespace-nowrap">
+                        <span className="w-2 h-2 rounded-full bg-sky-400 shrink-0 animate-pulse" />
+                        Đang sửa chữa
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-rose-500/15 text-rose-300 border border-rose-500/30 whitespace-nowrap">
+                        <span className="w-2 h-2 rounded-full bg-rose-400 shrink-0 animate-pulse" />
+                        Hỏng hóc
+                      </span>
+                    )}
                   </td>
                   <td className="p-4 text-right">
                     <select

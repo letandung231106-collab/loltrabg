@@ -438,12 +438,12 @@ export function ConcessionManager() {
               <thead className="bg-cinema-900/90 text-slate-400 uppercase tracking-wider text-[10px] border-b border-cinema-700">
                 <tr>
                   <th className="p-4">Hình ảnh & Tên món</th>
-                  <th className="p-4">Phân loại</th>
-                  <th className="p-4">Giá bán lẻ</th>
-                  <th className="p-4">Giá vốn ước tính</th>
-                  <th className="p-4">Lợi nhuận gộp</th>
-                  <th className="p-4">Trạng thái</th>
-                  <th className="p-4 text-right">Thao tác</th>
+                  <th className="p-4 whitespace-nowrap">Phân loại</th>
+                  <th className="p-4 whitespace-nowrap">Giá bán lẻ</th>
+                  <th className="p-4 whitespace-nowrap">Giá vốn ước tính</th>
+                  <th className="p-4 whitespace-nowrap">Lợi nhuận gộp</th>
+                  <th className="p-4 whitespace-nowrap">Trạng thái</th>
+                  <th className="p-4 text-right whitespace-nowrap">Thao tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-cinema-800">
@@ -484,14 +484,18 @@ export function ConcessionManager() {
                           +{profit.toLocaleString('vi-VN')} đ ({marginPercent}%)
                         </span>
                       </td>
-                      <td className="p-4">
-                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${
-                          item.is_active
-                            ? 'bg-emerald-950 text-emerald-400 border border-emerald-600'
-                            : 'bg-cinema-800 text-slate-400'
-                        }`}>
-                          {item.is_active ? 'Đang bán' : 'Tạm dừng'}
-                        </span>
+                      <td className="p-4 whitespace-nowrap">
+                        {item.is_active ? (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 whitespace-nowrap">
+                            <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+                            Đang kinh doanh
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-500/15 text-slate-300 border border-slate-500/30 whitespace-nowrap">
+                            <span className="w-2 h-2 rounded-full bg-slate-400 shrink-0" />
+                            Tạm dừng
+                          </span>
+                        )}
                       </td>
                       <td className="p-4 text-right">
                         <div className="flex items-center justify-end gap-2">

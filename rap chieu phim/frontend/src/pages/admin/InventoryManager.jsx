@@ -235,13 +235,13 @@ export function InventoryManager() {
               <thead className="bg-cinema-900/90 text-slate-400 uppercase tracking-wider text-[10px] border-b border-cinema-700">
                 <tr>
                   <th className="p-4">Mã & Tên nguyên vật liệu</th>
-                  <th className="p-4">Đơn vị</th>
-                  <th className="p-4">Số lượng tồn kho</th>
-                  <th className="p-4">Mức an toàn tối thiểu</th>
-                  <th className="p-4">Đơn giá vốn</th>
+                  <th className="p-4 whitespace-nowrap">Đơn vị</th>
+                  <th className="p-4 whitespace-nowrap">Số lượng tồn kho</th>
+                  <th className="p-4 whitespace-nowrap">Mức an toàn tối thiểu</th>
+                  <th className="p-4 whitespace-nowrap">Đơn giá vốn</th>
                   <th className="p-4">Nhà cung cấp</th>
-                  <th className="p-4">Tình trạng</th>
-                  <th className="p-4 text-right">Thao tác</th>
+                  <th className="p-4 whitespace-nowrap">Tình trạng</th>
+                  <th className="p-4 text-right whitespace-nowrap">Thao tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-cinema-800">
@@ -266,14 +266,18 @@ export function InventoryManager() {
                         {ing.cost_per_unit?.toLocaleString('vi-VN')} đ/{ing.unit}
                       </td>
                       <td className="p-4 text-slate-400">{ing.supplier}</td>
-                      <td className="p-4">
-                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${
-                          isLow
-                            ? 'bg-rose-950 text-rose-400 border border-rose-600'
-                            : 'bg-emerald-950 text-emerald-400 border border-emerald-600'
-                        }`}>
-                          {isLow ? '⚠️ Sắp hết hàng' : '● Tồn an toàn'}
-                        </span>
+                      <td className="p-4 whitespace-nowrap">
+                        {isLow ? (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-rose-500/15 text-rose-300 border border-rose-500/30 whitespace-nowrap">
+                            <span className="w-2 h-2 rounded-full bg-rose-400 shrink-0 animate-pulse" />
+                            Sắp hết hàng
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 whitespace-nowrap">
+                            <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+                            Tồn an toàn
+                          </span>
+                        )}
                       </td>
                       <td className="p-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
@@ -309,29 +313,36 @@ export function InventoryManager() {
             <table className="w-full text-left text-xs">
               <thead className="bg-cinema-900/90 text-slate-400 uppercase tracking-wider text-[10px] border-b border-cinema-700">
                 <tr>
-                  <th className="p-4">Thời gian</th>
+                  <th className="p-4 whitespace-nowrap">Thời gian</th>
                   <th className="p-4">Nguyên vật liệu</th>
-                  <th className="p-4">Loại biến động</th>
-                  <th className="p-4">Số lượng thay đổi</th>
+                  <th className="p-4 whitespace-nowrap">Loại biến động</th>
+                  <th className="p-4 whitespace-nowrap">Số lượng thay đổi</th>
                   <th className="p-4">Lý do / Nghiệp vụ</th>
-                  <th className="p-4">Người thực hiện</th>
+                  <th className="p-4 whitespace-nowrap">Người thực hiện</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-cinema-800">
                 {logs.map((log) => (
                   <tr key={log.id} className="hover:bg-cinema-850/60 transition-colors">
-                    <td className="p-4 text-slate-400 font-mono text-[11px]">{log.created_at}</td>
+                    <td className="p-4 text-slate-400 font-mono text-[11px] whitespace-nowrap">{log.created_at}</td>
                     <td className="p-4 font-bold text-white">{log.ingredient_name}</td>
-                    <td className="p-4">
-                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${
-                        log.change_type === 'import'
-                          ? 'bg-emerald-950 text-emerald-400 border border-emerald-600'
-                          : log.change_type === 'waste'
-                          ? 'bg-rose-950 text-rose-400 border border-rose-600'
-                          : 'bg-blue-950 text-blue-400 border border-blue-600'
-                      }`}>
-                        {log.change_type === 'import' ? '⬇ Nhập kho' : log.change_type === 'waste' ? '✕ Hao hụt / Hỏng' : '⬆ Tiêu hao bán'}
-                      </span>
+                    <td className="p-4 whitespace-nowrap">
+                      {log.change_type === 'import' ? (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 whitespace-nowrap">
+                          <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+                          Nhập kho
+                        </span>
+                      ) : log.change_type === 'waste' ? (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-rose-500/15 text-rose-300 border border-rose-500/30 whitespace-nowrap">
+                          <span className="w-2 h-2 rounded-full bg-rose-400 shrink-0" />
+                          Hao hụt / Hỏng
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-sky-500/15 text-sky-300 border border-sky-500/30 whitespace-nowrap">
+                          <span className="w-2 h-2 rounded-full bg-sky-400 shrink-0" />
+                          Tiêu hao bán
+                        </span>
+                      )}
                     </td>
                     <td className="p-4 font-mono font-bold text-sm">
                       <span className={log.quantity > 0 ? 'text-emerald-400' : 'text-rose-400'}>
