@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
-import { AlertTriangle, Plus, UserCheck, Wrench, CheckCircle2, History, X, Sparkles, MessageSquare } from 'lucide-react';
+import { AlertTriangle, Plus, UserCheck, Wrench, CheckCircle2, History, X, MessageSquare } from 'lucide-react';
 
 export function IncidentsManager() {
   const { user, isManager, isTechnician, isStaff } = useAuth();

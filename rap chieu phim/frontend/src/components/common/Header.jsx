@@ -6,7 +6,7 @@ import {
   Bell,
   User,
   LogOut,
-  Sparkles,
+  Gift,
   CheckCircle,
   AlertTriangle,
   Wrench,
@@ -61,7 +61,7 @@ export function Header({
                 className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/20 via-rose-500/20 to-ruby-500/20 hover:from-amber-500/30 hover:to-rose-500/30 text-amber-300 border border-amber-500/40 text-xs font-black transition-all flex items-center gap-1.5 shadow-sm animate-pulse"
                 title="Vòng quay may mắn nhận voucher"
               >
-                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                <Gift className="w-3.5 h-3.5 text-amber-400" />
                 <span>Vòng Quay Voucher</span>
               </button>
               <button
@@ -227,7 +227,7 @@ export function Header({
               }}
               className="p-2.5 rounded-xl bg-gradient-to-r from-amber-500/20 to-rose-500/20 border border-amber-500/40 text-amber-300 font-bold text-xs flex items-center justify-center gap-1.5"
             >
-              <Sparkles className="w-4 h-4 text-amber-400" /> Vòng Quay
+              <Gift className="w-4 h-4 text-amber-400" /> Vòng Quay
             </button>
             <button
               onClick={() => {

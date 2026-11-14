@@ -15,7 +15,6 @@ import {
   BarChart3,
   Shield,
   LogOut,
-  Sparkles,
   Utensils,
   Boxes,
   DollarSign,

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
-import { Play, Calendar, Clock, Star, Film, Sparkles, Flame, ChevronRight, Ticket, Video, Volume2 } from 'lucide-react';
+import { Play, Calendar, Clock, Star, Film, Flame, ChevronRight, Ticket, Video, Volume2 } from 'lucide-react';
 import { cinemaSound } from '../../services/cinemaSound';
 import { TrailerModal } from '../../components/customer/TrailerModal';
 import { MovieDetailModal } from '../../components/customer/MovieDetailModal';
@@ -165,7 +165,7 @@ export function HomePage({
           <div className="p-5 rounded-3xl bg-gradient-to-r from-ruby-950/40 via-cinema-900 to-cinema-900 border border-ruby-500/40 shadow-xl flex items-center justify-between gap-4">
             <div className="space-y-1">
               <span className="px-2.5 py-0.5 rounded-full bg-ruby-500/20 text-ruby-300 font-bold text-[10px] uppercase">
-                ✨ Ưu Đãi Độc Quyền
+                Ưu Đãi Độc Quyền
               </span>
               <h3 className="text-base font-black text-white">Vòng Quay May Mắn Nhận Voucher</h3>
               <p className="text-xs text-slate-400">Trúng ngay vé xem phim 0đ, giảm 20.000đ và bắp ngọt thơm lừng</p>

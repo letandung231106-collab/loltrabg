@@ -10,7 +10,6 @@ import {
   X,
   Edit2,
   Trash2,
-  Sparkles,
   Layers,
   MapPin,
   Info,

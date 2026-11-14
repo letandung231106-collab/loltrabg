@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Eye, Sparkles, Monitor, MapPin } from 'lucide-react';
+import { X, Eye, Monitor, MapPin } from 'lucide-react';
 
 export function Virtual3DSeatViewModal({ seat, schedule, isOpen, onClose }) {
   if (!isOpen || !seat) return null;
@@ -107,7 +107,7 @@ export function Virtual3DSeatViewModal({ seat, schedule, isOpen, onClose }) {
                   ? '👁️ Màn hình cực lớn, chiếm trọn tầm mắt. Khuyên dùng cho fan trải nghiệm hành động giật gân.'
                   : rowIdx <= 3
                   ? '👑 Góc nhìn VÀNG tiêu chuẩn Hollywood: Không mỏi cổ, cân bằng âm thanh stereo Dolby tốt nhất.'
-                  : '✨ Góc nhìn toàn cảnh bao quát rạp, phù hợp xem cặp đôi và thưởng thức kỹ xảo điện ảnh.'}
+                  : 'Góc nhìn toàn cảnh bao quát rạp, phù hợp xem cặp đôi và thưởng thức kỹ xảo điện ảnh.'}
               </span>
             </div>
 

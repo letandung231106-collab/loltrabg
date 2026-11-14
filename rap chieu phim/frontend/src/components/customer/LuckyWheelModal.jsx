@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import confetti from 'canvas-confetti';
 import { WHEEL_PRIZES, voucherWallet } from '../../services/voucherWallet';
 import {
-  Sparkles,
   Gift,
   X,
   Award,
@@ -110,7 +109,7 @@ export function LuckyWheelModal({ isOpen, onClose, onVoucherClaimed, onNavigateB
         {/* Header */}
         <div className="pt-6 pb-3 px-6 text-center border-b border-cinema-800/80 relative z-10">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] font-black uppercase tracking-wider mb-1.5">
-            <Sparkles className="w-3.5 h-3.5 text-amber-400" /> VÒNG QUAY MAY MẮN NIGHT MOVIE
+            <Gift className="w-3.5 h-3.5 text-amber-400" /> VÒNG QUAY MAY MẮN NIGHT MOVIE
           </div>
           <h3 className="text-2xl font-black text-white tracking-wide">QUAY LÀ TRÚNG VOUCHER</h3>
           <p className="text-xs text-slate-400 mt-0.5">
@@ -221,7 +220,7 @@ export function LuckyWheelModal({ isOpen, onClose, onVoucherClaimed, onNavigateB
                 </>
               ) : (
                 <>
-                  <Sparkles className="w-4 h-4 text-amber-200" /> BẤM ĐỂ QUAY (Còn {spinsLeft} lượt)
+                  <Award className="w-4 h-4 text-amber-200" /> BẤM ĐỂ QUAY (Còn {spinsLeft} lượt)
                 </>
               )}
             </button>

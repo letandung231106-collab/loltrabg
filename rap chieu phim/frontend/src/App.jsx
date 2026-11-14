@@ -276,7 +276,7 @@ function MainApp() {
         onClose={() => setIsInSeatDeliveryOpen(false)}
       />
 
-      {/* AI CinemaBot Voice & Chat Assistant */}
+      {/* Customer Support & Voice Assistant */}
       <CinemaBotModal
         onSelectMovie={handleSelectMovie}
         onSelectSchedule={handleSelectSchedule}

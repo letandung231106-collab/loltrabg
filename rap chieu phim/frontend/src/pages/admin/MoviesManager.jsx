@@ -16,7 +16,6 @@ import {
   Link as LinkIcon,
   Play,
   FileVideo,
-  Sparkles,
   AlertCircle,
   Eye,
   RefreshCw

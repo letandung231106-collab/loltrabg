@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useBooking } from '../../context/BookingContext';
 import { useAuth } from '../../context/AuthContext';
-import { Clock, ShieldAlert, Sparkles, Check, AlertCircle, Eye } from 'lucide-react';
+import { Clock, ShieldAlert, Check, AlertCircle, Eye } from 'lucide-react';
 import { Virtual3DSeatViewModal } from './Virtual3DSeatViewModal';
 
 export function SeatMap({ scheduleData, onProceedToPayment, onCancelHold }) {

@@ -9,7 +9,6 @@ import {
   Lock,
   Crown,
   Ticket,
-  Sparkles,
   Shield,
   CheckCircle,
   AlertCircle,

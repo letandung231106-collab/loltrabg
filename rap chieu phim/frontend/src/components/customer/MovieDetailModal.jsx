@@ -7,7 +7,6 @@ import {
   Calendar,
   Clock,
   Film,
-  Sparkles,
   Ticket,
   Star,
   User,
@@ -250,7 +249,7 @@ export function MovieDetailModal({ isOpen, onClose, movie, onSelectSchedule }) {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="md:col-span-2 space-y-3">
               <h3 className="text-sm font-black text-white uppercase tracking-wider flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4 text-ruby-500" /> Nội Dung Phim (Synopsis)
+                <Film className="w-4 h-4 text-ruby-500" /> Nội Dung Phim (Synopsis)
               </h3>
               <p className="text-xs sm:text-sm text-slate-300 leading-relaxed bg-cinema-850/60 p-4 rounded-2xl border border-cinema-700/50">
                 {movie.description || 'Chưa có tóm tắt chi tiết cho bộ phim này.'}

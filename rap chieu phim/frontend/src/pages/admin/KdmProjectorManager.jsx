@@ -3,7 +3,6 @@ import { api } from '../../services/api';
 import {
   Key,
   Video,
-  Sparkles,
   AlertTriangle,
   CheckCircle,
   Clock,
@@ -187,7 +186,7 @@ export function KdmProjectorManager() {
               : 'text-slate-400 hover:text-white'
           }`}
         >
-          <Sparkles className="w-3.5 h-3.5" /> Vệ Sinh Khán Phòng Cấp Tốc ({turnarounds.length})
+          <CheckCircle className="w-3.5 h-3.5" /> Vệ Sinh Khán Phòng Cấp Tốc ({turnarounds.length})
         </button>
       </div>
 
@@ -476,7 +475,7 @@ export function KdmProjectorManager() {
           <div className="relative w-full max-w-md glass-panel rounded-3xl p-6 shadow-2xl border border-cinema-600">
             <div className="flex items-center justify-between pb-3 border-b border-cinema-700">
               <h3 className="font-extrabold text-base text-white flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-emerald-400" /> Xác Nhận Vệ Sinh Phòng Chiếu
+                <CheckCircle className="w-5 h-5 text-emerald-400" /> Xác Nhận Vệ Sinh Phòng Chiếu
               </h3>
               <button onClick={() => setTurnaroundModalOpen(false)} className="p-1 text-slate-400 hover:text-white">
                 <X className="w-5 h-5" />

@@ -9,7 +9,6 @@ import {
   CheckCircle,
   MapPin,
   Clock,
-  Sparkles,
   Send,
   Coffee,
   HelpCircle,

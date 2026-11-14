@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
-import { Ticket, Search, QrCode, CheckCircle, XCircle, AlertCircle, RefreshCw, Sparkles } from 'lucide-react';
+import { Ticket, Search, QrCode, CheckCircle, XCircle, AlertCircle, RefreshCw } from 'lucide-react';
 
 export function TicketsManager() {
   const [tickets, setTickets] = useState([]);

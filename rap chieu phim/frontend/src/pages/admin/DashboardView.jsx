@@ -25,7 +25,6 @@ import {
   Clock,
   TrendingUp,
   RefreshCw,
-  Sparkles,
   CheckCircle2,
   Flame,
   Award,

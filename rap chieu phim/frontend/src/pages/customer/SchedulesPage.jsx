@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
-import { Calendar, Clock, Film, MapPin, Sparkles, ChevronRight, Ticket, Filter, Zap, TrendingUp } from 'lucide-react';
+import { Calendar, Clock, Film, MapPin, ChevronRight, Ticket, Filter, Zap, TrendingUp } from 'lucide-react';
 
 const toLocalDate = (d) =>
   d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');

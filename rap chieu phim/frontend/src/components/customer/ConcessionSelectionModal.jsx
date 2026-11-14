@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
-import { Utensils, Plus, Minus, ShoppingBag, ArrowRight, ArrowLeft, Sparkles, Check, Coffee } from 'lucide-react';
+import { Utensils, Plus, Minus, ShoppingBag, ArrowRight, ArrowLeft, Check, Coffee } from 'lucide-react';
 
 export function ConcessionSelectionModal({
   isOpen,

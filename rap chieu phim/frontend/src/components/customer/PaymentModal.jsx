@@ -15,7 +15,6 @@ import {
   Clock,
   Zap,
   Copy,
-  Sparkles,
   ExternalLink,
   RefreshCw,
   KeyRound,
@@ -518,7 +517,7 @@ export function PaymentModal({
               {voucherWallet.getMyVouchers().filter((v) => !v.isUsed).length > 0 && (
                 <div>
                   <div className="text-[10px] text-amber-400 font-bold mb-1 flex items-center gap-1">
-                    <Sparkles className="w-3 h-3" /> Voucher trong Ví của bạn (Bấm để dùng):
+                    <Tag className="w-3 h-3 text-gold-400" /> Voucher trong Ví của bạn (Bấm để dùng):
                   </div>
                   <div className="flex items-center gap-1.5 flex-wrap">
                     {voucherWallet.getMyVouchers().filter((v) => !v.isUsed).map((v) => (

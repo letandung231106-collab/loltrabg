@@ -1,6 +1,6 @@
 import React from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { Film, Calendar, Clock, MapPin, CheckCircle, Sparkles, XCircle, Eye, Compass } from 'lucide-react';
+import { Film, Calendar, Clock, MapPin, CheckCircle, XCircle, Eye, Compass } from 'lucide-react';
 
 export function TicketCard({ ticket, onCancel, onSelectDetail, onOpenNavigator }) {
   const isUsed = ticket.status === 'used';

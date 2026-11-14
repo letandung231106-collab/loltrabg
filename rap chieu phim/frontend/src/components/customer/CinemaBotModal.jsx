@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  Bot,
-  Sparkles,
+  MessageSquare,
+  Headphones,
   Mic,
   MicOff,
   Send,
@@ -40,7 +40,7 @@ export function CinemaBotModal({
     {
       id: 1,
       sender: 'bot',
-      text: 'Xin chào! Tôi là **CinemaBot** - Trợ lý ảo AI của rạp Night Movie 🍿🎬. Tôi có thể giúp bạn đặt vé bằng giọng nói, tra cứu lịch chiếu, chọn vị trí ghế vàng Sweet Spot hoặc quay voucher may mắn!',
+      text: 'Xin chào! Tôi là trợ lý rạp Night Movie 🍿🎬. Tôi có thể hỗ trợ bạn tra cứu lịch chiếu, vị trí ghế ngồi hoặc giải đáp thắc mắc về dịch vụ!',
       quickReplies: ['🔥 Phim hot đang chiếu', '🎫 Suất chiếu tối nay', '🎡 Quay voucher', '💡 Ghế Sweet Spot']
     }
   ]);
@@ -276,7 +276,7 @@ export function CinemaBotModal({
     return {
       id: Date.now() + 1,
       sender: 'bot',
-      text: '🤖 CinemaBot đã nhận được yêu cầu của bạn! Tôi có thể giúp bạn:\n1. 🎙️ Đặt vé bằng giọng nói hoặc tìm tên phim bom tấn\n2. 🎫 Xem danh sách suất chiếu hôm nay\n3. 💡 Hướng dẫn chọn vị trí ghế vàng Sweet Spot\n4. 🎡 Quay vòng quay voucher nhận ưu đãi',
+      text: 'Trợ lý Night Movie đã nhận được yêu cầu của bạn! Tôi có thể hỗ trợ bạn:\n1. 🎙️ Tra cứu bằng giọng nói hoặc tìm tên phim bom tấn\n2. 🎫 Xem danh sách suất chiếu hôm nay\n3. 💡 Hướng dẫn chọn vị trí ghế ngồi\n4. 🎁 Khám phá ưu đãi vé rạp',
       quickReplies: ['🔥 Phim hot đang chiếu', '🎫 Suất chiếu tối nay', '🎡 Quay voucher', '🍿 Menu bắp nước']
     };
   };
@@ -308,42 +308,42 @@ export function CinemaBotModal({
 
   return (
     <>
-      {/* Floating CinemaBot Launch Button */}
+      {/* Floating Support Launch Button */}
       {!isOpen && (
         <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 animate-bounce">
           <div className="hidden sm:flex px-3.5 py-1.5 rounded-2xl bg-cinema-900/90 border border-ruby-500/50 text-white text-xs font-semibold shadow-xl backdrop-blur-md items-center gap-1.5">
-            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-            <span>Trợ lý ảo AI & Giọng nói</span>
+            <Headphones className="w-3.5 h-3.5 text-amber-400" />
+            <span>Hỗ trợ trực tuyến & Giọng nói</span>
           </div>
           <button
             onClick={() => setIsOpen(true)}
             className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-ruby-600 via-rose-600 to-amber-500 text-white shadow-glow-red flex items-center justify-center relative group hover:scale-110 active:scale-95 transition-all"
-            title="Mở Trợ Lý Ảo CinemaBot"
+            title="Mở Hỗ Trợ Khách Hàng"
           >
-            <Bot className="w-7 h-7" />
+            <MessageSquare className="w-7 h-7" />
             <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 border-2 border-cinema-950 animate-pulse" />
           </button>
         </div>
       )}
 
-      {/* CinemaBot Chat Window */}
+      {/* Support Chat Window */}
       {isOpen && (
         <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-[130] w-[94vw] sm:w-[420px] max-h-[88vh] h-[640px] flex flex-col rounded-3xl bg-cinema-950/95 border-2 border-ruby-500/60 shadow-[0_0_50px_rgba(225,29,72,0.35)] backdrop-blur-xl overflow-hidden animate-scale-up">
           {/* Header */}
           <div className="p-4 bg-gradient-to-r from-cinema-900 via-cinema-850 to-cinema-900 border-b border-cinema-700/60 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-ruby-600 to-rose-600 flex items-center justify-center text-white shadow-glow-red relative">
-                <Bot className="w-5 h-5" />
+                <Headphones className="w-5 h-5" />
                 <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-400 ring-2 ring-cinema-900" />
               </div>
               <div>
                 <h3 className="text-sm font-black text-white flex items-center gap-2">
-                  CinemaBot AI
+                  Hỗ Trợ Khách Hàng
                   <span className="text-[10px] px-2 py-0.5 rounded-full bg-ruby-500/20 text-ruby-300 font-bold border border-ruby-500/30">
-                    Voice & Chat
+                    Trực Tuyến
                   </span>
                 </h3>
-                <p className="text-[11px] text-slate-400">Trợ lý đặt vé Night Movie 24/7</p>
+                <p className="text-[11px] text-slate-400">Trợ lý Night Movie 24/7</p>
               </div>
             </div>
 
@@ -554,7 +554,7 @@ export function CinemaBotModal({
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder={isListening ? 'Đang lắng nghe bạn nói...' : 'Hỏi CinemaBot hoặc đặt vé...'}
+                placeholder={isListening ? 'Đang lắng nghe bạn nói...' : 'Nhập tin nhắn hoặc đặt vé...'}
                 className="flex-1 px-3.5 py-2.5 rounded-2xl bg-cinema-950 border border-cinema-700 text-white placeholder-slate-500 text-xs focus:outline-none focus:border-ruby-500 transition-colors"
               />
 

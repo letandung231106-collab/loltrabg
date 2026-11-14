@@ -14,7 +14,6 @@ import {
   DollarSign,
   Package,
   Layers,
-  Sparkles,
   UploadCloud,
   Image as ImageIcon
 } from 'lucide-react';
