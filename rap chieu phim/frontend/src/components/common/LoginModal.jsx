@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
-import { X, Lock, User, Mail, Phone, KeyRound, Sparkles, CheckCircle } from 'lucide-react';
+import { X, Lock, User, Mail, Phone, KeyRound, CheckCircle } from 'lucide-react';
 
 export function LoginModal({ isOpen, onClose }) {
   const { login, register, loading } = useAuth();
@@ -246,8 +246,8 @@ export function LoginModal({ isOpen, onClose }) {
         {/* Demo Accounts Quick Fill */}
         {!isRegisterMode && !isForgotMode && (
           <div className="mt-6 pt-4 border-t border-cinema-700/60">
-            <div className="text-[11px] font-bold text-gold-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5" /> Tài khoản mẫu (Bấm để điền nhanh):
+            <div className="text-[11px] font-bold text-gold-400 uppercase tracking-wider mb-2">
+              Tài khoản mẫu (Bấm để điền nhanh):
             </div>
             <div className="grid grid-cols-2 gap-2 text-xs">
               <button
@@ -255,7 +255,7 @@ export function LoginModal({ isOpen, onClose }) {
                 onClick={() => handleQuickFill('admin', 'password123')}
                 className="p-2.5 rounded-xl bg-cinema-900 hover:bg-cinema-850 hover:border-ruby-500/60 border border-cinema-700/60 text-left transition-all cursor-pointer"
               >
-                <div className="font-bold text-ruby-400">👑 Admin</div>
+                <div className="font-bold text-ruby-400">Admin</div>
                 <div className="text-[10px] text-slate-400 mt-0.5">admin / password123</div>
               </button>
               <button
@@ -263,7 +263,7 @@ export function LoginModal({ isOpen, onClose }) {
                 onClick={() => handleQuickFill('manager1', 'password123')}
                 className="p-2.5 rounded-xl bg-cinema-900 hover:bg-cinema-850 hover:border-amber-500/60 border border-cinema-700/60 text-left transition-all cursor-pointer"
               >
-                <div className="font-bold text-amber-400">👔 Manager</div>
+                <div className="font-bold text-amber-400">Manager</div>
                 <div className="text-[10px] text-slate-400 mt-0.5">manager1 / password123</div>
               </button>
               <button
@@ -271,7 +271,7 @@ export function LoginModal({ isOpen, onClose }) {
                 onClick={() => handleQuickFill('staff1', 'password123')}
                 className="p-2.5 rounded-xl bg-cinema-900 hover:bg-cinema-850 hover:border-blue-500/60 border border-cinema-700/60 text-left transition-all cursor-pointer"
               >
-                <div className="font-bold text-blue-400">📋 Staff</div>
+                <div className="font-bold text-blue-400">Staff</div>
                 <div className="text-[10px] text-slate-400 mt-0.5">staff1 / password123</div>
               </button>
               <button
@@ -279,7 +279,7 @@ export function LoginModal({ isOpen, onClose }) {
                 onClick={() => handleQuickFill('tech1', 'password123')}
                 className="p-2.5 rounded-xl bg-cinema-900 hover:bg-cinema-850 hover:border-emerald-500/60 border border-cinema-700/60 text-left transition-all cursor-pointer"
               >
-                <div className="font-bold text-emerald-400">🔧 Technician</div>
+                <div className="font-bold text-emerald-400">Technician</div>
                 <div className="text-[10px] text-slate-400 mt-0.5">tech1 / password123</div>
               </button>
             </div>
