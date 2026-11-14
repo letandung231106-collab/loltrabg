@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useBooking } from '../../context/BookingContext';
 import { useAuth } from '../../context/AuthContext';
+import { validateAllSeatsGap } from '../../utils/seatGapValidator';
 import {
   Clock,
   Check,
@@ -10,6 +11,7 @@ import {
   Footprints,
   ArrowDown,
   Sparkles,
+  AlertTriangle,
 } from 'lucide-react';
 import { Virtual3DSeatViewModal } from './Virtual3DSeatViewModal';
 
@@ -25,6 +27,7 @@ export function SeatMap({ scheduleData, onProceedToPayment, onCancelHold }) {
   const { isAuthenticated } = useAuth();
 
   const [previewSeat, setPreviewSeat] = useState(null);
+  const [gapError, setGapError] = useState('');
 
   const seats = scheduleData?.seats || [];
   const schedule = scheduleData?.schedule;
@@ -48,6 +51,58 @@ export function SeatMap({ scheduleData, onProceedToPayment, onCancelHold }) {
   const calculatedPeopleCount =
     totalPeople ||
     selectedSeats.reduce((sum, s) => sum + (s.seat_type === 'couple' ? 2 : 1), 0);
+
+  // Xử lý chọn/bỏ chọn ghế có kiểm tra quy tắc không để lại ghế trống đơn lẻ
+  const handleSeatClick = (seat) => {
+    if (seat.state !== 'available' && !selectedSeats.some((s) => s.id === seat.id)) {
+      return;
+    }
+
+    const isCurrentlySelected = selectedSeats.some((s) => s.id === seat.id);
+    const proposed = isCurrentlySelected
+      ? selectedSeats.filter((s) => s.id !== seat.id)
+      : [...selectedSeats, seat];
+
+    // Kiểm tra quy tắc Single Seat Gap Rule cho toàn bộ hàng bị ảnh hưởng
+    const isUnavailableBefore = (s) => s.state !== 'available';
+    const validation = validateAllSeatsGap(
+      seats,
+      proposed.map((s) => s.id),
+      isUnavailableBefore
+    );
+
+    if (!validation.isValid) {
+      setGapError(
+        validation.message ||
+          'Không thể chọn ghế này vì sẽ để lại một chỗ trống đơn lẻ. Vui lòng chọn vị trí khác.'
+      );
+      return;
+    }
+
+    setGapError('');
+    toggleSeatSelection(seat);
+  };
+
+  // Xác thực lại trước khi chuyển sang bước thanh toán/giữ chỗ
+  const handleProceed = () => {
+    const isUnavailableBefore = (s) => s.state !== 'available';
+    const validation = validateAllSeatsGap(
+      seats,
+      selectedSeats.map((s) => s.id),
+      isUnavailableBefore
+    );
+
+    if (!validation.isValid) {
+      setGapError(
+        validation.message ||
+          'Không thể chọn ghế này vì sẽ để lại một chỗ trống đơn lẻ. Vui lòng chọn vị trí khác.'
+      );
+      return;
+    }
+
+    setGapError('');
+    onProceedToPayment();
+  };
 
   return (
     <div className="w-full flex flex-col items-center">
@@ -85,6 +140,22 @@ export function SeatMap({ scheduleData, onProceedToPayment, onCancelHold }) {
               Thanh Toán Ngay
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Thông báo vi phạm quy tắc ghế trống đơn lẻ */}
+      {gapError && (
+        <div className="w-full max-w-3xl mb-6 p-4 rounded-2xl bg-ruby-950/95 border-2 border-ruby-500 text-ruby-200 text-xs sm:text-sm font-semibold flex items-center justify-between shadow-glow-red animate-shake">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="w-5 h-5 text-ruby-400 shrink-0" />
+            <span>{gapError}</span>
+          </div>
+          <button
+            onClick={() => setGapError('')}
+            className="text-ruby-300 hover:text-white font-bold ml-3 text-xs"
+          >
+            ✕ Đóng
+          </button>
         </div>
       )}
 
@@ -195,7 +266,7 @@ export function SeatMap({ scheduleData, onProceedToPayment, onCancelHold }) {
                         <button
                           key={seat.id}
                           disabled={isBooked || isHoldingByOther || isBroken}
-                          onClick={() => toggleSeatSelection(seat)}
+                          onClick={() => handleSeatClick(seat)}
                           title={statusTitle}
                           className={`h-8 sm:h-8.5 ${seatWidth} rounded-lg border text-xs font-semibold flex items-center justify-center transition-all duration-150 relative ${seatStyle} ${cursor}`}
                         >
@@ -425,7 +496,7 @@ export function SeatMap({ scheduleData, onProceedToPayment, onCancelHold }) {
           {!isHolding ? (
             <button
               disabled={selectedSeats.length === 0}
-              onClick={onProceedToPayment}
+              onClick={handleProceed}
               className="px-6 py-3 rounded-xl bg-gradient-to-r from-ruby-600 via-ruby-700 to-rose-700 hover:from-ruby-500 hover:to-rose-600 text-white font-extrabold text-xs sm:text-sm shadow-glow-red transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:scale-105 active:scale-95"
             >
               Tiếp Tục Đặt Vé ({selectedSeats.length} ghế • {calculatedPeopleCount} người)
