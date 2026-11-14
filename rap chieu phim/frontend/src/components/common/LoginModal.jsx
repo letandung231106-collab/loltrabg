@@ -43,7 +43,6 @@ export function LoginModal({ isOpen, onClose }) {
   const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [isForgotMode, setIsForgotMode] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [visibleDemoPasswords, setVisibleDemoPasswords] = useState({});
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
@@ -62,14 +61,6 @@ export function LoginModal({ isOpen, onClose }) {
   const handleQuickFill = (u, p) => {
     setFormData((prev) => ({ ...prev, username: u, password: p }));
     setErrorMsg('');
-  };
-
-  const toggleDemoPassword = (username, e) => {
-    e.stopPropagation();
-    setVisibleDemoPasswords((prev) => ({
-      ...prev,
-      [username]: !prev[username],
-    }));
   };
 
   const handleSubmit = async (e) => {
@@ -313,39 +304,19 @@ export function LoginModal({ isOpen, onClose }) {
               Tài khoản mẫu (Bấm để điền nhanh):
             </div>
             <div className="grid grid-cols-2 gap-2 text-xs">
-              {DEMO_ACCOUNTS.map((acc) => {
-                const isVisible = !!visibleDemoPasswords[acc.username];
-                return (
-                  <div
-                    key={acc.username}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => handleQuickFill(acc.username, acc.password)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        handleQuickFill(acc.username, acc.password);
-                      }
-                    }}
-                    className={`p-2.5 rounded-xl bg-cinema-900 hover:bg-cinema-850 ${acc.hoverBorder} border border-cinema-700/60 text-left transition-all cursor-pointer flex items-center justify-between gap-1.5 min-h-[56px] group`}
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className={`font-bold text-xs truncate ${acc.nameColor}`}>{acc.name}</div>
-                      <div className="text-[10px] text-slate-400 mt-0.5 font-mono truncate">
-                        {acc.role} • {acc.username} / {isVisible ? acc.password : '••••••••'}
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={(e) => toggleDemoPassword(acc.username, e)}
-                      className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-cinema-800 transition-colors shrink-0 cursor-pointer"
-                      title={isVisible ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
-                      aria-label={isVisible ? `Ẩn mật khẩu của ${acc.name}` : `Hiện mật khẩu của ${acc.name}`}
-                    >
-                      {isVisible ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                    </button>
+              {DEMO_ACCOUNTS.map((acc) => (
+                <button
+                  key={acc.username}
+                  type="button"
+                  onClick={() => handleQuickFill(acc.username, acc.password)}
+                  className={`p-2.5 rounded-xl bg-cinema-900 hover:bg-cinema-850 ${acc.hoverBorder} border border-cinema-700/60 text-left transition-all cursor-pointer min-h-[56px] flex flex-col justify-center`}
+                >
+                  <div className={`font-bold text-xs truncate ${acc.nameColor}`}>{acc.name}</div>
+                  <div className="text-[10px] text-slate-400 mt-0.5 font-mono truncate">
+                    {acc.role} • {acc.username} / {acc.password}
                   </div>
-                );
-              })}
+                </button>
+              ))}
             </div>
           </div>
         )}
