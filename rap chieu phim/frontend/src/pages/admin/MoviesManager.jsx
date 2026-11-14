@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { api } from '../../services/api';
 import {
   Film,
@@ -62,6 +63,18 @@ export function MoviesManager() {
   useEffect(() => {
     fetchMovies();
   }, [statusFilter, search]);
+
+  // Khóa cuộn trang nền khi mở Modal
+  useEffect(() => {
+    if (modalOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [modalOpen]);
 
   const fetchMovies = async () => {
     setLoading(true);
@@ -385,518 +398,533 @@ export function MoviesManager() {
         </div>
       </div>
 
-      {/* Modal Thêm/Sửa Phim */}
-      {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-sm animate-fade-in">
-          <div className="relative w-full max-w-3xl glass-panel rounded-3xl p-6 shadow-2xl border border-cinema-600 overflow-y-auto max-h-[92vh]">
-            <div className="flex items-center justify-between pb-4 border-b border-cinema-700">
-              <div>
-                <h3 className="font-extrabold text-base text-white flex items-center gap-2">
-                  <Film className="w-5 h-5 text-ruby-500" />
-                  {editingMovie ? `Chỉnh Sửa Phim: ${editingMovie.name}` : 'Thêm Phim Mới Vào Rạp'}
-                </h3>
-                <p className="text-[11px] text-slate-400">
-                  Cập nhật ngày chiếu qua lịch, tải ảnh poster trực tiếp từ máy tính và chèn video/link trailer
-                </p>
-              </div>
-              <button
-                onClick={() => setModalOpen(false)}
-                className="p-1.5 rounded-xl bg-cinema-800 text-slate-400 hover:text-white hover:bg-cinema-700 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmit} className="space-y-5 mt-4 text-xs">
-              {/* Basic Details Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                <div className="sm:col-span-2">
-                  <label className="block font-bold text-slate-200 mb-1">Tên phim *</label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    placeholder="Nhập tên phim chính xác (ví dụ: Dune: Hành Tinh Cát 2)..."
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white font-medium focus:outline-none focus:border-ruby-500 transition-colors"
-                  />
-                </div>
-
+      {/* Modal Thêm/Sửa Phim (Portaled to document.body) */}
+      {modalOpen &&
+        createPortal(
+          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 sm:p-6 bg-black/80 backdrop-blur-md animate-fade-in">
+            {/* Modal Container */}
+            <div
+              className="relative w-full max-w-[720px] max-h-[88vh] flex flex-col rounded-2xl border border-white/10 shadow-2xl shadow-black/90 overflow-hidden animate-scale-up"
+              style={{ background: '#12141c' }}
+            >
+              {/* 1. Modal Header (Cố định ở trên) */}
+              <div className="px-6 py-5 border-b border-white/[0.08] flex items-center justify-between shrink-0 bg-[#12141c]">
                 <div>
-                  <label className="block font-bold text-slate-200 mb-1">Thể loại *</label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.genre}
-                    onChange={(e) => setFormData({ ...formData, genre: e.target.value })}
-                    placeholder="Hành động, Viễn tưởng, Phiêu lưu..."
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none focus:border-ruby-500"
-                  />
+                  <h3 className="font-extrabold text-base sm:text-lg text-white flex items-center gap-2">
+                    <Film className="w-5 h-5 text-ruby-500" />
+                    {editingMovie ? `Chỉnh Sửa Phim: ${editingMovie.name}` : 'Thêm Phim Mới Vào Rạp'}
+                  </h3>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    {editingMovie
+                      ? 'Cập nhật thông tin chi tiết, lịch chiếu, poster và video trailer'
+                      : 'Cập nhật ngày chiếu qua lịch, tải ảnh poster trực tiếp từ máy tính và chèn video/link trailer'}
+                  </p>
                 </div>
-
-                <div>
-                  <label className="block font-bold text-slate-200 mb-1">Thời lượng (Phút) *</label>
-                  <input
-                    type="number"
-                    required
-                    min={1}
-                    value={formData.duration}
-                    onChange={(e) => setFormData({ ...formData, duration: parseInt(e.target.value, 10) || 0 })}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none focus:border-ruby-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-bold text-slate-200 mb-1">Đạo diễn</label>
-                  <input
-                    type="text"
-                    value={formData.director}
-                    onChange={(e) => setFormData({ ...formData, director: e.target.value })}
-                    placeholder="Tên đạo diễn..."
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none focus:border-ruby-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-bold text-slate-200 mb-1">Diễn viên</label>
-                  <input
-                    type="text"
-                    value={formData.actors}
-                    onChange={(e) => setFormData({ ...formData, actors: e.target.value })}
-                    placeholder="Danh sách diễn viên chính..."
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none focus:border-ruby-500"
-                  />
-                </div>
-
-                {/* --- NGÀY KHỞI CHIẾU (CHỌN LỊCH) --- */}
-                <div className="p-3 rounded-2xl bg-cinema-900/80 border border-cinema-700/80 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="font-bold text-slate-200 flex items-center gap-1.5">
-                      <Calendar className="w-4 h-4 text-ruby-400" /> Ngày khởi chiếu *
-                    </label>
-                    <span className="text-[10px] text-ruby-400 font-mono font-bold">
-                      {formatVietnameseDate(formData.release_date)}
-                    </span>
-                  </div>
-
-                  <div className="relative">
-                    <input
-                      ref={releaseDateInputRef}
-                      type="date"
-                      required
-                      value={formData.release_date}
-                      onChange={(e) => setFormData({ ...formData, release_date: e.target.value })}
-                      onClick={(e) => e.target.showPicker && e.target.showPicker()}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-950 border border-cinema-700 text-white font-mono text-xs focus:outline-none focus:border-ruby-500 cursor-pointer [color-scheme:dark]"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => releaseDateInputRef.current?.showPicker?.()}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-ruby-400 transition-colors"
-                      title="Mở bảng lịch"
-                    >
-                      <Calendar className="w-4 h-4" />
-                    </button>
-                  </div>
-
-                  {/* Quick Shortcut Buttons */}
-                  <div className="flex items-center gap-1.5 pt-1">
-                    <span className="text-[10px] text-slate-500">Chọn nhanh:</span>
-                    <button
-                      type="button"
-                      onClick={() => setFormData({ ...formData, release_date: new Date().toISOString().slice(0, 10) })}
-                      className="px-2 py-0.5 rounded-md bg-cinema-800 hover:bg-cinema-700 text-[10px] text-slate-300 transition-colors"
-                    >
-                      Hôm nay
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setFormData({ ...formData, release_date: addDaysToDate(new Date().toISOString(), 7) })}
-                      className="px-2 py-0.5 rounded-md bg-cinema-800 hover:bg-cinema-700 text-[10px] text-slate-300 transition-colors"
-                    >
-                      Tuần sau
-                    </button>
-                  </div>
-                </div>
-
-                {/* --- NGÀY KẾT THÚC (CHỌN LỊCH) --- */}
-                <div className="p-3 rounded-2xl bg-cinema-900/80 border border-cinema-700/80 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="font-bold text-slate-200 flex items-center gap-1.5">
-                      <Calendar className="w-4 h-4 text-gold-400" /> Ngày kết thúc chiếu *
-                    </label>
-                    <span className="text-[10px] text-gold-400 font-mono font-bold">
-                      {formatVietnameseDate(formData.end_date)}
-                    </span>
-                  </div>
-
-                  <div className="relative">
-                    <input
-                      ref={endDateInputRef}
-                      type="date"
-                      required
-                      value={formData.end_date}
-                      onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
-                      onClick={(e) => e.target.showPicker && e.target.showPicker()}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-950 border border-cinema-700 text-white font-mono text-xs focus:outline-none focus:border-ruby-500 cursor-pointer [color-scheme:dark]"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => endDateInputRef.current?.showPicker?.()}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-gold-400 transition-colors"
-                      title="Mở bảng lịch"
-                    >
-                      <Calendar className="w-4 h-4" />
-                    </button>
-                  </div>
-
-                  {/* Quick Shortcut Buttons */}
-                  <div className="flex items-center gap-1.5 pt-1">
-                    <span className="text-[10px] text-slate-500">Thời hạn:</span>
-                    <button
-                      type="button"
-                      onClick={() => setFormData({ ...formData, end_date: addDaysToDate(formData.release_date, 30) })}
-                      className="px-2 py-0.5 rounded-md bg-cinema-800 hover:bg-cinema-700 text-[10px] text-slate-300 transition-colors"
-                    >
-                      +1 Tháng
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setFormData({ ...formData, end_date: addDaysToDate(formData.release_date, 60) })}
-                      className="px-2 py-0.5 rounded-md bg-cinema-800 hover:bg-cinema-700 text-[10px] text-slate-300 transition-colors"
-                    >
-                      +2 Tháng
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setFormData({ ...formData, end_date: addDaysToDate(formData.release_date, 90) })}
-                      className="px-2 py-0.5 rounded-md bg-cinema-800 hover:bg-cinema-700 text-[10px] text-slate-300 transition-colors"
-                    >
-                      +3 Tháng
-                    </button>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block font-bold text-slate-200 mb-1">Độ tuổi khán giả</label>
-                  <select
-                    value={formData.age_rating}
-                    onChange={(e) => setFormData({ ...formData, age_rating: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
-                  >
-                    <option value="P">P - Phổ biến mọi lứa tuổi</option>
-                    <option value="K">K - Dưới 13 tuổi có người kèm</option>
-                    <option value="T13">T13 - Khán giả từ 13 tuổi trở lên</option>
-                    <option value="T16">T16 - Khán giả từ 16 tuổi trở lên</option>
-                    <option value="T18">T18 - Khán giả từ 18 tuổi trở lên</option>
-                    <option value="C">C - Cấm phổ biến</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block font-bold text-slate-200 mb-1">Trạng thái phát hành</label>
-                  <select
-                    value={formData.status}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
-                  >
-                    <option value="now_showing">Đang chiếu (Now Showing)</option>
-                    <option value="coming_soon">Sắp chiếu (Coming Soon)</option>
-                    <option value="ended">Ngừng chiếu (Ended)</option>
-                    <option value="archived">Lưu trữ (Archived)</option>
-                  </select>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setModalOpen(false)}
+                  className="p-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
               </div>
 
-              {/* --- POSTER (TẢI ẢNH TỪ MÁY TÍNH / URL) --- */}
-              <div className="p-4 rounded-2xl bg-cinema-900/90 border border-cinema-700/80 space-y-3">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-                  <div>
-                    <label className="font-extrabold text-white text-xs flex items-center gap-2">
-                      <ImageIcon className="w-4 h-4 text-ruby-400" /> Poster Phim *
-                    </label>
-                    <p className="text-[10px] text-slate-400">
-                      Chọn tải ảnh trực tiếp từ máy tính (PNG, JPG, WEBP) hoặc chèn Link URL
-                    </p>
-                  </div>
+              {/* Form wrapping Scrollable Body and Sticky Footer */}
+              <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+                {/* 2. Modal Body (Cho phép cuộn dọc) */}
+                <div className="p-6 overflow-y-auto flex-1 space-y-4 text-xs scrollbar-thin scrollbar-thumb-cinema-700 scrollbar-track-transparent">
+                  {/* Basic Details Grid (2 Cột) */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="sm:col-span-2">
+                      <label className="block font-bold text-slate-200 mb-1">Tên phim *</label>
+                      <input
+                        type="text"
+                        required
+                        value={formData.name}
+                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                        placeholder="Nhập tên phim chính xác (ví dụ: Dune: Hành Tinh Cát 2)..."
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white font-medium focus:outline-none focus:border-ruby-500 transition-colors"
+                      />
+                    </div>
 
-                  {/* Tab Selector */}
-                  <div className="flex items-center p-1 rounded-xl bg-cinema-950 border border-cinema-800">
-                    <button
-                      type="button"
-                      onClick={() => setPosterMode('upload')}
-                      className={`px-3 py-1 rounded-lg font-bold text-[11px] transition-all flex items-center gap-1.5 ${
-                        posterMode === 'upload'
-                          ? 'bg-ruby-600 text-white shadow-glow-red'
-                          : 'text-slate-400 hover:text-white'
-                      }`}
-                    >
-                      <UploadCloud className="w-3.5 h-3.5" /> Tải Ảnh Lên
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPosterMode('url')}
-                      className={`px-3 py-1 rounded-lg font-bold text-[11px] transition-all flex items-center gap-1.5 ${
-                        posterMode === 'url'
-                          ? 'bg-ruby-600 text-white shadow-glow-red'
-                          : 'text-slate-400 hover:text-white'
-                      }`}
-                    >
-                      <LinkIcon className="w-3.5 h-3.5" /> Nhập Link URL
-                    </button>
-                  </div>
-                </div>
+                    <div>
+                      <label className="block font-bold text-slate-200 mb-1">Thể loại *</label>
+                      <input
+                        type="text"
+                        required
+                        value={formData.genre}
+                        onChange={(e) => setFormData({ ...formData, genre: e.target.value })}
+                        placeholder="Hành động, Viễn tưởng, Phiêu lưu..."
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none focus:border-ruby-500"
+                      />
+                    </div>
 
-                <div className="flex flex-col md:flex-row gap-4 items-start">
-                  {/* Left: Upload / URL Input */}
-                  <div className="flex-1 w-full space-y-2">
-                    {posterMode === 'upload' ? (
-                      <div>
+                    <div>
+                      <label className="block font-bold text-slate-200 mb-1">Thời lượng (Phút) *</label>
+                      <input
+                        type="number"
+                        required
+                        min={1}
+                        value={formData.duration}
+                        onChange={(e) => setFormData({ ...formData, duration: parseInt(e.target.value, 10) || 0 })}
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none focus:border-ruby-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-slate-200 mb-1">Đạo diễn</label>
+                      <input
+                        type="text"
+                        value={formData.director}
+                        onChange={(e) => setFormData({ ...formData, director: e.target.value })}
+                        placeholder="Tên đạo diễn..."
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none focus:border-ruby-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-slate-200 mb-1">Diễn viên</label>
+                      <input
+                        type="text"
+                        value={formData.actors}
+                        onChange={(e) => setFormData({ ...formData, actors: e.target.value })}
+                        placeholder="Danh sách diễn viên chính..."
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none focus:border-ruby-500"
+                      />
+                    </div>
+
+                    {/* --- NGÀY KHỞI CHIẾU (CHỌN LỊCH) --- */}
+                    <div className="p-3 rounded-2xl bg-cinema-900/80 border border-cinema-700/80 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="font-bold text-slate-200 flex items-center gap-1.5">
+                          <Calendar className="w-4 h-4 text-ruby-400" /> Ngày khởi chiếu *
+                        </label>
+                        <span className="text-[10px] text-ruby-400 font-mono font-bold">
+                          {formatVietnameseDate(formData.release_date)}
+                        </span>
+                      </div>
+
+                      <div className="relative">
                         <input
-                          ref={posterFileInputRef}
-                          type="file"
-                          accept="image/png, image/jpeg, image/jpg, image/webp, image/avif"
-                          onChange={handlePosterFileChange}
-                          onClick={(e) => { e.target.value = null; }}
-                          className="hidden"
+                          ref={releaseDateInputRef}
+                          type="date"
+                          required
+                          value={formData.release_date}
+                          onChange={(e) => setFormData({ ...formData, release_date: e.target.value })}
+                          onClick={(e) => e.target.showPicker && e.target.showPicker()}
+                          className="w-full px-3.5 py-2 rounded-xl bg-cinema-950 border border-cinema-700 text-white font-mono text-xs focus:outline-none focus:border-ruby-500 cursor-pointer [color-scheme:dark]"
                         />
-                        <div
-                          onClick={() => posterFileInputRef.current?.click()}
-                          className="border-2 border-dashed border-cinema-700 hover:border-ruby-500/80 bg-cinema-950/60 hover:bg-cinema-850/50 rounded-2xl p-5 text-center cursor-pointer transition-all group"
+                        <button
+                          type="button"
+                          onClick={() => releaseDateInputRef.current?.showPicker?.()}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-ruby-400 transition-colors"
+                          title="Mở bảng lịch"
                         >
-                          <div className="w-12 h-12 mx-auto rounded-2xl bg-ruby-600/20 text-ruby-400 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
-                            <UploadCloud className="w-6 h-6" />
-                          </div>
-                          <div className="font-bold text-white text-xs mb-1">
-                            Nhấn để chọn ảnh từ máy tính
-                          </div>
-                          <div className="text-[10px] text-slate-400">
-                            Hỗ trợ PNG, JPG, JPEG, WEBP (Tối đa 8MB)
-                          </div>
-                          {posterFileName && (
-                            <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-950/80 border border-emerald-500/60 text-emerald-300 text-[10px] font-bold">
-                              <Check className="w-3 h-3" /> {posterFileName}
+                          <Calendar className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      {/* Quick Shortcut Buttons */}
+                      <div className="flex items-center gap-1.5 pt-0.5">
+                        <span className="text-[10px] text-slate-500">Chọn nhanh:</span>
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, release_date: new Date().toISOString().slice(0, 10) })}
+                          className="px-2 py-0.5 rounded-md bg-cinema-800 hover:bg-cinema-700 text-[10px] text-slate-300 transition-colors"
+                        >
+                          Hôm nay
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, release_date: addDaysToDate(new Date().toISOString(), 7) })}
+                          className="px-2 py-0.5 rounded-md bg-cinema-800 hover:bg-cinema-700 text-[10px] text-slate-300 transition-colors"
+                        >
+                          Tuần sau
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* --- NGÀY KẾT THÚC (CHỌN LỊCH) --- */}
+                    <div className="p-3 rounded-2xl bg-cinema-900/80 border border-cinema-700/80 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="font-bold text-slate-200 flex items-center gap-1.5">
+                          <Calendar className="w-4 h-4 text-gold-400" /> Ngày kết thúc chiếu *
+                        </label>
+                        <span className="text-[10px] text-gold-400 font-mono font-bold">
+                          {formatVietnameseDate(formData.end_date)}
+                        </span>
+                      </div>
+
+                      <div className="relative">
+                        <input
+                          ref={endDateInputRef}
+                          type="date"
+                          required
+                          value={formData.end_date}
+                          onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
+                          onClick={(e) => e.target.showPicker && e.target.showPicker()}
+                          className="w-full px-3.5 py-2 rounded-xl bg-cinema-950 border border-cinema-700 text-white font-mono text-xs focus:outline-none focus:border-ruby-500 cursor-pointer [color-scheme:dark]"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => endDateInputRef.current?.showPicker?.()}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-gold-400 transition-colors"
+                          title="Mở bảng lịch"
+                        >
+                          <Calendar className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      {/* Quick Shortcut Buttons */}
+                      <div className="flex items-center gap-1.5 pt-0.5">
+                        <span className="text-[10px] text-slate-500">Thời hạn:</span>
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, end_date: addDaysToDate(formData.release_date, 30) })}
+                          className="px-2 py-0.5 rounded-md bg-cinema-800 hover:bg-cinema-700 text-[10px] text-slate-300 transition-colors"
+                        >
+                          +1 Tháng
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, end_date: addDaysToDate(formData.release_date, 60) })}
+                          className="px-2 py-0.5 rounded-md bg-cinema-800 hover:bg-cinema-700 text-[10px] text-slate-300 transition-colors"
+                        >
+                          +2 Tháng
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, end_date: addDaysToDate(formData.release_date, 90) })}
+                          className="px-2 py-0.5 rounded-md bg-cinema-800 hover:bg-cinema-700 text-[10px] text-slate-300 transition-colors"
+                        >
+                          +3 Tháng
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-slate-200 mb-1">Độ tuổi khán giả</label>
+                      <select
+                        value={formData.age_rating}
+                        onChange={(e) => setFormData({ ...formData, age_rating: e.target.value })}
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
+                      >
+                        <option value="P">P - Phổ biến mọi lứa tuổi</option>
+                        <option value="K">K - Dưới 13 tuổi có người kèm</option>
+                        <option value="T13">T13 - Khán giả từ 13 tuổi trở lên</option>
+                        <option value="T16">T16 - Khán giả từ 16 tuổi trở lên</option>
+                        <option value="T18">T18 - Khán giả từ 18 tuổi trở lên</option>
+                        <option value="C">C - Cấm phổ biến</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-slate-200 mb-1">Trạng thái phát hành</label>
+                      <select
+                        value={formData.status}
+                        onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
+                      >
+                        <option value="now_showing">Đang chiếu (Now Showing)</option>
+                        <option value="coming_soon">Sắp chiếu (Coming Soon)</option>
+                        <option value="ended">Ngừng chiếu (Ended)</option>
+                        <option value="archived">Lưu trữ (Archived)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* --- POSTER (TẢI ẢNH TỪ MÁY TÍNH / URL) --- */}
+                  <div className="p-4 rounded-2xl bg-cinema-900/90 border border-cinema-700/80 space-y-3">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                      <div>
+                        <label className="font-extrabold text-white text-xs flex items-center gap-2">
+                          <ImageIcon className="w-4 h-4 text-ruby-400" /> Poster Phim *
+                        </label>
+                        <p className="text-[10px] text-slate-400">
+                          Chọn tải ảnh trực tiếp từ máy tính (PNG, JPG, WEBP) hoặc chèn Link URL
+                        </p>
+                      </div>
+
+                      {/* Tab Selector */}
+                      <div className="flex items-center p-1 rounded-xl bg-cinema-950 border border-cinema-800">
+                        <button
+                          type="button"
+                          onClick={() => setPosterMode('upload')}
+                          className={`px-3 py-1 rounded-lg font-bold text-[11px] transition-all flex items-center gap-1.5 ${
+                            posterMode === 'upload'
+                              ? 'bg-ruby-600 text-white shadow-glow-red'
+                              : 'text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          <UploadCloud className="w-3.5 h-3.5" /> Tải Ảnh Lên
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPosterMode('url')}
+                          className={`px-3 py-1 rounded-lg font-bold text-[11px] transition-all flex items-center gap-1.5 ${
+                            posterMode === 'url'
+                              ? 'bg-ruby-600 text-white shadow-glow-red'
+                              : 'text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          <LinkIcon className="w-3.5 h-3.5" /> Nhập Link URL
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col md:flex-row gap-4 items-start">
+                      {/* Left: Upload / URL Input */}
+                      <div className="flex-1 w-full space-y-2">
+                        {posterMode === 'upload' ? (
+                          <div>
+                            <input
+                              ref={posterFileInputRef}
+                              type="file"
+                              accept="image/png, image/jpeg, image/jpg, image/webp, image/avif"
+                              onChange={handlePosterFileChange}
+                              onClick={(e) => { e.target.value = null; }}
+                              className="hidden"
+                            />
+                            <div
+                              onClick={() => posterFileInputRef.current?.click()}
+                              className="border-2 border-dashed border-cinema-700 hover:border-ruby-500/80 bg-cinema-950/60 hover:bg-cinema-850/50 rounded-2xl p-5 text-center cursor-pointer transition-all group"
+                            >
+                              <div className="w-12 h-12 mx-auto rounded-2xl bg-ruby-600/20 text-ruby-400 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+                                <UploadCloud className="w-6 h-6" />
+                              </div>
+                              <div className="font-bold text-white text-xs mb-1">
+                                Nhấn để chọn ảnh từ máy tính
+                              </div>
+                              <div className="text-[10px] text-slate-400">
+                                Hỗ trợ PNG, JPG, JPEG, WEBP (Tối đa 8MB)
+                              </div>
+                              {posterFileName && (
+                                <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-950/80 border border-emerald-500/60 text-emerald-300 text-[10px] font-bold">
+                                  <Check className="w-3 h-3" /> {posterFileName}
+                                </div>
+                              )}
                             </div>
+                          </div>
+                        ) : (
+                          <div className="space-y-1.5">
+                            <input
+                              type="url"
+                              value={formData.poster}
+                              onChange={(e) => setFormData({ ...formData, poster: e.target.value })}
+                              placeholder="https://images.unsplash.com/..."
+                              className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-950 border border-cinema-700 text-white focus:outline-none focus:border-ruby-500"
+                            />
+                            <div className="text-[10px] text-slate-500">
+                              Dán đường dẫn ảnh trực tiếp từ internet (Unsplash, TMDB, CDN...)
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Right: Poster Preview Box */}
+                      <div className="shrink-0 flex items-center gap-3">
+                        <div className="w-20 sm:w-24 aspect-[2/3] rounded-xl overflow-hidden border-2 border-cinema-700 bg-cinema-950 shadow-md relative group">
+                          {formData.poster ? (
+                            <img
+                              src={formData.poster}
+                              alt="Poster Preview"
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                e.target.src = 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=800';
+                              }}
+                            />
+                          ) : (
+                            <div className="w-full h-full flex flex-col items-center justify-center text-slate-600 text-[10px]">
+                              <ImageIcon className="w-6 h-6 mb-1" /> Chưa có ảnh
+                            </div>
+                          )}
+                        </div>
+                        <div className="text-[11px] space-y-1">
+                          <div className="font-bold text-white">Xem trước Poster</div>
+                          <div className="text-[10px] text-emerald-400 flex items-center gap-1">
+                            <Check className="w-3 h-3" /> Chuẩn tỷ lệ 2:3
+                          </div>
+                          {posterMode === 'upload' && formData.poster && (
+                            <button
+                              type="button"
+                              onClick={() => posterFileInputRef.current?.click()}
+                              className="text-[10px] text-ruby-400 hover:text-ruby-300 font-bold underline block pt-1"
+                            >
+                              Đổi ảnh khác
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* --- TRAILER (LINK YOUTUBE HOẶC TẢI VIDEO) --- */}
+                  <div className="p-4 rounded-2xl bg-cinema-900/90 border border-cinema-700/80 space-y-3">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                      <div>
+                        <label className="font-extrabold text-white text-xs flex items-center gap-2">
+                          <Video className="w-4 h-4 text-ruby-400" /> Trailer Phim (Link hoặc Video)
+                        </label>
+                        <p className="text-[10px] text-slate-400">
+                          Hỗ trợ dán Link YouTube hoặc tải trực tiếp tệp Video (.mp4, .webm) từ máy tính
+                        </p>
+                      </div>
+
+                      {/* Tab Selector */}
+                      <div className="flex items-center p-1 rounded-xl bg-cinema-950 border border-cinema-800">
+                        <button
+                          type="button"
+                          onClick={() => setTrailerMode('url')}
+                          className={`px-3 py-1 rounded-lg font-bold text-[11px] transition-all flex items-center gap-1.5 ${
+                            trailerMode === 'url'
+                              ? 'bg-ruby-600 text-white shadow-glow-red'
+                              : 'text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          <LinkIcon className="w-3.5 h-3.5" /> Link YouTube / URL
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setTrailerMode('upload')}
+                          className={`px-3 py-1 rounded-lg font-bold text-[11px] transition-all flex items-center gap-1.5 ${
+                            trailerMode === 'upload'
+                              ? 'bg-ruby-600 text-white shadow-glow-red'
+                              : 'text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          <FileVideo className="w-3.5 h-3.5" /> Tải Video Tệp
+                        </button>
+                      </div>
+                    </div>
+
+                    {trailerMode === 'url' ? (
+                      <div className="space-y-2">
+                        <div className="relative">
+                          <input
+                            type="url"
+                            value={formData.trailer}
+                            onChange={(e) => setFormData({ ...formData, trailer: e.target.value })}
+                            placeholder="https://www.youtube.com/watch?v=... hoặc https://youtu.be/..."
+                            className="w-full pl-9 pr-24 py-2.5 rounded-xl bg-cinema-950 border border-cinema-700 text-white focus:outline-none focus:border-ruby-500 font-mono text-xs"
+                          />
+                          <Play className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-ruby-500" />
+                          {formData.trailer && (
+                            <button
+                              type="button"
+                              onClick={() => setIsPreviewTrailerOpen(!isPreviewTrailerOpen)}
+                              className="absolute right-2 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-lg bg-ruby-600/80 hover:bg-ruby-600 text-white text-[10px] font-bold transition-all flex items-center gap-1"
+                            >
+                              <Eye className="w-3 h-3" /> Xem thử
+                            </button>
                           )}
                         </div>
                       </div>
                     ) : (
-                      <div className="space-y-1.5">
+                      <div className="space-y-2">
                         <input
-                          type="url"
-                          value={formData.poster}
-                          onChange={(e) => setFormData({ ...formData, poster: e.target.value })}
-                          placeholder="https://images.unsplash.com/..."
-                          className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-950 border border-cinema-700 text-white focus:outline-none focus:border-ruby-500"
+                          ref={trailerFileInputRef}
+                          type="file"
+                          accept="video/mp4, video/webm, video/ogg, video/quicktime"
+                          onChange={handleTrailerFileChange}
+                          onClick={(e) => { e.target.value = null; }}
+                          className="hidden"
                         />
-                        <div className="text-[10px] text-slate-500">
-                          Dán đường dẫn ảnh trực tiếp từ internet (Unsplash, TMDB, CDN...)
+                        <div
+                          onClick={() => trailerFileInputRef.current?.click()}
+                          className="border-2 border-dashed border-cinema-700 hover:border-ruby-500/80 bg-cinema-950/60 hover:bg-cinema-850/50 rounded-2xl p-4 text-center cursor-pointer transition-all group"
+                        >
+                          <div className="w-10 h-10 mx-auto rounded-xl bg-ruby-600/20 text-ruby-400 flex items-center justify-center mb-1.5 group-hover:scale-110 transition-transform">
+                            <FileVideo className="w-5 h-5" />
+                          </div>
+                          <div className="font-bold text-white text-xs">
+                            Nhấn để chọn tệp Video Trailer từ máy tính
+                          </div>
+                          <div className="text-[10px] text-slate-400">
+                            Định dạng: MP4, WebM, MOV (Tối đa 45MB)
+                          </div>
+                          {trailerFileName && (
+                            <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-950/80 border border-emerald-500/60 text-emerald-300 text-[10px] font-bold">
+                              <Check className="w-3 h-3" /> {trailerFileName}
+                            </div>
+                          )}
                         </div>
+                      </div>
+                    )}
+
+                    {/* Video / Trailer Live Mini Player */}
+                    {formData.trailer && (
+                      <div className="p-3 rounded-xl bg-cinema-950 border border-cinema-800 space-y-2">
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="font-bold text-slate-300 flex items-center gap-1.5">
+                            <Play className="w-3.5 h-3.5 text-ruby-400" /> Trình phát Trailer xem trước
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFormData({ ...formData, trailer: '' });
+                              setTrailerFileName('');
+                            }}
+                            className="text-[10px] text-rose-400 hover:text-rose-300 font-semibold"
+                          >
+                            Xóa Trailer
+                          </button>
+                        </div>
+
+                        {isDirectVideoTrailer ? (
+                          <div className="rounded-xl overflow-hidden aspect-video bg-black max-h-48">
+                            <video
+                              src={formData.trailer}
+                              controls
+                              className="w-full h-full object-contain"
+                            >
+                              Trình duyệt không hỗ trợ thẻ video.
+                            </video>
+                          </div>
+                        ) : (
+                          <div className="text-[11px] text-slate-400 bg-cinema-900/80 p-2 rounded-lg flex items-center justify-between">
+                            <span className="truncate max-w-md font-mono text-[10px]">{formData.trailer}</span>
+                            <span className="text-emerald-400 font-bold shrink-0">✓ Link hợp lệ</span>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
 
-                  {/* Right: Poster Preview Box */}
-                  <div className="shrink-0 flex items-center gap-3">
-                    <div className="w-20 sm:w-24 aspect-[2/3] rounded-xl overflow-hidden border-2 border-cinema-700 bg-cinema-950 shadow-md relative group">
-                      {formData.poster ? (
-                        <img
-                          src={formData.poster}
-                          alt="Poster Preview"
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            e.target.src = 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=800';
-                          }}
-                        />
-                      ) : (
-                        <div className="w-full h-full flex flex-col items-center justify-center text-slate-600 text-[10px]">
-                          <ImageIcon className="w-6 h-6 mb-1" /> Chưa có ảnh
-                        </div>
-                      )}
-                    </div>
-                    <div className="text-[11px] space-y-1">
-                      <div className="font-bold text-white">Xem trước Poster</div>
-                      <div className="text-[10px] text-emerald-400 flex items-center gap-1">
-                        <Check className="w-3 h-3" /> Chuẩn tỷ lệ 2:3
-                      </div>
-                      {posterMode === 'upload' && formData.poster && (
-                        <button
-                          type="button"
-                          onClick={() => posterFileInputRef.current?.click()}
-                          className="text-[10px] text-ruby-400 hover:text-ruby-300 font-bold underline block pt-1"
-                        >
-                          Đổi ảnh khác
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* --- TRAILER (LINK YOUTUBE HOẶC TẢI VIDEO) --- */}
-              <div className="p-4 rounded-2xl bg-cinema-900/90 border border-cinema-700/80 space-y-3">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                  {/* Description */}
                   <div>
-                    <label className="font-extrabold text-white text-xs flex items-center gap-2">
-                      <Video className="w-4 h-4 text-ruby-400" /> Trailer Phim (Link hoặc Video)
-                    </label>
-                    <p className="text-[10px] text-slate-400">
-                      Hỗ trợ dán Link YouTube hoặc tải trực tiếp tệp Video (.mp4, .webm) từ máy tính
-                    </p>
-                  </div>
-
-                  {/* Tab Selector */}
-                  <div className="flex items-center p-1 rounded-xl bg-cinema-950 border border-cinema-800">
-                    <button
-                      type="button"
-                      onClick={() => setTrailerMode('url')}
-                      className={`px-3 py-1 rounded-lg font-bold text-[11px] transition-all flex items-center gap-1.5 ${
-                        trailerMode === 'url'
-                          ? 'bg-ruby-600 text-white shadow-glow-red'
-                          : 'text-slate-400 hover:text-white'
-                      }`}
-                    >
-                      <LinkIcon className="w-3.5 h-3.5" /> Link YouTube / URL
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setTrailerMode('upload')}
-                      className={`px-3 py-1 rounded-lg font-bold text-[11px] transition-all flex items-center gap-1.5 ${
-                        trailerMode === 'upload'
-                          ? 'bg-ruby-600 text-white shadow-glow-red'
-                          : 'text-slate-400 hover:text-white'
-                      }`}
-                    >
-                      <FileVideo className="w-3.5 h-3.5" /> Tải Video Tệp
-                    </button>
+                    <label className="block font-bold text-slate-200 mb-1">Tóm tắt nội dung phim</label>
+                    <textarea
+                      rows={3}
+                      value={formData.description}
+                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                      placeholder="Nội dung tóm tắt cốt truyện phim..."
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none focus:border-ruby-500"
+                    />
                   </div>
                 </div>
 
-                {trailerMode === 'url' ? (
-                  <div className="space-y-2">
-                    <div className="relative">
-                      <input
-                        type="url"
-                        value={formData.trailer}
-                        onChange={(e) => setFormData({ ...formData, trailer: e.target.value })}
-                        placeholder="https://www.youtube.com/watch?v=... hoặc https://youtu.be/..."
-                        className="w-full pl-9 pr-24 py-2.5 rounded-xl bg-cinema-950 border border-cinema-700 text-white focus:outline-none focus:border-ruby-500 font-mono text-xs"
-                      />
-                      <Play className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-ruby-500" />
-                      {formData.trailer && (
-                        <button
-                          type="button"
-                          onClick={() => setIsPreviewTrailerOpen(!isPreviewTrailerOpen)}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-lg bg-ruby-600/80 hover:bg-ruby-600 text-white text-[10px] font-bold transition-all flex items-center gap-1"
-                        >
-                          <Eye className="w-3 h-3" /> Xem thử
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <input
-                      ref={trailerFileInputRef}
-                      type="file"
-                      accept="video/mp4, video/webm, video/ogg, video/quicktime"
-                      onChange={handleTrailerFileChange}
-                      onClick={(e) => { e.target.value = null; }}
-                      className="hidden"
-                    />
-                    <div
-                      onClick={() => trailerFileInputRef.current?.click()}
-                      className="border-2 border-dashed border-cinema-700 hover:border-ruby-500/80 bg-cinema-950/60 hover:bg-cinema-850/50 rounded-2xl p-4 text-center cursor-pointer transition-all group"
-                    >
-                      <div className="w-10 h-10 mx-auto rounded-xl bg-ruby-600/20 text-ruby-400 flex items-center justify-center mb-1.5 group-hover:scale-110 transition-transform">
-                        <FileVideo className="w-5 h-5" />
-                      </div>
-                      <div className="font-bold text-white text-xs">
-                        Nhấn để chọn tệp Video Trailer từ máy tính
-                      </div>
-                      <div className="text-[10px] text-slate-400">
-                        Định dạng: MP4, WebM, MOV (Tối đa 45MB)
-                      </div>
-                      {trailerFileName && (
-                        <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-950/80 border border-emerald-500/60 text-emerald-300 text-[10px] font-bold">
-                          <Check className="w-3 h-3" /> {trailerFileName}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Video / Trailer Live Mini Player */}
-                {formData.trailer && (
-                  <div className="p-3 rounded-xl bg-cinema-950 border border-cinema-800 space-y-2">
-                    <div className="flex items-center justify-between text-[11px]">
-                      <span className="font-bold text-slate-300 flex items-center gap-1.5">
-                        <Play className="w-3.5 h-3.5 text-ruby-400" /> Trình phát Trailer xem trước
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setFormData({ ...formData, trailer: '' });
-                          setTrailerFileName('');
-                        }}
-                        className="text-[10px] text-rose-400 hover:text-rose-300 font-semibold"
-                      >
-                        Xóa Trailer
-                      </button>
-                    </div>
-
-                    {isDirectVideoTrailer ? (
-                      <div className="rounded-xl overflow-hidden aspect-video bg-black max-h-48">
-                        <video
-                          src={formData.trailer}
-                          controls
-                          className="w-full h-full object-contain"
-                        >
-                          Trình duyệt không hỗ trợ thẻ video.
-                        </video>
-                      </div>
-                    ) : (
-                      <div className="text-[11px] text-slate-400 bg-cinema-900/80 p-2 rounded-lg flex items-center justify-between">
-                        <span className="truncate max-w-md font-mono text-[10px]">{formData.trailer}</span>
-                        <span className="text-emerald-400 font-bold shrink-0">✓ Link hợp lệ</span>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Description */}
-              <div>
-                <label className="block font-bold text-slate-200 mb-1">Tóm tắt nội dung phim</label>
-                <textarea
-                  rows={3}
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  placeholder="Nội dung tóm tắt cốt truyện phim..."
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none focus:border-ruby-500"
-                />
-              </div>
-
-              {/* Modal Footer Buttons */}
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-cinema-700">
-                <button
-                  type="button"
-                  onClick={() => setModalOpen(false)}
-                  className="px-4 py-2.5 rounded-xl bg-cinema-800 text-slate-300 hover:bg-cinema-700 hover:text-white font-semibold transition-colors"
-                >
-                  Hủy bỏ
-                </button>
-                <button
-                  type="submit"
-                  className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-ruby-600 to-rose-700 hover:from-ruby-500 hover:to-rose-600 text-white font-bold shadow-glow-red transition-all flex items-center gap-1.5"
-                >
-                  <Check className="w-4 h-4" /> Lưu Thông Tin Phim
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+                {/* 3. Modal Footer (Cố định ở dưới cùng) */}
+                <div className="px-6 py-4 border-t border-white/[0.08] flex items-center justify-end gap-3 shrink-0 bg-[#12141c]">
+                  <button
+                    type="button"
+                    onClick={() => setModalOpen(false)}
+                    className="px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 font-semibold text-xs transition-colors"
+                  >
+                    Hủy bỏ
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-6 py-2.5 rounded-xl bg-[#E50914] hover:bg-[#f40612] text-white font-bold text-xs shadow-lg shadow-ruby-900/40 hover:shadow-ruby-600/50 transition-all flex items-center gap-1.5"
+                  >
+                    <Check className="w-4 h-4" />
+                    <span>{editingMovie ? 'Lưu Thay Đổi / Cập Nhật' : 'Thêm Phim Mới'}</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

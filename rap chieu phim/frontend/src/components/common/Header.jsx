@@ -36,44 +36,44 @@ export function Header({
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Brand Logo */}
-          <div className="flex items-center gap-8">
+          <div className="flex items-center gap-3 xl:gap-6 shrink-0">
             <button
               onClick={() => onNavigate('home')}
-              className="flex items-center gap-2.5 group text-left focus:outline-none"
+              className="flex items-center gap-2.5 group text-left focus:outline-none shrink-0"
             >
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-ruby-600 via-ruby-700 to-rose-900 flex items-center justify-center shadow-glow-red group-hover:scale-105 transition-transform">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-ruby-600 via-ruby-700 to-rose-900 flex items-center justify-center shadow-glow-red group-hover:scale-105 transition-transform shrink-0">
                 <Film className="w-5 h-5 text-white" />
               </div>
-              <div>
-                <span className="text-xl font-extrabold tracking-wider bg-gradient-to-r from-white via-slate-100 to-ruby-400 bg-clip-text text-transparent">
+              <div className="shrink-0">
+                <span className="text-xl font-extrabold tracking-wider bg-gradient-to-r from-white via-slate-100 to-ruby-400 bg-clip-text text-transparent whitespace-nowrap">
                   NIGHT <span className="text-ruby-500 font-black">MOVIE</span>
                 </span>
-                <span className="block text-[10px] tracking-widest text-slate-400 uppercase font-semibold">
+                <span className="block text-[10px] tracking-widest text-slate-400 uppercase font-semibold whitespace-nowrap">
                   Cinema Operations & Booking
                 </span>
               </div>
             </button>
 
             {/* Nav links */}
-            <nav className="hidden lg:flex items-center gap-1">
+            <nav className="hidden lg:flex items-center gap-1 xl:gap-1.5 shrink-0">
               <button
                 onClick={onOpenLuckyWheel}
-                className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/20 via-rose-500/20 to-ruby-500/20 hover:from-amber-500/30 hover:to-rose-500/30 text-amber-300 border border-amber-500/40 text-xs font-black transition-all flex items-center gap-1.5 shadow-sm animate-pulse"
+                className="px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/20 via-rose-500/20 to-ruby-500/20 hover:from-amber-500/30 hover:to-rose-500/30 text-amber-300 border border-amber-500/40 text-xs font-black transition-all flex items-center gap-1.5 shadow-sm animate-pulse whitespace-nowrap shrink-0"
                 title="Vòng quay may mắn nhận voucher"
               >
-                <Gift className="w-3.5 h-3.5 text-amber-400" />
-                <span>Vòng Quay Voucher</span>
+                <Gift className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                <span className="whitespace-nowrap">Vòng Quay Voucher</span>
               </button>
               <button
                 onClick={onOpenInSeatDelivery}
-                className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500/20 to-teal-500/20 hover:from-emerald-500/30 hover:to-teal-500/30 text-emerald-300 border border-emerald-500/40 text-xs font-black transition-all flex items-center gap-1.5 shadow-sm"
+                className="px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500/20 to-teal-500/20 hover:from-emerald-500/30 hover:to-teal-500/30 text-emerald-300 border border-emerald-500/40 text-xs font-black transition-all flex items-center gap-1.5 shadow-sm whitespace-nowrap shrink-0"
                 title="Gọi bắp nước giao tận ghế trong phòng chiếu"
               >
-                <span>🍿 Gọi Món Tận Ghế</span>
+                <span className="whitespace-nowrap">🍿 Gọi Món Tận Ghế</span>
               </button>
               <button
                 onClick={() => onNavigate('home')}
-                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                className={`px-2.5 xl:px-3 py-1.5 rounded-lg text-xs xl:text-sm font-medium transition-colors whitespace-nowrap shrink-0 ${
                   currentView === 'home' ? 'text-ruby-400 bg-cinema-850' : 'text-slate-300 hover:text-white hover:bg-cinema-850/60'
                 }`}
               >
@@ -81,7 +81,7 @@ export function Header({
               </button>
               <button
                 onClick={() => onNavigate('movies')}
-                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                className={`px-2.5 xl:px-3 py-1.5 rounded-lg text-xs xl:text-sm font-medium transition-colors whitespace-nowrap shrink-0 ${
                   currentView === 'movies' ? 'text-ruby-400 bg-cinema-850' : 'text-slate-300 hover:text-white hover:bg-cinema-850/60'
                 }`}
               >
@@ -89,7 +89,7 @@ export function Header({
               </button>
               <button
                 onClick={() => onNavigate('schedules')}
-                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                className={`px-2.5 xl:px-3 py-1.5 rounded-lg text-xs xl:text-sm font-medium transition-colors whitespace-nowrap shrink-0 ${
                   currentView === 'schedules' ? 'text-ruby-400 bg-cinema-850' : 'text-slate-300 hover:text-white hover:bg-cinema-850/60'
                 }`}
               >
@@ -98,7 +98,7 @@ export function Header({
               {isAuthenticated && (
                 <button
                   onClick={() => onNavigate('my-tickets')}
-                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  className={`px-2.5 xl:px-3 py-1.5 rounded-lg text-xs xl:text-sm font-medium transition-colors whitespace-nowrap shrink-0 ${
                     currentView === 'my-tickets' ? 'text-ruby-400 bg-cinema-850' : 'text-slate-300 hover:text-white hover:bg-cinema-850/60'
                   }`}
                 >
@@ -109,14 +109,14 @@ export function Header({
               {(isManager || isStaff || isTechnician) && (
                 <button
                   onClick={() => onNavigate('admin-dashboard')}
-                  className={`px-3 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-1.5 ${
+                  className={`px-2.5 xl:px-3 py-1.5 rounded-lg text-xs xl:text-sm font-semibold transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
                     currentView.startsWith('admin-')
                       ? 'text-gold-400 bg-cinema-800 ring-1 ring-gold-500/30'
                       : 'text-gold-400 hover:bg-cinema-850/80'
                   }`}
                 >
-                  <Shield className="w-4 h-4 text-gold-400" />
-                  Hệ Thống Vận Hành
+                  <Shield className="w-4 h-4 text-gold-400 shrink-0" />
+                  <span className="whitespace-nowrap">Hệ Thống Vận Hành</span>
                 </button>
               )}
             </nav>
