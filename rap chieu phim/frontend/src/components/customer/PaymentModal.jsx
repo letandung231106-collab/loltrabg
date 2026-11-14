@@ -618,11 +618,11 @@ export function PaymentModal({
             <div className="flex justify-between text-slate-300">
               <span>Danh sách ghế:</span>
               <span className="font-bold text-white font-mono">
-                {activeBooking.seats?.map((s) => `${s.row_number}${s.seat_number}`).join(', ')}
+                {activeBooking.seats?.map((s) => `${s.row_number}${s.seat_number}${s.seat_type === 'couple' ? ' (Đôi - 2 người)' : s.seat_type === 'vip' ? ' (VIP)' : ''}`).join(', ')}
               </span>
             </div>
             <div className="flex justify-between text-slate-300">
-              <span>Tiền vé ({activeBooking.seats?.length || 1} ghế):</span>
+              <span>Tiền vé ({activeBooking.seats?.length || 1} mã ghế • {activeBooking.seats?.reduce((sum, s) => sum + (s.seat_type === 'couple' ? 2 : 1), 0) || 1} chỗ ngồi):</span>
               <span className="font-bold text-white">{ticketAmount.toLocaleString('vi-VN')} VNĐ</span>
             </div>
 

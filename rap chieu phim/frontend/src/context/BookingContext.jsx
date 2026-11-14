@@ -106,6 +106,11 @@ export function BookingProvider({ children }) {
     setHoldRemainingSeconds(null);
   };
 
+  const totalPeople = selectedSeats.reduce(
+    (sum, s) => sum + (s.seat_type === 'couple' ? 2 : 1),
+    0
+  );
+
   return (
     <BookingContext.Provider
       value={{
@@ -113,6 +118,7 @@ export function BookingProvider({ children }) {
         setSelectedSchedule,
         selectedSeats,
         setSelectedSeats,
+        totalPeople,
         toggleSeatSelection,
         activeBooking,
         setActiveBooking,

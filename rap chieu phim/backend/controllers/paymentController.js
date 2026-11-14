@@ -144,12 +144,16 @@ async function finalizeBookingTransaction({
     // Sinh Vé Điện Tử (tickets) cho từng ghế
     const generatedTickets = [];
     for (const seat of heldSeats) {
+      const isCouple = seat.seat_type === 'couple' || seat.row_number === 'F';
+      const capacity = isCouple ? 2 : 1;
       const ticketCode = `TCK-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${booking.screening_id}-${seat.row_number}${seat.seat_number}`;
       const qrCodePayload = JSON.stringify({
         ticketCode,
         movie: booking.movie_name,
         room: booking.room_name,
         seat: `${seat.row_number}${seat.seat_number}`,
+        seatType: isCouple ? 'COUPLE' : seat.seat_type?.toUpperCase() || 'STANDARD',
+        capacity: `${capacity} chỗ ngồi`,
         time: booking.start_time,
         customer: user.name || booking.customer_name || 'Khách hàng',
         paymentMethod: paymentMethod.toUpperCase(),
@@ -168,6 +172,8 @@ async function finalizeBookingTransaction({
         seat: `${seat.row_number}${seat.seat_number}`,
         row_number: seat.row_number,
         seat_number: seat.seat_number,
+        seat_type: isCouple ? 'couple' : seat.seat_type || 'standard',
+        capacity,
         price: seat.price,
       });
     }

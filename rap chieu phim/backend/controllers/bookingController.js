@@ -65,12 +65,18 @@ async function holdSeats(req, res, next) {
 
       // Lấy thông tin giá từng loại ghế
       const [seatsInfo] = await conn.query(
-        `SELECT id, room_id, row_number, seat_number, seat_type FROM seats WHERE id IN (?)`,
+        `SELECT id, room_id, row_number, seat_number, seat_type, status FROM seats WHERE id IN (?)`,
         [seat_ids]
       );
 
       if (!seatsInfo || seatsInfo.length !== seat_ids.length) {
         throw new Error('Một số ghế được chọn không tồn tại trong hệ thống.');
+      }
+
+      // RÀNG BUỘC: Không cho đặt ghế đang bảo trì hoặc ngừng hoạt động
+      const brokenSeats = seatsInfo.filter((s) => s.status === 'broken' || s.status === 'inactive');
+      if (brokenSeats.length > 0) {
+        throw new Error('Một số ghế được chọn đang bảo trì hoặc tạm ngừng phục vụ.');
       }
 
       // Xác thực nghiêm ngặt: Tất cả ghế phải thuộc chính xác phòng chiếu của suất chiếu này
@@ -82,15 +88,18 @@ async function holdSeats(req, res, next) {
       }
 
       let totalAmount = 0;
+      let totalPeopleCount = 0;
       const basePrice = parseFloat(schedule.ticket_price);
       const calculatedSeats = seatsInfo.map((seat) => {
         let price = basePrice;
         if (seat.seat_type === 'vip') price += 20000;
         if (seat.seat_type === 'couple') price = price * 2 + 10000;
         totalAmount += price;
+        totalPeopleCount += (seat.seat_type === 'couple' ? 2 : 1);
         return {
           seat_id: seat.id,
           price,
+          capacity: seat.seat_type === 'couple' ? 2 : 1,
         };
       });
 
@@ -135,9 +144,15 @@ async function holdSeats(req, res, next) {
         bookingId,
         bookingCode,
         totalAmount,
+        totalSeatsCount: seatsInfo.length,
+        totalPeopleCount,
         holdExpire: holdExpireDate,
         holdMinutes: SEAT_HOLD_MINUTES,
-        seats: seatsInfo,
+        seats: seatsInfo.map((s) => ({
+          ...s,
+          price: calculatedSeats.find((cs) => cs.seat_id === s.id)?.price || basePrice,
+          capacity: s.seat_type === 'couple' ? 2 : 1,
+        })),
       };
     });
 

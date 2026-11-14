@@ -424,14 +424,14 @@ INSERT INTO `employees` (`id`, `user_id`, `name`, `phone`, `email`, `position`, 
 
 -- 5. Cinema Rooms (8 phòng tiêu chuẩn và cao cấp)
 INSERT INTO `cinema_rooms` (`id`, `name`, `room_type`, `capacity`, `location`, `status`, `description`) VALUES
-(1, 'Cinema Hall 1 (Standard Dolby)', 'standard', 72, 'Tầng 3 - Cánh Trái', 'active', 'Phòng chiếu tiêu chuẩn âm thanh vòm Dolby Atmos 7.1'),
-(2, 'Cinema Hall 2 (Standard Dolby)', 'standard', 72, 'Tầng 3 - Cánh Trái', 'active', 'Phòng chiếu kỹ thuật số Laser 4K sắc nét'),
+(1, 'Cinema Hall 1 (Standard Dolby)', 'standard', 84, 'Tầng 3 - Cánh Trái', 'active', 'Phòng chiếu tiêu chuẩn âm thanh vòm Dolby Atmos 7.1'),
+(2, 'Cinema Hall 2 (Standard Dolby)', 'standard', 84, 'Tầng 3 - Cánh Trái', 'active', 'Phòng chiếu kỹ thuật số Laser 4K sắc nét'),
 (3, 'Cinema Hall 3 (VIP Prime Lounge)', 'vip', 48, 'Tầng 3 - Khu Trung Tâm', 'active', 'Phòng chiếu ghế bọc da cao cấp điều chỉnh điện kèm phục vụ đồ uống'),
 (4, 'Cinema Hall 4 (IMAX Laser Theater)', 'imax', 96, 'Tầng 4 - Đại Sảnh IMAX', 'active', 'Màn hình khổng lồ 22m x 16m chuẩn IMAX Laser thế hệ mới'),
 (5, 'Cinema Hall 5 (4DX Motion World)', '4dx', 60, 'Tầng 4 - Cánh Phải', 'active', 'Hiệu ứng ghế rung lắc, gió, mưa, sương mù, mùi hương chân thực'),
 (6, 'Cinema Hall 6 (Gold Class Luxury)', 'vip', 36, 'Tầng 4 - Cánh Phải', 'maintenance', 'Phòng hạng sang phục vụ tiệc nhẹ - Đang nâng cấp hệ thống âm thanh'),
-(7, 'Cinema Hall 7 (Standard Dolby)', 'standard', 72, 'Tầng 5 - Cánh Trái', 'active', 'Phòng chiếu phim gia đình và hoạt hình trẻ em'),
-(8, 'Cinema Hall 8 (Studio Premiere)', 'standard', 72, 'Tầng 5 - Cánh Phải', 'incident', 'Đang xử lý sự cố máy điều hòa trung tâm');
+(7, 'Cinema Hall 7 (Standard Dolby)', 'standard', 84, 'Tầng 5 - Cánh Trái', 'active', 'Phòng chiếu phim gia đình và hoạt hình trẻ em'),
+(8, 'Cinema Hall 8 (Studio Premiere)', 'standard', 84, 'Tầng 5 - Cánh Phải', 'incident', 'Đang xử lý sự cố máy điều hòa trung tâm');
 
 -- 6. Movies (16 Phim đa dạng thể loại)
 INSERT INTO `movies` (`id`, `name`, `genre`, `director`, `actors`, `duration`, `release_date`, `end_date`, `age_rating`, `language`, `format`, `description`, `poster`, `trailer`, `status`) VALUES
@@ -474,9 +474,10 @@ INSERT INTO `seats` (`room_id`, `row_number`, `seat_number`, `seat_type`, `statu
 (1, 'E', 1, 'vip', 'active'), (1, 'E', 2, 'vip', 'active'), (1, 'E', 3, 'vip', 'active'), (1, 'E', 4, 'vip', 'active'),
 (1, 'E', 5, 'vip', 'active'), (1, 'E', 6, 'vip', 'active'), (1, 'E', 7, 'vip', 'active'), (1, 'E', 8, 'vip', 'active'),
 (1, 'E', 9, 'vip', 'active'), (1, 'E', 10, 'vip', 'active'), (1, 'E', 11, 'vip', 'active'), (1, 'E', 12, 'vip', 'active'),
--- Hàng F (Couple đôi)
+-- Hàng F (Couple đôi - 12 ghế = 24 người)
 (1, 'F', 1, 'couple', 'active'), (1, 'F', 2, 'couple', 'active'), (1, 'F', 3, 'couple', 'active'), (1, 'F', 4, 'couple', 'active'),
-(1, 'F', 5, 'couple', 'active'), (1, 'F', 6, 'couple', 'active');
+(1, 'F', 5, 'couple', 'active'), (1, 'F', 6, 'couple', 'active'), (1, 'F', 7, 'couple', 'active'), (1, 'F', 8, 'couple', 'active'),
+(1, 'F', 9, 'couple', 'active'), (1, 'F', 10, 'couple', 'active'), (1, 'F', 11, 'couple', 'active'), (1, 'F', 12, 'couple', 'active');
 
 -- Ghế phòng 4 (IMAX 8 hàng x 12 ghế = 96 ghế)
 INSERT INTO `seats` (`room_id`, `row_number`, `seat_number`, `seat_type`, `status`) VALUES

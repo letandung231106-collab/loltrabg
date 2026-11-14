@@ -293,14 +293,14 @@ const movies = [
 ];
 
 const rooms = [
-  { id: 1, name: 'Cinema Hall 1 (Standard Dolby)', room_type: 'standard', capacity: 72, location: 'Tầng 3 - Cánh Trái', status: 'active', description: 'Phòng chiếu Dolby Atmos 7.1' },
-  { id: 2, name: 'Cinema Hall 2 (Standard Dolby)', room_type: 'standard', capacity: 72, location: 'Tầng 3 - Cánh Trái', status: 'active', description: 'Phòng chiếu Laser 4K' },
+  { id: 1, name: 'Cinema Hall 1 (Standard Dolby)', room_type: 'standard', capacity: 84, location: 'Tầng 3 - Cánh Trái', status: 'active', description: 'Phòng chiếu Dolby Atmos 7.1' },
+  { id: 2, name: 'Cinema Hall 2 (Standard Dolby)', room_type: 'standard', capacity: 84, location: 'Tầng 3 - Cánh Trái', status: 'active', description: 'Phòng chiếu Laser 4K' },
   { id: 3, name: 'Cinema Hall 3 (VIP Prime Lounge)', room_type: 'vip', capacity: 48, location: 'Tầng 3 - Khu Trung Tâm', status: 'active', description: 'Phòng chiếu ghế da chỉnh điện' },
   { id: 4, name: 'Cinema Hall 4 (IMAX Laser Theater)', room_type: 'imax', capacity: 96, location: 'Tầng 4 - Đại Sảnh IMAX', status: 'active', description: 'Màn hình 22m x 16m chuẩn IMAX Laser' },
   { id: 5, name: 'Cinema Hall 5 (4DX Motion World)', room_type: '4dx', capacity: 60, location: 'Tầng 4 - Cánh Phải', status: 'active', description: 'Hiệu ứng rung lắc, gió, mưa, mùi hương' },
   { id: 6, name: 'Cinema Hall 6 (Gold Class Luxury)', room_type: 'vip', capacity: 36, location: 'Tầng 4 - Cánh Phải', status: 'maintenance', description: 'Phòng hạng sang - Đang bảo dưỡng' },
-  { id: 7, name: 'Cinema Hall 7 (Standard Dolby)', room_type: 'standard', capacity: 72, location: 'Tầng 5 - Cánh Trái', status: 'active', description: 'Phòng chiếu gia đình' },
-  { id: 8, name: 'Cinema Hall 8 (Studio Premiere)', room_type: 'standard', capacity: 72, location: 'Tầng 5 - Cánh Phải', status: 'incident', description: 'Đang xử lý sự cố điều hòa' },
+  { id: 7, name: 'Cinema Hall 7 (Standard Dolby)', room_type: 'standard', capacity: 84, location: 'Tầng 5 - Cánh Trái', status: 'active', description: 'Phòng chiếu gia đình' },
+  { id: 8, name: 'Cinema Hall 8 (Studio Premiere)', room_type: 'standard', capacity: 84, location: 'Tầng 5 - Cánh Phải', status: 'incident', description: 'Đang xử lý sự cố điều hòa' },
 ];
 
 // Generate seats for Rooms 1, 2, 3, 4, 5, 7
@@ -308,11 +308,11 @@ const seats = [];
 let seatIdCounter = 1;
 [1, 2, 3, 4, 5, 7].forEach((roomId) => {
   ['A', 'B', 'C', 'D', 'E', 'F'].forEach((row, rIdx) => {
-    const maxNum = (roomId === 4) ? 14 : 12;
+    const maxNum = 12; // Chuẩn 12 ghế mỗi hàng (A1-F12)
     for (let num = 1; num <= maxNum; num++) {
       let seatType = 'standard';
-      if (rIdx >= 3 && rIdx <= 4) seatType = 'vip';
-      if (rIdx === 5 && num <= Math.floor(maxNum / 2)) seatType = 'couple';
+      if (rIdx >= 3 && rIdx <= 4) seatType = 'vip'; // Hàng D, E là VIP
+      if (rIdx === 5) seatType = 'couple'; // Toàn bộ hàng F (F1-F12) là ghế Couple đôi
       seats.push({
         id: seatIdCounter++,
         room_id: roomId,

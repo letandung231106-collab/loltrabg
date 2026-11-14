@@ -142,6 +142,7 @@ async function getScheduleSeatMap(req, res, next) {
         seat_number: seat.seat_number,
         seat_type: seat.seat_type,
         price,
+        capacity: seat.seat_type === 'couple' ? 2 : 1,
         state, // 'available' | 'holding' | 'booked' | 'unavailable'
         holdInfo,
       };
@@ -154,6 +155,7 @@ async function getScheduleSeatMap(req, res, next) {
         seats: seatLayout,
         summary: {
           total: seatLayout.length,
+          total_capacity: seatLayout.reduce((sum, s) => sum + (s.seat_type === 'couple' ? 2 : 1), 0),
           available: seatLayout.filter((s) => s.state === 'available').length,
           holding: seatLayout.filter((s) => s.state === 'holding').length,
           booked: seatLayout.filter((s) => s.state === 'booked').length,
