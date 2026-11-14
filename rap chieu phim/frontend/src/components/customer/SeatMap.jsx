@@ -101,14 +101,14 @@ export function SeatMap({ scheduleData, onProceedToPayment, onCancelHold }) {
       </div>
 
       {/* Cinema Room Layout with Two Side Aisles (Không có lối đi giữa) */}
-      <div className="w-full max-w-5xl overflow-x-auto pb-4 flex justify-center">
-        <div className="inline-flex items-stretch gap-3 sm:gap-4 px-2 sm:px-4 min-w-max select-none">
+      <div className="w-full overflow-x-auto pb-4 flex justify-center px-2 sm:px-4">
+        <div className="inline-flex items-stretch gap-2 sm:gap-3.5 px-2 sm:px-3 min-w-fit select-none">
           {/* LỐI ĐI 1 - CỬA TÂY (BÊN TRÁI) */}
-          <div className="flex flex-col justify-between py-2 px-2 sm:px-2.5 rounded-2xl bg-cinema-900/60 border border-cinema-800/80 text-slate-400">
-            <div className="flex flex-col items-center gap-1 pb-2 border-b border-cinema-800/80">
+          <div className="flex flex-col justify-between py-2 px-1.5 sm:px-2 rounded-2xl bg-cinema-900/90 border border-cinema-800 text-slate-400 shrink-0 shadow-lg">
+            <div className="flex flex-col items-center gap-1 pb-1.5 border-b border-cinema-800/80">
               <ArrowDown className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
-              <span className="text-[9px] font-black uppercase text-amber-400 tracking-wider">LỐI ĐI 1</span>
-              <span className="text-[8px] text-slate-500 font-mono">CỬA TÂY</span>
+              <span className="text-[9px] font-black uppercase text-amber-400 tracking-wider whitespace-nowrap">LỐI ĐI 1</span>
+              <span className="text-[8px] text-slate-500 font-mono whitespace-nowrap">CỬA TÂY</span>
             </div>
 
             {/* Đèn LED hắt chân bậc thang theo từng hàng */}
@@ -116,7 +116,7 @@ export function SeatMap({ scheduleData, onProceedToPayment, onCancelHold }) {
               {rowKeys.map((r) => (
                 <div
                   key={`aisle-left-${r}`}
-                  className="flex items-center gap-1.5 text-[9px] text-amber-400/80 font-mono py-1"
+                  className="flex items-center justify-center gap-1 text-[9px] text-amber-400/80 font-mono py-1"
                   title={`Bậc thang hàng ${r} - Lối đi Trái`}
                 >
                   <Footprints className="w-3 h-3 text-amber-400/70" />
@@ -125,25 +125,25 @@ export function SeatMap({ scheduleData, onProceedToPayment, onCancelHold }) {
               ))}
             </div>
 
-            <div className="text-[8px] text-slate-500 text-center pt-2 border-t border-cinema-800/80 font-mono">
+            <div className="text-[8px] text-slate-500 text-center pt-1.5 border-t border-cinema-800/80 font-mono whitespace-nowrap">
               BẬC LED
             </div>
           </div>
 
           {/* KHU VỰC GHẾ TRUNG TÂM (A1-F12 LIỀN MẠCH, KHÔNG CÓ LỐI ĐI GIỮA) */}
-          <div className="space-y-2.5 sm:space-y-3">
+          <div className="space-y-2 sm:space-y-2.5">
             {rowKeys.map((rowKey) => {
               const isCoupleRow = rowKey === 'F';
 
               return (
-                <div key={rowKey} className="flex items-center justify-center gap-2">
+                <div key={rowKey} className="flex items-center justify-center gap-1 sm:gap-1.5">
                   {/* Row Label Left */}
-                  <div className="w-6 text-center font-black text-xs text-slate-400 font-mono">
+                  <div className="w-5 sm:w-6 text-center font-black text-xs text-slate-400 font-mono">
                     {rowKey}
                   </div>
 
                   {/* Seat Buttons in Row */}
-                  <div className="flex items-center gap-1.5 sm:gap-2">
+                  <div className="flex items-center gap-1 sm:gap-1.5">
                     {rows[rowKey].map((seat) => {
                       const isSelected = selectedSeats.some((s) => s.id === seat.id);
                       const isHoldingByOther = seat.state === 'holding' && !isSelected;
@@ -188,8 +188,8 @@ export function SeatMap({ scheduleData, onProceedToPayment, onCancelHold }) {
 
                       // Width & design: Couple seats have double-cushion width
                       const seatWidth = isCouple
-                        ? 'min-w-[56px] sm:min-w-[64px] px-1.5'
-                        : 'min-w-[32px] sm:min-w-[36px]';
+                        ? 'min-w-[46px] sm:min-w-[50px] md:min-w-[54px] px-1'
+                        : 'min-w-[28px] sm:min-w-[32px] md:min-w-[34px]';
 
                       return (
                         <button
@@ -197,7 +197,7 @@ export function SeatMap({ scheduleData, onProceedToPayment, onCancelHold }) {
                           disabled={isBooked || isHoldingByOther || isBroken}
                           onClick={() => toggleSeatSelection(seat)}
                           title={statusTitle}
-                          className={`h-8 sm:h-9 ${seatWidth} rounded-lg border text-xs font-semibold flex items-center justify-center transition-all duration-150 relative ${seatStyle} ${cursor}`}
+                          className={`h-8 sm:h-8.5 ${seatWidth} rounded-lg border text-xs font-semibold flex items-center justify-center transition-all duration-150 relative ${seatStyle} ${cursor}`}
                         >
                           {isSelected ? (
                             <div className="flex items-center justify-center gap-1 font-black">
@@ -210,9 +210,9 @@ export function SeatMap({ scheduleData, onProceedToPayment, onCancelHold }) {
                             </div>
                           ) : isCouple ? (
                             /* Minh họa ghế đôi 2 chỗ ngồi với icon trái tim */
-                            <div className="flex items-center justify-center gap-1 w-full">
-                              <Heart className="w-3 h-3 text-pink-400 fill-pink-500/40 shrink-0" />
-                              <span className="font-bold text-[11px] font-mono tracking-tight">
+                            <div className="flex items-center justify-center gap-0.5 sm:gap-1 w-full">
+                              <Heart className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-pink-400 fill-pink-500/40 shrink-0" />
+                              <span className="font-bold text-[10px] sm:text-[11px] font-mono tracking-tight">
                                 {seat.row_number}{seat.seat_number}
                               </span>
                             </div>
@@ -227,7 +227,7 @@ export function SeatMap({ scheduleData, onProceedToPayment, onCancelHold }) {
                   </div>
 
                   {/* Row Label Right */}
-                  <div className="w-6 text-center font-black text-xs text-slate-400 font-mono">
+                  <div className="w-5 sm:w-6 text-center font-black text-xs text-slate-400 font-mono">
                     {rowKey}
                   </div>
                 </div>
@@ -236,11 +236,11 @@ export function SeatMap({ scheduleData, onProceedToPayment, onCancelHold }) {
           </div>
 
           {/* LỐI ĐI 2 - CỬA ĐÔNG (BÊN PHẢI) */}
-          <div className="flex flex-col justify-between py-2 px-2 sm:px-2.5 rounded-2xl bg-cinema-900/60 border border-cinema-800/80 text-slate-400">
-            <div className="flex flex-col items-center gap-1 pb-2 border-b border-cinema-800/80">
+          <div className="flex flex-col justify-between py-2 px-1.5 sm:px-2 rounded-2xl bg-cinema-900/90 border border-cinema-800 text-slate-400 shrink-0 shadow-lg">
+            <div className="flex flex-col items-center gap-1 pb-1.5 border-b border-cinema-800/80">
               <ArrowDown className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
-              <span className="text-[9px] font-black uppercase text-amber-400 tracking-wider">LỐI ĐI 2</span>
-              <span className="text-[8px] text-slate-500 font-mono">CỬA ĐÔNG</span>
+              <span className="text-[9px] font-black uppercase text-amber-400 tracking-wider whitespace-nowrap">LỐI ĐI 2</span>
+              <span className="text-[8px] text-slate-500 font-mono whitespace-nowrap">CỬA ĐÔNG</span>
             </div>
 
             {/* Đèn LED hắt chân bậc thang theo từng hàng */}
@@ -248,7 +248,7 @@ export function SeatMap({ scheduleData, onProceedToPayment, onCancelHold }) {
               {rowKeys.map((r) => (
                 <div
                   key={`aisle-right-${r}`}
-                  className="flex items-center gap-1.5 text-[9px] text-amber-400/80 font-mono py-1"
+                  className="flex items-center justify-center gap-1 text-[9px] text-amber-400/80 font-mono py-1"
                   title={`Bậc thang hàng ${r} - Lối đi Phải`}
                 >
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shadow-[0_0_6px_rgba(245,158,11,0.8)] animate-pulse" />
@@ -257,7 +257,7 @@ export function SeatMap({ scheduleData, onProceedToPayment, onCancelHold }) {
               ))}
             </div>
 
-            <div className="text-[8px] text-slate-500 text-center pt-2 border-t border-cinema-800/80 font-mono">
+            <div className="text-[8px] text-slate-500 text-center pt-1.5 border-t border-cinema-800/80 font-mono whitespace-nowrap">
               BẬC LED
             </div>
           </div>
