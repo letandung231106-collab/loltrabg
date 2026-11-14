@@ -40,9 +40,10 @@ async function handleChat(req, res) {
 
     // 2. Kiểm tra nếu có cấu hình Google Gemini API Key
     const geminiApiKey = process.env.GEMINI_API_KEY;
+    const geminiModel = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
     if (geminiApiKey && geminiApiKey.trim()) {
       try {
-        console.log('[Chatbot] 🤖 Đang gọi Google Gemini API (gemini-1.5-flash)...');
+        console.log(`[Chatbot] 🤖 Đang gọi Google Gemini API (${geminiModel})...`);
         const moviesContext = movies.map(m => `- ${m.name} (${m.genre}, ${m.duration} phút, ${m.format})`).join('\n');
         const schedulesContext = schedules.map(s => `- ${s.movie_name} lúc ${s.start_time} tại ${s.room_name} (${Number(s.price).toLocaleString('vi-VN')}đ)`).join('\n');
 
@@ -56,7 +57,7 @@ Voucher: Giảm 20.000đ khi quay Vòng Quay May Mắn.
 Ghế đẹp: Hàng D, E, F (ghế 5, 6, 7) là vị trí Sweet Spot âm thanh Dolby Atmos tốt nhất.
 Yêu cầu: Trả lời ngắn gọn (dưới 120 từ), nhiệt tình, hoàn toàn bằng tiếng Việt có emoji rạp phim sinh động.`;
 
-        const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey.trim()}`;
+        const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${geminiApiKey.trim()}`;
 
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 8000);
