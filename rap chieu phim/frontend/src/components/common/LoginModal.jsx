@@ -22,16 +22,9 @@ export function LoginModal({ isOpen, onClose }) {
 
   if (!isOpen) return null;
 
-  const handleQuickLogin = async (u, p) => {
+  const handleQuickFill = (u, p) => {
     setFormData((prev) => ({ ...prev, username: u, password: p }));
     setErrorMsg('');
-    const res = await login(u, p);
-    if (res.success) {
-      setSuccessMsg(`Chào mừng ${res.user.name || res.user.username}!`);
-      setTimeout(() => onClose(), 600);
-    } else {
-      setErrorMsg(res.message);
-    }
   };
 
   const handleSubmit = async (e) => {
@@ -250,55 +243,43 @@ export function LoginModal({ isOpen, onClose }) {
           </button>
         </form>
 
-        {/* Demo Accounts Quick Login */}
+        {/* Demo Accounts Quick Fill */}
         {!isRegisterMode && !isForgotMode && (
           <div className="mt-6 pt-4 border-t border-cinema-700/60">
             <div className="text-[11px] font-bold text-gold-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5" /> Tài khoản mẫu (Bấm để đăng nhập nhanh):
+              <Sparkles className="w-3.5 h-3.5" /> Tài khoản mẫu (Bấm để điền nhanh):
             </div>
             <div className="grid grid-cols-2 gap-2 text-xs">
               <button
                 type="button"
-                onClick={() => handleQuickLogin('admin', 'password123')}
-                className="p-2.5 rounded-xl bg-cinema-900 hover:bg-cinema-850 hover:border-ruby-500/60 border border-cinema-700/60 text-left transition-all group cursor-pointer"
+                onClick={() => handleQuickFill('admin', 'password123')}
+                className="p-2.5 rounded-xl bg-cinema-900 hover:bg-cinema-850 hover:border-ruby-500/60 border border-cinema-700/60 text-left transition-all cursor-pointer"
               >
-                <div className="font-bold text-ruby-400 group-hover:text-ruby-300 flex items-center justify-between">
-                  <span>👑 Admin</span>
-                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-ruby-600/20 text-ruby-400 font-semibold">1-Click</span>
-                </div>
+                <div className="font-bold text-ruby-400">👑 Admin</div>
                 <div className="text-[10px] text-slate-400 mt-0.5">admin / password123</div>
               </button>
               <button
                 type="button"
-                onClick={() => handleQuickLogin('manager1', 'password123')}
-                className="p-2.5 rounded-xl bg-cinema-900 hover:bg-cinema-850 hover:border-amber-500/60 border border-cinema-700/60 text-left transition-all group cursor-pointer"
+                onClick={() => handleQuickFill('manager1', 'password123')}
+                className="p-2.5 rounded-xl bg-cinema-900 hover:bg-cinema-850 hover:border-amber-500/60 border border-cinema-700/60 text-left transition-all cursor-pointer"
               >
-                <div className="font-bold text-amber-400 group-hover:text-amber-300 flex items-center justify-between">
-                  <span>👔 Manager</span>
-                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-600/20 text-amber-400 font-semibold">1-Click</span>
-                </div>
+                <div className="font-bold text-amber-400">👔 Manager</div>
                 <div className="text-[10px] text-slate-400 mt-0.5">manager1 / password123</div>
               </button>
               <button
                 type="button"
-                onClick={() => handleQuickLogin('staff1', 'password123')}
-                className="p-2.5 rounded-xl bg-cinema-900 hover:bg-cinema-850 hover:border-blue-500/60 border border-cinema-700/60 text-left transition-all group cursor-pointer"
+                onClick={() => handleQuickFill('staff1', 'password123')}
+                className="p-2.5 rounded-xl bg-cinema-900 hover:bg-cinema-850 hover:border-blue-500/60 border border-cinema-700/60 text-left transition-all cursor-pointer"
               >
-                <div className="font-bold text-blue-400 group-hover:text-blue-300 flex items-center justify-between">
-                  <span>📋 Staff</span>
-                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-600/20 text-blue-400 font-semibold">1-Click</span>
-                </div>
+                <div className="font-bold text-blue-400">📋 Staff</div>
                 <div className="text-[10px] text-slate-400 mt-0.5">staff1 / password123</div>
               </button>
               <button
                 type="button"
-                onClick={() => handleQuickLogin('tech1', 'password123')}
-                className="p-2.5 rounded-xl bg-cinema-900 hover:bg-cinema-850 hover:border-emerald-500/60 border border-cinema-700/60 text-left transition-all group cursor-pointer"
+                onClick={() => handleQuickFill('tech1', 'password123')}
+                className="p-2.5 rounded-xl bg-cinema-900 hover:bg-cinema-850 hover:border-emerald-500/60 border border-cinema-700/60 text-left transition-all cursor-pointer"
               >
-                <div className="font-bold text-emerald-400 group-hover:text-emerald-300 flex items-center justify-between">
-                  <span>🔧 Technician</span>
-                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-600/20 text-emerald-400 font-semibold">1-Click</span>
-                </div>
+                <div className="font-bold text-emerald-400">🔧 Technician</div>
                 <div className="text-[10px] text-slate-400 mt-0.5">tech1 / password123</div>
               </button>
             </div>
