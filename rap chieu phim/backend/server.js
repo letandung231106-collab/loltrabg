@@ -56,6 +56,7 @@ app.use('/api/inventory', require('./routes/inventoryRoutes'));
 app.use('/api/handovers', require('./routes/cashHandoverRoutes'));
 app.use('/api/kdm', require('./routes/kdmRoutes'));
 app.use('/api/turnaround', require('./routes/turnaroundRoutes'));
+app.use('/api/chat', require('./routes/chatRoutes'));
 
 // Error Handlers
 app.use(notFoundHandler);

@@ -172,4 +172,12 @@ export const api = {
   // Notifications
   getNotifications: () => request('/notifications'),
   markNotificationAsRead: (id) => request(`/notifications/${id}/read`, { method: 'PUT' }),
+
+  // Chatbot Assistant (CinemaBot AI)
+  sendChatMessage: (message, options = {}) =>
+    request('/chat', {
+      method: 'POST',
+      body: JSON.stringify({ message }),
+      signal: options.signal,
+    }),
 };
