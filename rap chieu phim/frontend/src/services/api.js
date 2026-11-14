@@ -93,6 +93,8 @@ export const api = {
   getAllTickets: (params = {}) => request(`/tickets${buildQueryString(params)}`),
   getMyTickets: () => request('/tickets/my-tickets'),
   getTicketById: (id) => request(`/tickets/${id}`),
+  verifyTicket: (ticket_code) =>
+    request('/tickets/verify', { method: 'POST', body: JSON.stringify({ ticket_code }) }),
   verifyTicketQr: (ticket_code) =>
     request('/tickets/verify', { method: 'POST', body: JSON.stringify({ ticket_code }) }),
   cancelTicket: (id, reason) =>
@@ -109,9 +111,11 @@ export const api = {
   updateEquipment: (id, data) => request(`/equipment/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   getMaintenanceAlerts: () => request('/equipment/maintenance-alerts'),
   getEquipmentTypes: () => request('/equipment/types'),
-  getMaintenances: () => request('/equipment/maintenances/list'),
+  getMaintenances: (params = {}) => request(`/maintenances${buildQueryString(params)}`),
   createMaintenance: (data) =>
-    request('/equipment/maintenances', { method: 'POST', body: JSON.stringify(data) }),
+    request('/maintenances', { method: 'POST', body: JSON.stringify(data) }),
+  updateMaintenance: (id, data) =>
+    request(`/maintenances/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
 
   // Incidents
   getIncidents: (params = {}) => request(`/incidents${buildQueryString(params)}`),
@@ -126,16 +130,22 @@ export const api = {
   getInspections: (params = {}) => request(`/inspections${buildQueryString(params)}`),
   getInspectionById: (id) => request(`/inspections/${id}`),
   createInspection: (data) => request('/inspections', { method: 'POST', body: JSON.stringify(data) }),
+  submitInspection: (data) => request('/inspections', { method: 'POST', body: JSON.stringify(data) }),
 
   // Shifts & Staff
   getShifts: (params = {}) => request(`/shifts${buildQueryString(params)}`),
   createShift: (data) => request('/shifts', { method: 'POST', body: JSON.stringify(data) }),
   updateShiftStatus: (id, status) =>
     request(`/shifts/${id}/status`, { method: 'PUT', body: JSON.stringify({ status }) }),
-  getShiftHandovers: () => request('/shifts/handovers/list'),
-  createShiftHandover: (data) => request('/shifts/handovers', { method: 'POST', body: JSON.stringify(data) }),
+  checkInShift: (id, status) =>
+    request(`/shifts/${id}/status`, { method: 'PUT', body: JSON.stringify({ status }) }),
+  getHandovers: () => request('/handovers'),
+  createHandover: (data) => request('/handovers', { method: 'POST', body: JSON.stringify(data) }),
+  approveHandover: (id, data = {}) => request(`/handovers/${id}/approve`, { method: 'PUT', body: JSON.stringify(data) }),
+  getShiftHandovers: () => request('/handovers'),
+  createShiftHandover: (data) => request('/handovers', { method: 'POST', body: JSON.stringify(data) }),
   approveShiftHandover: (id, status, notes) =>
-    request(`/shifts/handovers/${id}/status`, { method: 'PUT', body: JSON.stringify({ status, notes }) }),
+    request(`/handovers/${id}/approve`, { method: 'PUT', body: JSON.stringify({ status, notes }) }),
   getEmployees: (params = {}) => request(`/employees${buildQueryString(params)}`),
   getTechnicians: () => request('/employees/technicians'),
   createEmployee: (data) => request('/employees', { method: 'POST', body: JSON.stringify(data) }),
@@ -154,9 +164,13 @@ export const api = {
   updateConcession: (id, data) => request(`/concessions/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteConcession: (id) => request(`/concessions/${id}`, { method: 'DELETE' }),
   sellConcessions: (orderData) => request('/concessions/sell', { method: 'POST', body: JSON.stringify(orderData) }),
-  getInventory: () => request('/inventory'),
+  sellConcessionOrder: (orderData) => request('/concessions/sell', { method: 'POST', body: JSON.stringify(orderData) }),
+  getInventory: () => request('/inventory/ingredients'),
+  getIngredients: () => request('/inventory/ingredients'),
+  createIngredient: (data) => request('/inventory/ingredients', { method: 'POST', body: JSON.stringify(data) }),
   getInventoryLogs: () => request('/inventory/logs'),
-  importInventory: (data) => request('/inventory/import', { method: 'POST', body: JSON.stringify(data) }),
+  createInventoryLog: (data) => request('/inventory/logs', { method: 'POST', body: JSON.stringify(data) }),
+  importInventory: (data) => request('/inventory/logs', { method: 'POST', body: JSON.stringify(data) }),
 
   // KDM & Projector Lamps
   getKdmLicenses: () => request('/kdm/licenses'),
@@ -167,6 +181,7 @@ export const api = {
 
   // Turnaround Quick Clean
   getTurnaroundChecklists: (params = {}) => request(`/turnaround${buildQueryString(params)}`),
+  submitTurnaround: (data) => request('/turnaround', { method: 'POST', body: JSON.stringify(data) }),
   createTurnaroundChecklist: (data) => request('/turnaround', { method: 'POST', body: JSON.stringify(data) }),
 
   // Notifications
