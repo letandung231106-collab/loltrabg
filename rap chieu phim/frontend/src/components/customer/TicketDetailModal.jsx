@@ -154,7 +154,7 @@ export function TicketDetailModal({ ticket, isOpen, onClose, onCancelTicket }) {
 
           ctx.fillStyle = '#64748b';
           ctx.font = '11px Arial, sans-serif';
-          ctx.fillText('Hotline hỗ trợ: 1900 6868 • Website: nightmovie.vn', canvas.width / 2, 770);
+          ctx.fillText('Hotline hỗ trợ: 0375358344 • Website: nightmovie.vn', canvas.width / 2, 770);
 
           // Tải ảnh về
           const imageURL = canvas.toDataURL('image/png');

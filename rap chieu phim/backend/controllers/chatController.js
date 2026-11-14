@@ -55,6 +55,7 @@ Suất chiếu gần nhất:
 ${schedulesContext || 'Các suất chiếu mở từ 09:00 đến 23:00 hàng ngày'}
 Voucher: Giảm 20.000đ khi quay Vòng Quay May Mắn.
 Ghế đẹp: Hàng D, E, F (ghế 5, 6, 7) là vị trí Sweet Spot âm thanh Dolby Atmos tốt nhất.
+Thông tin liên hệ CSKH: Hotline 0375358344, Email letandung231106@gmail.com.
 Yêu cầu: Trả lời ngắn gọn (dưới 120 từ), nhiệt tình, hoàn toàn bằng tiếng Việt có emoji rạp phim sinh động.`;
 
         const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${geminiApiKey.trim()}`;

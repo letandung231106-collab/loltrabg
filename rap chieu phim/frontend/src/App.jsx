@@ -239,9 +239,9 @@ function MainApp() {
           <div className="flex flex-wrap items-center gap-4 text-xs text-slate-400">
             <span>© 2026 Night Movie Cinema. All rights reserved.</span>
             <span>•</span>
-            <span className="text-slate-300">Hotline CSKH: 1900 6868</span>
+            <span className="text-slate-300">Hotline CSKH: 0375358344</span>
             <span>•</span>
-            <span className="text-slate-300">Email: contact@nightmovie.vn</span>
+            <span className="text-slate-300">Email: letandung231106@gmail.com</span>
           </div>
         </div>
       </footer>
