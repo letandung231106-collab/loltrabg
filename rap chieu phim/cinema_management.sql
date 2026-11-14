@@ -414,12 +414,12 @@ INSERT INTO `customers` (`id`, `user_id`, `name`, `email`, `phone`, `membership_
 
 -- 4. Employees
 INSERT INTO `employees` (`id`, `user_id`, `name`, `phone`, `email`, `position`, `department`, `status`) VALUES
-(1, 1, 'Hồ Quốc Bảo (Admin)', '0909000001', 'admin@cinema.vn', 'Giám Đốc Hệ Thống', 'Ban Giám Đốc', 'active'),
-(2, 2, 'Phạm Minh Đức', '0909000002', 'duc.pm@cinema.vn', 'Trưởng Quản Lý Rạp', 'Vận Hành Rạp', 'active'),
+(1, 1, 'Elon Musk', '0909000001', 'elon.musk@cinema.vn', 'Giám Đốc Hệ Thống', 'Ban Giám Đốc', 'active'),
+(2, 2, 'Mark Zuckerberg', '0909000002', 'zuck@cinema.vn', 'Trưởng Quản Lý Rạp', 'Vận Hành Rạp', 'active'),
 (3, 10, 'Hoàng Thùy Linh', '0909000010', 'linh.ht@cinema.vn', 'Phó Quản Lý Rạp', 'Vận Hành Rạp', 'active'),
-(4, 3, 'Nguyễn Thu Trang', '0909000003', 'trang.nt@cinema.vn', 'Nhân Viên Soát Vé & Vận Hành', 'Vận Hành Rạp', 'active'),
+(4, 3, 'Steve Jobs', '0909000003', 'steve.jobs@cinema.vn', 'Nhân Viên Soát Vé & Vận Hành', 'Vận Hành Rạp', 'active'),
 (5, 4, 'Đỗ Tuấn Kiệt', '0909000004', 'kiet.dt@cinema.vn', 'Nhân Viên Kiểm Tra Phòng', 'Vận Hành Rạp', 'active'),
-(6, 5, 'Võ Minh Quân', '0909000005', 'quan.vm@cinema.vn', 'Kỹ Thuật Viên Trưởng', 'Kỹ Thuật & Bảo Trì', 'active'),
+(6, 5, 'Bill Gate', '0909000005', 'bill.gate@cinema.vn', 'Kỹ Thuật Viên Trưởng', 'Kỹ Thuật & Bảo Trì', 'active'),
 (7, 6, 'Lý Quốc Hùng', '0909000006', 'hung.lq@cinema.vn', 'Kỹ Thuật Viên Máy Chiếu', 'Kỹ Thuật & Bảo Trì', 'active');
 
 -- 5. Cinema Rooms (8 phòng tiêu chuẩn và cao cấp)
@@ -652,7 +652,7 @@ INSERT INTO `inspection_details` (`id`, `inspection_id`, `item_name`, `status`, 
 -- 18. Notifications (Thông báo mẫu)
 INSERT INTO `notifications` (`id`, `user_id`, `title`, `message`, `type`, `is_read`, `created_at`) VALUES
 (1, 2, 'Sự cố mới tại Phòng 8', 'Nhân viên Đỗ Tuấn Kiệt vừa báo cáo sự cố điều hòa phòng 8 (Mức độ: Cao). Vui lòng phân công kỹ thuật viên.', 'incident', 0, '2026-09-14 09:30:00'),
-(2, 5, 'Phân công xử lý sự cố', 'Quản lý Phạm Minh Đức đã phân công bạn xử lý sự cố INC-20260914-001 (Điều hòa Phòng 8).', 'incident', 0, '2026-09-14 09:40:00'),
+(2, 5, 'Phân công xử lý sự cố', 'Quản lý Mark Zuckerberg đã phân công bạn xử lý sự cố INC-20260914-001 (Điều hòa Phòng 8).', 'incident', 0, '2026-09-14 09:40:00'),
 (3, 2, 'Cảnh báo hạn bảo trì', 'Hệ thống máy chiếu IMAX Laser Phòng 4 sắp đến kỳ bảo dưỡng chất lỏng (20/09/2026).', 'maintenance', 0, '2026-09-14 08:00:00'),
 (4, 7, 'Đặt vé thành công', 'Bạn đã đặt thành công 2 vé xem phim Lật Mặt 7: Một Điều Ước (Ghế D5, D6) suất 18:00 hôm nay.', 'booking', 1, '2026-09-14 10:18:25');
 

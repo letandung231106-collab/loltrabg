@@ -255,32 +255,32 @@ export function LoginModal({ isOpen, onClose }) {
                 onClick={() => handleQuickFill('admin', 'password123')}
                 className="p-2.5 rounded-xl bg-cinema-900 hover:bg-cinema-850 hover:border-ruby-500/60 border border-cinema-700/60 text-left transition-all cursor-pointer"
               >
-                <div className="font-bold text-ruby-400">Admin</div>
-                <div className="text-[10px] text-slate-400 mt-0.5">admin / password123</div>
+                <div className="font-bold text-ruby-400">Elon Musk</div>
+                <div className="text-[10px] text-slate-400 mt-0.5">Admin • admin / password123</div>
               </button>
               <button
                 type="button"
                 onClick={() => handleQuickFill('manager1', 'password123')}
                 className="p-2.5 rounded-xl bg-cinema-900 hover:bg-cinema-850 hover:border-amber-500/60 border border-cinema-700/60 text-left transition-all cursor-pointer"
               >
-                <div className="font-bold text-amber-400">Manager</div>
-                <div className="text-[10px] text-slate-400 mt-0.5">manager1 / password123</div>
+                <div className="font-bold text-amber-400">Mark Zuckerberg</div>
+                <div className="text-[10px] text-slate-400 mt-0.5">Manager • manager1 / password123</div>
               </button>
               <button
                 type="button"
                 onClick={() => handleQuickFill('staff1', 'password123')}
                 className="p-2.5 rounded-xl bg-cinema-900 hover:bg-cinema-850 hover:border-blue-500/60 border border-cinema-700/60 text-left transition-all cursor-pointer"
               >
-                <div className="font-bold text-blue-400">Staff</div>
-                <div className="text-[10px] text-slate-400 mt-0.5">staff1 / password123</div>
+                <div className="font-bold text-blue-400">Steve Jobs</div>
+                <div className="text-[10px] text-slate-400 mt-0.5">Staff • staff1 / password123</div>
               </button>
               <button
                 type="button"
                 onClick={() => handleQuickFill('tech1', 'password123')}
                 className="p-2.5 rounded-xl bg-cinema-900 hover:bg-cinema-850 hover:border-emerald-500/60 border border-cinema-700/60 text-left transition-all cursor-pointer"
               >
-                <div className="font-bold text-emerald-400">Technician</div>
-                <div className="text-[10px] text-slate-400 mt-0.5">tech1 / password123</div>
+                <div className="font-bold text-emerald-400">Bill Gate</div>
+                <div className="text-[10px] text-slate-400 mt-0.5">Technician • tech1 / password123</div>
               </button>
             </div>
           </div>

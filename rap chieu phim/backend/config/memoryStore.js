@@ -26,11 +26,11 @@ const customers = [
 ];
 
 const employees = [
-  { id: 1, user_id: 1, name: 'Hồ Quốc Bảo (Admin)', phone: '0909000001', email: 'admin@cinema.vn', position: 'Giám Đốc Hệ Thống', department: 'Ban Giám Đốc', status: 'active' },
-  { id: 2, user_id: 2, name: 'Phạm Minh Đức', phone: '0909000002', email: 'duc.pm@cinema.vn', position: 'Trưởng Quản Lý Rạp', department: 'Vận Hành Rạp', status: 'active' },
-  { id: 4, user_id: 3, name: 'Nguyễn Thu Trang', phone: '0909000003', email: 'trang.nt@cinema.vn', position: 'Nhân Viên Soát Vé', department: 'Vận Hành Rạp', status: 'active' },
+  { id: 1, user_id: 1, name: 'Elon Musk', phone: '0909000001', email: 'elon.musk@cinema.vn', position: 'Giám Đốc Hệ Thống', department: 'Ban Giám Đốc', status: 'active' },
+  { id: 2, user_id: 2, name: 'Mark Zuckerberg', phone: '0909000002', email: 'zuck@cinema.vn', position: 'Trưởng Quản Lý Rạp', department: 'Vận Hành Rạp', status: 'active' },
+  { id: 4, user_id: 3, name: 'Steve Jobs', phone: '0909000003', email: 'steve.jobs@cinema.vn', position: 'Nhân Viên Soát Vé', department: 'Vận Hành Rạp', status: 'active' },
   { id: 5, user_id: 4, name: 'Đỗ Tuấn Kiệt', phone: '0909000004', email: 'kiet.dt@cinema.vn', position: 'Nhân Viên Kiểm Tra Phòng', department: 'Vận Hành Rạp', status: 'active' },
-  { id: 6, user_id: 5, name: 'Võ Minh Quân', phone: '0909000005', email: 'quan.vm@cinema.vn', position: 'Kỹ Thuật Viên Trưởng', department: 'Kỹ Thuật & Bảo Trì', status: 'active' },
+  { id: 6, user_id: 5, name: 'Bill Gate', phone: '0909000005', email: 'bill.gate@cinema.vn', position: 'Kỹ Thuật Viên Trưởng', department: 'Kỹ Thuật & Bảo Trì', status: 'active' },
   { id: 7, user_id: 6, name: 'Lý Quốc Hùng', phone: '0909000006', email: 'hung.lq@cinema.vn', position: 'Kỹ Thuật Viên Máy Chiếu', department: 'Kỹ Thuật & Bảo Trì', status: 'active' },
 ];
 
@@ -469,7 +469,7 @@ const inspection_details = [
 
 const notifications = [
   { id: 1, user_id: 2, title: 'Sự cố mới tại Phòng 8', message: 'Nhân viên Đỗ Tuấn Kiệt vừa báo cáo sự cố điều hòa phòng 8. Vui lòng phân công kỹ thuật viên.', type: 'incident', is_read: false, created_at: `${todayStr} 09:30:00` },
-  { id: 2, user_id: 5, title: 'Phân công xử lý sự cố', message: 'Quản lý Phạm Minh Đức đã phân công bạn xử lý sự cố INC-20260914-001 (Điều hòa Phòng 8).', type: 'incident', is_read: false, created_at: `${todayStr} 09:40:00` },
+  { id: 2, user_id: 5, title: 'Phân công xử lý sự cố', message: 'Quản lý Mark Zuckerberg đã phân công bạn xử lý sự cố INC-20260914-001 (Điều hòa Phòng 8).', type: 'incident', is_read: false, created_at: `${todayStr} 09:40:00` },
   { id: 3, user_id: 7, title: 'Đặt vé thành công', message: 'Bạn đã đặt thành công 2 vé xem phim Lật Mặt 7 suất 18:30 hôm nay.', type: 'booking', is_read: true, created_at: `${todayStr} 10:18:25` },
 ];
 
@@ -560,7 +560,7 @@ const projector_lamp_logs = [
 
 // --- 24. Checklist Dọn Rạp Giữa Suất Chiếu (Turnaround Checklists) ---
 const turnaround_checklists = [
-  { id: 1, schedule_id: 1, room_id: 1, room_name: 'Phòng 1 - IMAX Laser', cleaned_by_name: 'Nguyễn Thu Trang', target_minutes: 15, actual_minutes: 11, seats_checked: true, trash_cleared: true, spilled_liquid_cleaned: true, screen_undamaged: true, aircon_normal: true, status: 'ready', verified_at: `${todayStr} 12:45:00` },
+  { id: 1, schedule_id: 1, room_id: 1, room_name: 'Phòng 1 - IMAX Laser', cleaned_by_name: 'Steve Jobs', target_minutes: 15, actual_minutes: 11, seats_checked: true, trash_cleared: true, spilled_liquid_cleaned: true, screen_undamaged: true, aircon_normal: true, status: 'ready', verified_at: `${todayStr} 12:45:00` },
   { id: 2, schedule_id: 4, room_id: 2, room_name: 'Phòng 2 - Dolby Atmos', cleaned_by_name: 'Đỗ Tuấn Kiệt', target_minutes: 12, actual_minutes: 10, seats_checked: true, trash_cleared: true, spilled_liquid_cleaned: true, screen_undamaged: true, aircon_normal: true, status: 'ready', verified_at: `${todayStr} 15:30:00` },
 ];
 
