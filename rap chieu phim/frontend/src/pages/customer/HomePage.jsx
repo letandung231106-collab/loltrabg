@@ -146,7 +146,7 @@ export function HomePage({
     <div className="min-h-screen pb-20 space-y-12">
       {/* Hero Spotlight Banner */}
       {spotlightMovie && (
-        <div className="relative w-full h-[480px] sm:h-[540px] overflow-hidden rounded-3xl mx-auto max-w-7xl px-4 sm:px-6">
+        <div className="relative w-full h-[480px] sm:h-[530px] overflow-hidden rounded-3xl mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="relative w-full h-full rounded-3xl overflow-hidden border border-cinema-700/60 shadow-2xl">
             {/* Background Backdrop */}
             <img
@@ -163,7 +163,7 @@ export function HomePage({
             <div className="absolute inset-0 bg-gradient-to-r from-cinema-950 via-cinema-950/80 to-transparent" />
 
             {/* Hero Content */}
-            <div className="absolute bottom-0 left-0 p-6 sm:p-12 max-w-2xl space-y-4">
+            <div className="absolute bottom-0 left-0 p-6 sm:p-10 lg:p-12 max-w-3xl lg:max-w-4xl space-y-3.5 sm:space-y-4">
               <div className="flex items-center gap-2">
                 <span className="px-3 py-1 rounded-full bg-ruby-600 text-white font-black text-xs uppercase tracking-wider flex items-center gap-1 shadow-glow-red">
                   <Flame className="w-3.5 h-3.5 fill-white" /> PHIM BOM TẤN NỔI BẬT
@@ -192,19 +192,19 @@ export function HomePage({
                 <span>{spotlightMovie.genre}</span>
               </div>
 
-              <div className="flex flex-wrap items-center gap-3 pt-2">
+              <div className="flex flex-wrap items-center gap-2.5 sm:gap-3 pt-2">
                 <button
                   onClick={() => onSelectMovie(spotlightMovie)}
-                  className="px-6 py-3.5 rounded-xl bg-gradient-to-r from-ruby-600 to-rose-600 hover:from-ruby-500 hover:to-rose-500 text-white font-extrabold text-sm shadow-glow-red transition-all flex items-center gap-2 hover:scale-105"
+                  className="px-5 sm:px-6 py-3 rounded-xl bg-gradient-to-r from-ruby-600 to-rose-600 hover:from-ruby-500 hover:to-rose-500 text-white font-extrabold text-xs sm:text-sm shadow-glow-red transition-all flex items-center gap-2 hover:scale-105 shrink-0"
                 >
-                  <Ticket className="w-4 h-4" />
+                  <Ticket className="w-4 h-4 shrink-0" />
                   Đặt Vé Ngay
                 </button>
                 <button
                   onClick={() => setDetailMovie(spotlightMovie)}
-                  className="px-5 py-3.5 rounded-xl bg-cinema-800/80 hover:bg-cinema-700 text-white font-bold text-sm border border-cinema-600/60 backdrop-blur-md transition-all flex items-center gap-2"
+                  className="px-4 sm:px-5 py-3 rounded-xl bg-cinema-800/80 hover:bg-cinema-700 text-white font-bold text-xs sm:text-sm border border-cinema-600/60 backdrop-blur-md transition-all flex items-center gap-2 shrink-0"
                 >
-                  <Film className="w-4 h-4 text-ruby-400" />
+                  <Film className="w-4 h-4 text-ruby-400 shrink-0" />
                   Chi Tiết Phim
                 </button>
                 <button
@@ -215,18 +215,18 @@ export function HomePage({
                       name: spotlightMovie.name,
                     })
                   }
-                  className="px-4 py-3.5 rounded-xl bg-cinema-800/80 hover:bg-cinema-700 text-slate-300 hover:text-white font-semibold text-sm border border-cinema-600/60 backdrop-blur-md transition-all flex items-center gap-2"
+                  className="px-4 py-3 rounded-xl bg-cinema-800/80 hover:bg-cinema-700 text-slate-300 hover:text-white font-semibold text-xs sm:text-sm border border-cinema-600/60 backdrop-blur-md transition-all flex items-center gap-2 shrink-0"
                 >
-                  <Play className="w-4 h-4 text-ruby-400 fill-ruby-400" />
+                  <Play className="w-4 h-4 text-ruby-400 fill-ruby-400 shrink-0" />
                   Trailer
                 </button>
                 <button
                   type="button"
                   onClick={() => cinemaSound.playCinemaIntroBoom()}
-                  className="px-4 py-3.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-bold text-sm border border-amber-500/40 backdrop-blur-md transition-all flex items-center gap-2"
+                  className="px-4 py-3 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-bold text-xs sm:text-sm border border-amber-500/40 backdrop-blur-md transition-all flex items-center gap-2 shrink-0"
                   title="Nghe hiệu ứng âm thanh mở màn chuẩn rạp"
                 >
-                  <Volume2 className="w-4 h-4 text-amber-400" />
+                  <Volume2 className="w-4 h-4 text-amber-400 shrink-0" />
                   Âm Thanh IMAX
                 </button>
               </div>
@@ -236,8 +236,8 @@ export function HomePage({
       )}
 
       {/* Quick Services Banner: Bắp Nước F&B & Vòng Quay Voucher */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
           <div className="p-5 rounded-3xl bg-gradient-to-r from-amber-950/40 via-cinema-900 to-cinema-900 border border-amber-500/40 shadow-xl flex items-center justify-between gap-4">
             <div className="space-y-1">
               <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold text-[10px] uppercase">

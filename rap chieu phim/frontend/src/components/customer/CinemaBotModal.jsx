@@ -364,18 +364,18 @@ export function CinemaBotModal({
     <>
       {/* Floating Support Launch Button */}
       {!isOpen && (
-        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 animate-bounce">
+        <div className="fixed bottom-5 right-5 z-40 flex items-center gap-2.5 transition-transform duration-300 hover:scale-105">
           <div className="hidden sm:flex px-3.5 py-1.5 rounded-2xl bg-cinema-900/90 border border-ruby-500/50 text-white text-xs font-semibold shadow-xl backdrop-blur-md items-center gap-1.5">
             <Headphones className="w-3.5 h-3.5 text-amber-400" />
             <span>Hỗ trợ trực tuyến & Giọng nói</span>
           </div>
           <button
             onClick={() => setIsOpen(true)}
-            className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-ruby-600 via-rose-600 to-amber-500 text-white shadow-glow-red flex items-center justify-center relative group hover:scale-110 active:scale-95 transition-all"
+            className="w-13 h-13 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-tr from-ruby-600 via-rose-600 to-amber-500 text-white shadow-glow-red flex items-center justify-center relative group hover:scale-110 active:scale-95 transition-all"
             title="Mở Hỗ Trợ Khách Hàng"
           >
-            <MessageSquare className="w-7 h-7" />
-            <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 border-2 border-cinema-950 animate-pulse" />
+            <MessageSquare className="w-6 h-6 sm:w-7 sm:h-7" />
+            <span className="absolute -top-1 -right-1 w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full bg-emerald-500 border-2 border-cinema-950 animate-pulse" />
           </button>
         </div>
       )}

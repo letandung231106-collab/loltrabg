@@ -57,21 +57,6 @@ export function Header({
             {/* Nav links */}
             <nav className="hidden lg:flex items-center gap-1 xl:gap-1.5 shrink-0">
               <button
-                onClick={onOpenLuckyWheel}
-                className="px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/20 via-rose-500/20 to-ruby-500/20 hover:from-amber-500/30 hover:to-rose-500/30 text-amber-300 border border-amber-500/40 text-xs font-black transition-all flex items-center gap-1.5 shadow-sm animate-pulse whitespace-nowrap shrink-0"
-                title="Vòng quay may mắn nhận voucher"
-              >
-                <Gift className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                <span className="whitespace-nowrap">Vòng Quay Voucher</span>
-              </button>
-              <button
-                onClick={onOpenInSeatDelivery}
-                className="px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500/20 to-teal-500/20 hover:from-emerald-500/30 hover:to-teal-500/30 text-emerald-300 border border-emerald-500/40 text-xs font-black transition-all flex items-center gap-1.5 shadow-sm whitespace-nowrap shrink-0"
-                title="Gọi bắp nước giao tận ghế trong phòng chiếu"
-              >
-                <span className="whitespace-nowrap">🍿 Gọi Món Tận Ghế</span>
-              </button>
-              <button
                 onClick={() => onNavigate('home')}
                 className={`px-2.5 xl:px-3 py-1.5 rounded-lg text-xs xl:text-sm font-medium transition-colors whitespace-nowrap shrink-0 ${
                   currentView === 'home' ? 'text-ruby-400 bg-cinema-850' : 'text-slate-300 hover:text-white hover:bg-cinema-850/60'
@@ -123,7 +108,25 @@ export function Header({
           </div>
 
           {/* Right Action Icons & User */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
+            {/* Quick Action Badges */}
+            <div className="hidden xl:flex items-center gap-2">
+              <button
+                onClick={onOpenLuckyWheel}
+                className="px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/20 via-rose-500/20 to-ruby-500/20 hover:from-amber-500/30 hover:to-rose-500/30 text-amber-300 border border-amber-500/40 text-xs font-black transition-all flex items-center gap-1.5 shadow-sm whitespace-nowrap shrink-0"
+                title="Vòng quay may mắn nhận voucher"
+              >
+                <Gift className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                <span className="whitespace-nowrap">Vòng Quay Voucher</span>
+              </button>
+              <button
+                onClick={onOpenInSeatDelivery}
+                className="px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500/20 to-teal-500/20 hover:from-emerald-500/30 hover:to-teal-500/30 text-emerald-300 border border-emerald-500/40 text-xs font-black transition-all flex items-center gap-1.5 shadow-sm whitespace-nowrap shrink-0"
+                title="Gọi bắp nước giao tận ghế trong phòng chiếu"
+              >
+                <span className="whitespace-nowrap">🍿 Gọi Món Tận Ghế</span>
+              </button>
+            </div>
             {/* Notification Bell */}
             {isAuthenticated && (
               <div className="relative">
