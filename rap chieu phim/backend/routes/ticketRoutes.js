@@ -6,6 +6,7 @@ const { authorizeRoles } = require('../middlewares/roleMiddleware');
 
 router.get('/', authenticateToken, authorizeRoles('admin', 'manager', 'staff'), ticketController.getAllTickets);
 router.get('/my-tickets', authenticateToken, ticketController.getMyTickets);
+router.get('/:id', authenticateToken, ticketController.getTicketById);
 router.post('/verify', authenticateToken, authorizeRoles('admin', 'manager', 'staff'), ticketController.verifyTicket);
 router.post('/:id/cancel', authenticateToken, ticketController.cancelTicket);
 

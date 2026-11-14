@@ -96,6 +96,41 @@ async function getMyTickets(req, res, next) {
 }
 
 /**
+ * Lấy chi tiết vé theo ID hoặc mã vé
+ */
+async function getTicketById(req, res, next) {
+  try {
+    const { id } = req.params;
+    const tickets = await db.query(
+      `SELECT t.*, 
+              m.name AS movie_name, m.poster AS movie_poster, m.duration, m.age_rating,
+              s.start_time, s.end_time, s.format AS screening_format,
+              r.name AS room_name, r.room_type,
+              st.row_number, st.seat_number, st.seat_type,
+              c.name AS customer_name, c.email AS customer_email, c.phone AS customer_phone,
+              b.booking_code, b.total_amount
+       FROM tickets t
+       JOIN screening_schedules s ON t.screening_id = s.id
+       JOIN movies m ON s.movie_id = m.id
+       JOIN cinema_rooms r ON s.room_id = r.id
+       JOIN seats st ON t.seat_id = st.id
+       JOIN customers c ON t.customer_id = c.id
+       JOIN bookings b ON t.booking_id = b.id
+       WHERE t.id = ? OR t.ticket_code = ?`,
+      [id, id]
+    );
+
+    if (!tickets || tickets.length === 0) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy vé xem phim.' });
+    }
+
+    return res.status(200).json({ success: true, data: tickets[0] });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
  * Quét / Xác thực vé xem phim tại cửa soát vé (Staff)
  */
 async function verifyTicket(req, res, next) {
@@ -260,6 +295,7 @@ async function cancelTicket(req, res, next) {
 module.exports = {
   getAllTickets,
   getMyTickets,
+  getTicketById,
   verifyTicket,
   cancelTicket,
 };

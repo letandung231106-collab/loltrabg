@@ -65,6 +65,33 @@ async function getEquipmentTypes(req, res, next) {
 }
 
 /**
+ * Lấy thông tin chi tiết một thiết bị theo ID
+ */
+async function getEquipmentById(req, res, next) {
+  try {
+    const { id } = req.params;
+    const items = await db.query(
+      `SELECT e.*, 
+              et.name AS type_name,
+              r.name AS room_name, r.room_type
+       FROM equipment e
+       JOIN equipment_types et ON e.equipment_type_id = et.id
+       LEFT JOIN cinema_rooms r ON e.room_id = r.id
+       WHERE e.id = ?`,
+      [id]
+    );
+
+    if (!items || items.length === 0) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy thiết bị.' });
+    }
+
+    return res.status(200).json({ success: true, data: items[0] });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
  * Cảnh báo thiết bị sắp đến hạn bảo trì hoặc bảo hành
  */
 async function getMaintenanceAlerts(req, res, next) {
@@ -172,6 +199,7 @@ async function updateEquipment(req, res, next) {
 module.exports = {
   getEquipment,
   getEquipmentTypes,
+  getEquipmentById,
   getMaintenanceAlerts,
   createEquipment,
   updateEquipment,
