@@ -29,9 +29,15 @@ export function ConcessionManager() {
 
   // POS Cart State
   const [cart, setCart] = useState([]);
-  const [paymentMethod, setPaymentMethod] = useState('cash');
+  const [paymentMethod, setPaymentMethod] = useState('cash'); // 'cash' | 'qr'
   const [isProcessingSale, setIsProcessingSale] = useState(false);
   const [lastReceipt, setLastReceipt] = useState(null);
+
+  useEffect(() => {
+    if (paymentMethod !== 'cash' && paymentMethod !== 'qr') {
+      setPaymentMethod('cash');
+    }
+  }, [paymentMethod]);
 
   // Menu Modal State
   const [modalOpen, setModalOpen] = useState(false);
@@ -279,36 +285,63 @@ export function ConcessionManager() {
 
             {/* Product Grid */}
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5">
-              {filteredItems.map((item) => (
-                <div
-                  key={item.id}
-                  onClick={() => addToCart(item)}
-                  className="glass-panel rounded-2xl p-3 border border-cinema-700/60 hover:border-ruby-500/80 cursor-pointer transition-all hover:scale-[1.02] flex flex-col justify-between group bg-cinema-900/60"
-                >
-                  <div className="aspect-square rounded-xl overflow-hidden bg-cinema-950 mb-2 relative">
-                    <img
-                      src={item.image}
-                      alt={item.name}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                      onError={(e) => {
-                        e.target.src = 'https://images.unsplash.com/photo-1578849278619-e73505e9610f?q=80&w=400';
-                      }}
-                    />
-                    <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-black/70 backdrop-blur-sm text-[10px] font-mono text-gold-400 font-bold">
-                      {item.price.toLocaleString('vi-VN')} đ
+              {filteredItems.map((item) => {
+                const isInactive = !item.is_active || item.is_active === 0 || item.is_active === '0';
+                const fallbackImg = item.category === 'dessert'
+                  ? 'https://images.unsplash.com/photo-1501443762994-82bd5dace89a?q=80&w=400'
+                  : 'https://images.unsplash.com/photo-1578849278619-e73505e9610f?q=80&w=400';
+                const imgSrc = item.image && item.image.trim() !== '' ? item.image : fallbackImg;
+
+                return (
+                  <div
+                    key={item.id}
+                    className="glass-panel rounded-2xl p-3 border border-cinema-700/60 flex flex-col justify-between group bg-cinema-900/60"
+                  >
+                    <div className="aspect-square rounded-xl overflow-hidden bg-cinema-950 mb-2 relative">
+                      <img
+                        src={imgSrc}
+                        alt={item.name}
+                        className={`w-full h-full object-cover transition-transform ${isInactive ? 'opacity-70 grayscale' : 'group-hover:scale-105'}`}
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          e.target.src = fallbackImg;
+                        }}
+                      />
+                      <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-black/70 backdrop-blur-sm text-[10px] font-mono text-gold-400 font-bold">
+                        {item.price.toLocaleString('vi-VN')} đ
+                      </div>
+                      {isInactive && (
+                        <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-rose-950/90 border border-rose-600/60 text-[10px] font-bold text-rose-300 backdrop-blur-sm">
+                          Tạm ngưng
+                        </div>
+                      )}
                     </div>
-                  </div>
 
-                  <div>
-                    <h4 className="font-bold text-white text-xs line-clamp-2 mb-1">{item.name}</h4>
-                    <p className="text-[10px] text-slate-400 line-clamp-1">{item.description}</p>
-                  </div>
+                    <div>
+                      <h4 className="font-bold text-white text-xs line-clamp-2 mb-1">{item.name}</h4>
+                      <p className="text-[10px] text-slate-400 line-clamp-1">{item.description}</p>
+                    </div>
 
-                  <button className="mt-2.5 w-full py-1.5 rounded-lg bg-cinema-800 group-hover:bg-ruby-600 text-white text-[11px] font-bold transition-colors flex items-center justify-center gap-1">
-                    <Plus className="w-3 h-3" /> Chọn Món
-                  </button>
-                </div>
-              ))}
+                    {isInactive ? (
+                      <button
+                        type="button"
+                        disabled
+                        className="mt-2.5 w-full py-1.5 rounded-lg bg-cinema-800 text-slate-500 text-[11px] font-bold cursor-not-allowed opacity-60 border border-cinema-700/50 flex items-center justify-center gap-1"
+                      >
+                        Tạm ngưng
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => addToCart(item)}
+                        className="mt-2.5 w-full py-1.5 rounded-lg bg-ruby-600 hover:bg-ruby-500 text-white text-[11px] font-bold transition-all shadow-glow-red flex items-center justify-center gap-1 cursor-pointer active:scale-95"
+                      >
+                        <Plus className="w-3 h-3" /> Chọn Món
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
 
@@ -321,7 +354,7 @@ export function ConcessionManager() {
               {cart.length > 0 && (
                 <button
                   onClick={clearCart}
-                  className="text-[10px] text-rose-400 hover:text-rose-300 font-semibold"
+                  className="text-[10px] text-rose-400 hover:text-rose-300 font-semibold cursor-pointer"
                 >
                   Xóa tất cả
                 </button>
@@ -333,7 +366,7 @@ export function ConcessionManager() {
               {cart.length === 0 ? (
                 <div className="py-10 text-center text-slate-500 text-xs">
                   <Package className="w-8 h-8 mx-auto mb-2 text-slate-600 opacity-60" />
-                  Chưa có món nào được chọn.<br />Nhấn vào món bên trái để thêm vào đơn.
+                  Chưa có món nào được chọn.<br />Nhấn nút + Chọn Món để thêm vào đơn.
                 </div>
               ) : (
                 cart.map((c) => (
@@ -348,7 +381,7 @@ export function ConcessionManager() {
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => updateQuantity(c.id, -1)}
-                        className="w-6 h-6 rounded-lg bg-cinema-800 hover:bg-cinema-700 text-white font-bold flex items-center justify-center text-xs"
+                        className="w-6 h-6 rounded-lg bg-cinema-800 hover:bg-cinema-700 text-white font-bold flex items-center justify-center text-xs cursor-pointer"
                       >
                         -
                       </button>
@@ -357,7 +390,7 @@ export function ConcessionManager() {
                       </span>
                       <button
                         onClick={() => updateQuantity(c.id, 1)}
-                        className="w-6 h-6 rounded-lg bg-cinema-800 hover:bg-cinema-700 text-white font-bold flex items-center justify-center text-xs"
+                        className="w-6 h-6 rounded-lg bg-cinema-800 hover:bg-cinema-700 text-white font-bold flex items-center justify-center text-xs cursor-pointer"
                       >
                         +
                       </button>
@@ -370,17 +403,16 @@ export function ConcessionManager() {
             {/* Payment Method Selector */}
             <div className="pt-2 border-t border-cinema-700/60 space-y-2">
               <label className="block text-[11px] font-bold text-slate-300">Phương thức thanh toán:</label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-2.5" style={{ gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
                 {[
                   { id: 'cash', label: '💵 Tiền Mặt' },
                   { id: 'qr', label: '📱 Quét QR' },
-                  { id: 'card', label: '💳 Thẻ POS' },
                 ].map((m) => (
                   <button
                     key={m.id}
                     type="button"
                     onClick={() => setPaymentMethod(m.id)}
-                    className={`py-2 rounded-xl text-xs font-bold transition-all border ${
+                    className={`py-2.5 rounded-xl text-xs font-bold transition-all border cursor-pointer ${
                       paymentMethod === m.id
                         ? 'bg-ruby-600 text-white border-ruby-500 shadow-glow-red'
                         : 'bg-cinema-900 text-slate-400 border-cinema-800 hover:text-white'
@@ -394,10 +426,6 @@ export function ConcessionManager() {
 
             {/* Total & Checkout Button */}
             <div className="pt-3 border-t border-cinema-700 space-y-3">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-400 font-semibold">Tự động trừ kho (BOM):</span>
-                <span className="text-emerald-400 font-bold">✓ Bật tự động</span>
-              </div>
               <div className="flex items-center justify-between">
                 <span className="font-bold text-white text-sm">Tổng cộng:</span>
                 <span className="text-xl font-black text-ruby-400 font-mono">
@@ -408,25 +436,12 @@ export function ConcessionManager() {
               <button
                 disabled={cart.length === 0 || isProcessingSale}
                 onClick={handleCheckout}
-                className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-ruby-600 via-ruby-700 to-rose-700 hover:from-ruby-500 hover:to-rose-600 disabled:opacity-50 text-white font-extrabold text-sm shadow-glow-red transition-all flex items-center justify-center gap-2"
+                className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-ruby-600 via-ruby-700 to-rose-700 hover:from-ruby-500 hover:to-rose-600 disabled:opacity-50 text-white font-extrabold text-sm shadow-glow-red transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
                 <CheckCircle className="w-4 h-4" />
                 {isProcessingSale ? 'Đang xuất hóa đơn...' : `Thanh Toán (${totalAmount.toLocaleString('vi-VN')} đ)`}
               </button>
             </div>
-
-            {/* Last Receipt Notification */}
-            {lastReceipt && (
-              <div className="p-3 rounded-2xl bg-emerald-950/80 border border-emerald-500/60 text-emerald-200 text-xs space-y-1 animate-scale-in">
-                <div className="font-bold flex items-center justify-between">
-                  <span>✓ Hóa đơn: {lastReceipt.order_id}</span>
-                  <span className="font-mono">{lastReceipt.total_amount?.toLocaleString('vi-VN')} đ</span>
-                </div>
-                <div className="text-[10px] text-emerald-300">
-                  Đã ghi nhận doanh thu và cập nhật tồn kho nguyên liệu bắp nước.
-                </div>
-              </div>
-            )}
           </div>
         </div>
       )}
@@ -456,10 +471,11 @@ export function ConcessionManager() {
                       <td className="p-4">
                         <div className="flex items-center gap-3">
                           <img
-                            src={item.image}
+                            src={item.image && item.image.trim() !== '' ? item.image : (item.category === 'dessert' ? 'https://images.unsplash.com/photo-1501443762994-82bd5dace89a?q=80&w=400' : 'https://images.unsplash.com/photo-1578849278619-e73505e9610f?q=80&w=400')}
                             alt={item.name}
                             className="w-12 h-12 rounded-xl object-cover border border-cinema-700 bg-cinema-900"
                             onError={(e) => {
+                              e.target.onerror = null;
                               e.target.src = 'https://images.unsplash.com/photo-1578849278619-e73505e9610f?q=80&w=400';
                             }}
                           />
