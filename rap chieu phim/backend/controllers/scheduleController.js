@@ -188,11 +188,26 @@ async function createSchedule(req, res, next) {
     }
     const movie = movies[0];
 
+    // Nghiệp vụ: Cấm lập lịch cho phim đã ngừng chiếu hoặc lưu trữ
+    if (['ended', 'archived'].includes(movie.status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Không thể lập lịch chiếu cho phim "${movie.name}" vì phim đang ở trạng thái ${movie.status === 'ended' ? 'NGỪNG CHIẾU' : 'LƯU TRỮ'}.`,
+      });
+    }
+
     const startDateTime = new Date(start_time);
     if (isNaN(startDateTime.getTime())) {
       return res.status(400).json({
         success: false,
         message: 'Thời gian bắt đầu không hợp lệ.',
+      });
+    }
+
+    if (startDateTime < new Date()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Thời gian bắt đầu suất chiếu không thể ở trong quá khứ.',
       });
     }
     const endDateTime = new Date(startDateTime.getTime() + (movie.duration + 15) * 60000);
@@ -292,35 +307,85 @@ async function createSchedule(req, res, next) {
 async function cancelSchedule(req, res, next) {
   try {
     const { id } = req.params;
+    const { emergency = false, reason = '' } = req.body || {};
 
-    const existing = await db.query(`SELECT id FROM screening_schedules WHERE id = ?`, [id]);
+    const existing = await db.query(
+      `SELECT s.*, m.name AS movie_name, r.name AS room_name 
+       FROM screening_schedules s 
+       JOIN movies m ON s.movie_id = m.id 
+       JOIN cinema_rooms r ON s.room_id = r.id 
+       WHERE s.id = ?`,
+      [id]
+    );
     if (!existing || existing.length === 0) {
       return res.status(404).json({
         success: false,
         message: 'Không tìm thấy lịch chiếu cần hủy.',
       });
     }
+    const schedule = existing[0];
 
-    // Kiểm tra vé đã bán chưa
+    // Kiểm tra vé đã bán hoặc ghế đang giữ
     const bookedSeats = await db.query(
-      `SELECT COUNT(*) AS count FROM booking_seats bs
+      `SELECT bs.id, b.customer_id, b.id AS booking_id, b.booking_code
+       FROM booking_seats bs
        JOIN bookings b ON bs.booking_id = b.id
-       WHERE b.screening_id = ? AND bs.status = 'booked'`,
+       WHERE b.screening_id = ? AND (bs.status = 'booked' OR (bs.status = 'holding' AND bs.hold_expire > NOW()))`,
       [id]
     );
 
-    if (bookedSeats[0].count > 0) {
+    if (bookedSeats.length > 0 && !emergency) {
       return res.status(400).json({
         success: false,
-        message: `Lịch chiếu này đã bán được ${bookedSeats[0].count} vé. Cần hoàn tiền cho khách trước khi hủy.`,
+        hasBookedSeats: true,
+        bookedCount: bookedSeats.length,
+        message: `Lịch chiếu này đã có ${bookedSeats.length} ghế đã bán hoặc đang giữ. Nếu đây là sự cố kỹ thuật khẩn cấp cần hủy rạp, vui lòng kích hoạt quy trình hủy khẩn cấp (emergency: true).`,
       });
     }
 
-    await db.query(`UPDATE screening_schedules SET status = 'cancelled' WHERE id = ?`, [id]);
+    await db.withTransaction(async (conn) => {
+      // Cập nhật schedule -> cancelled
+      await conn.query(`UPDATE screening_schedules SET status = 'cancelled' WHERE id = ?`, [id]);
+
+      if (bookedSeats.length > 0 && emergency) {
+        // 1. Chuyển toàn bộ vé của suất chiếu sang 'cancelled'
+        await conn.query(`UPDATE tickets SET status = 'cancelled' WHERE screening_id = ? AND status = 'active'`, [id]);
+
+        // 2. Giải phóng tất cả ghế
+        await conn.query(
+          `UPDATE booking_seats bs 
+           JOIN bookings b ON bs.booking_id = b.id 
+           SET bs.status = 'released' 
+           WHERE b.screening_id = ?`,
+          [id]
+        );
+
+        // 3. Đánh dấu booking sang 'cancelled'
+        await conn.query(`UPDATE bookings SET status = 'cancelled' WHERE screening_id = ?`, [id]);
+
+        // 4. Gửi thông báo đến từng khách hàng bị ảnh hưởng
+        const customerIds = [...new Set(bookedSeats.map((b) => b.customer_id).filter(Boolean))];
+        for (const custId of customerIds) {
+          const userRows = await conn.query(`SELECT user_id FROM customers WHERE id = ?`, [custId]);
+          const targetUserId = userRows?.[0]?.user_id || custId;
+          await conn.query(
+            `INSERT INTO notifications (user_id, title, message, type)
+             VALUES (?, ?, ?, 'system')`,
+            [
+              targetUserId,
+              'Thông báo hủy suất chiếu khẩn cấp',
+              `Suất chiếu phim "${schedule.movie_name}" lúc ${schedule.start_time} tại phòng ${schedule.room_name} đã bị hủy do sự cố: ${reason || 'Sự cố vận hành kỹ thuật rạp'}. Lịch sử thanh toán đã được bảo toàn, vui lòng liên hệ quầy vé hoặc hotline để nhận hỗ trợ hoàn tiền/đổi suất.`,
+            ]
+          );
+        }
+      }
+    });
 
     return res.status(200).json({
       success: true,
-      message: 'Đã hủy lịch chiếu thành công.',
+      message: emergency && bookedSeats.length > 0
+        ? `Đã hủy lịch chiếu khẩn cấp! Đã giải phóng ${bookedSeats.length} ghế, bảo toàn lịch sử giao dịch và gửi thông báo hoàn vé đến khách hàng.`
+        : 'Đã hủy lịch chiếu thành công.',
     });
   } catch (error) {
     next(error);
@@ -340,6 +405,14 @@ async function updateSchedule(req, res, next) {
       return res.status(404).json({ success: false, message: 'Không tìm thấy suất chiếu.' });
     }
     const current = existingSchedules[0];
+
+    // Nghiệp vụ rạp: Không cho sửa suất chiếu trong quá khứ
+    if (new Date(current.start_time) < new Date()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Không thể chỉnh sửa suất chiếu đã bắt đầu hoặc đã kết thúc trong quá khứ.',
+      });
+    }
 
     const targetMovieId = movie_id || current.movie_id;
     const targetRoomId = room_id || current.room_id;
@@ -367,11 +440,18 @@ async function updateSchedule(req, res, next) {
     }
 
     // Tính end_time
-    const movies = await db.query(`SELECT id, name, duration FROM movies WHERE id = ?`, [targetMovieId]);
+    const movies = await db.query(`SELECT id, name, duration, status FROM movies WHERE id = ?`, [targetMovieId]);
     if (!movies || movies.length === 0) {
       return res.status(400).json({ success: false, message: 'Phim không tồn tại.' });
     }
     const movie = movies[0];
+
+    if (['ended', 'archived'].includes(movie.status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Không thể chọn phim "${movie.name}" vì phim đang ở trạng thái ${movie.status === 'ended' ? 'NGỪNG CHIẾU' : 'LƯU TRỮ'}.`,
+      });
+    }
 
     const startDateTime = new Date(targetStartTime);
     if (isNaN(startDateTime.getTime())) {
