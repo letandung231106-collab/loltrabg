@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { api } from '../../services/api';
 import {
   Utensils,
@@ -15,7 +16,10 @@ import {
   Package,
   Layers,
   UploadCloud,
-  Image as ImageIcon
+  Image as ImageIcon,
+  QrCode,
+  Copy,
+  Check
 } from 'lucide-react';
 import { ModalPortal } from '../../components/common/ModalPortal';
 
@@ -33,11 +37,33 @@ export function ConcessionManager() {
   const [isProcessingSale, setIsProcessingSale] = useState(false);
   const [lastReceipt, setLastReceipt] = useState(null);
 
+  // Product Quick-Select Modal State
+  const [selectedProductModal, setSelectedProductModal] = useState(null);
+  const [modalQuantity, setModalQuantity] = useState(1);
+
+  // VietQR Modal State
+  const [showQrModal, setShowQrModal] = useState(false);
+  const [copiedStk, setCopiedStk] = useState(false);
+  const [copiedContent, setCopiedContent] = useState(false);
+  const [qrOrderCode, setQrOrderCode] = useState(() => `NIGHTMOVIE POS ${Math.floor(100000 + Math.random() * 900000)}`);
+
   useEffect(() => {
     if (paymentMethod !== 'cash' && paymentMethod !== 'qr') {
       setPaymentMethod('cash');
     }
   }, [paymentMethod]);
+
+  // ESC key listener to close active modals
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' || e.key === 'Esc' || e.keyCode === 27) {
+        setSelectedProductModal(null);
+        setShowQrModal(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // Menu Modal State
   const [modalOpen, setModalOpen] = useState(false);
@@ -71,14 +97,28 @@ export function ConcessionManager() {
   };
 
   // Cart Functions
-  const addToCart = (item) => {
+  const addToCart = (item, quantity = 1) => {
+    const q = Math.max(1, parseInt(quantity, 10) || 1);
     setCart((prev) => {
       const existing = prev.find((c) => c.id === item.id);
       if (existing) {
-        return prev.map((c) => (c.id === item.id ? { ...c, quantity: c.quantity + 1 } : c));
+        return prev.map((c) => (c.id === item.id ? { ...c, quantity: c.quantity + q } : c));
       }
-      return [...prev, { ...item, quantity: 1 }];
+      return [...prev, { ...item, quantity: q }];
     });
+  };
+
+  const handleOpenProductModal = (item) => {
+    if (!item.is_active || item.is_active === 0 || item.is_active === '0') return;
+    setSelectedProductModal(item);
+    setModalQuantity(1);
+  };
+
+  const handleConfirmAddToCart = () => {
+    if (!selectedProductModal || modalQuantity <= 0) return;
+    addToCart(selectedProductModal, modalQuantity);
+    setSelectedProductModal(null);
+    setModalQuantity(1);
   };
 
   const updateQuantity = (id, delta) => {
@@ -99,6 +139,24 @@ export function ConcessionManager() {
 
   const totalAmount = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
+  const handleSelectPaymentMethod = (method) => {
+    setPaymentMethod(method);
+    if (method === 'qr' && cart.length > 0) {
+      setQrOrderCode(`NIGHTMOVIE POS ${Math.floor(100000 + Math.random() * 900000)}`);
+      setShowQrModal(true);
+    }
+  };
+
+  const handleInitiateCheckout = () => {
+    if (cart.length === 0) return;
+    if (paymentMethod === 'qr') {
+      setQrOrderCode(`NIGHTMOVIE POS ${Math.floor(100000 + Math.random() * 900000)}`);
+      setShowQrModal(true);
+      return;
+    }
+    handleCheckout();
+  };
+
   const handleCheckout = async () => {
     if (cart.length === 0) return;
     setIsProcessingSale(true);
@@ -115,6 +173,7 @@ export function ConcessionManager() {
           items: [...cart],
         });
         setCart([]);
+        setShowQrModal(false);
         setMsg({ text: 'Thanh toán bắp nước thành công! Đã trừ định lượng kho nguyên vật liệu.', type: 'success' });
       }
     } catch (err) {
@@ -295,7 +354,12 @@ export function ConcessionManager() {
                 return (
                   <div
                     key={item.id}
-                    className="glass-panel rounded-2xl p-3 border border-cinema-700/60 flex flex-col justify-between group bg-cinema-900/60"
+                    onClick={() => !isInactive && handleOpenProductModal(item)}
+                    className={`glass-panel rounded-2xl p-3 border border-cinema-700/60 flex flex-col justify-between group bg-cinema-900/60 transition-all ${
+                      isInactive
+                        ? 'opacity-65 cursor-not-allowed'
+                        : 'hover:border-ruby-500/80 cursor-pointer hover:scale-[1.02]'
+                    }`}
                   >
                     <div className="aspect-square rounded-xl overflow-hidden bg-cinema-950 mb-2 relative">
                       <img
@@ -333,7 +397,10 @@ export function ConcessionManager() {
                     ) : (
                       <button
                         type="button"
-                        onClick={() => addToCart(item)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenProductModal(item);
+                        }}
                         className="mt-2.5 w-full py-1.5 rounded-lg bg-ruby-600 hover:bg-ruby-500 text-white text-[11px] font-bold transition-all shadow-glow-red flex items-center justify-center gap-1 cursor-pointer active:scale-95"
                       >
                         <Plus className="w-3 h-3" /> Chọn Món
@@ -405,13 +472,13 @@ export function ConcessionManager() {
               <label className="block text-[11px] font-bold text-slate-300">Phương thức thanh toán:</label>
               <div className="grid grid-cols-2 gap-2.5" style={{ gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
                 {[
-                  { id: 'cash', label: '💵 Tiền Mặt' },
-                  { id: 'qr', label: '📱 Quét QR' },
+                  { id: 'cash', label: 'Tiền Mặt' },
+                  { id: 'qr', label: 'Quét QR' },
                 ].map((m) => (
                   <button
                     key={m.id}
                     type="button"
-                    onClick={() => setPaymentMethod(m.id)}
+                    onClick={() => handleSelectPaymentMethod(m.id)}
                     className={`py-2.5 rounded-xl text-xs font-bold transition-all border cursor-pointer ${
                       paymentMethod === m.id
                         ? 'bg-ruby-600 text-white border-ruby-500 shadow-glow-red'
@@ -422,6 +489,31 @@ export function ConcessionManager() {
                   </button>
                 ))}
               </div>
+
+              {/* VietQR Preview Box when in QR mode and cart has items */}
+              {paymentMethod === 'qr' && totalAmount > 0 && (
+                <div
+                  onClick={() => setShowQrModal(true)}
+                  className="p-3 rounded-2xl bg-cinema-950/90 border border-ruby-500/40 hover:border-ruby-500 transition-all cursor-pointer flex items-center justify-between gap-3 group shadow-md"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-white p-1 flex items-center justify-center shrink-0">
+                      <QrCode className="w-6 h-6 text-cinema-950" />
+                    </div>
+                    <div>
+                      <div className="text-[11px] font-bold text-white group-hover:text-ruby-400 transition-colors">
+                        VietQR • BIDV 8813341949
+                      </div>
+                      <div className="text-[10px] text-gold-400 font-mono">
+                        {totalAmount.toLocaleString('vi-VN')} đ
+                      </div>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-bold text-ruby-400 group-hover:underline flex items-center gap-0.5">
+                    Phóng to →
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Total & Checkout Button */}
@@ -435,16 +527,325 @@ export function ConcessionManager() {
 
               <button
                 disabled={cart.length === 0 || isProcessingSale}
-                onClick={handleCheckout}
+                onClick={handleInitiateCheckout}
                 className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-ruby-600 via-ruby-700 to-rose-700 hover:from-ruby-500 hover:to-rose-600 disabled:opacity-50 text-white font-extrabold text-sm shadow-glow-red transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
                 <CheckCircle className="w-4 h-4" />
-                {isProcessingSale ? 'Đang xuất hóa đơn...' : `Thanh Toán (${totalAmount.toLocaleString('vi-VN')} đ)`}
+                {isProcessingSale
+                  ? 'Đang xử lý...'
+                  : paymentMethod === 'qr'
+                  ? `Quét Mã QR (${totalAmount.toLocaleString('vi-VN')} đ)`
+                  : `Thanh Toán (${totalAmount.toLocaleString('vi-VN')} đ)`}
               </button>
             </div>
           </div>
         </div>
       )}
+
+      {/* ================= PRODUCT QUICK-SELECT MODAL ================= */}
+      {selectedProductModal &&
+        createPortal(
+          <div
+            className="animate-fade-in"
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 99999,
+              background: 'rgba(0, 0, 0, 0.82)',
+              backdropFilter: 'blur(8px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '20px',
+            }}
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setSelectedProductModal(null);
+              }
+            }}
+          >
+            <div
+              className="animate-scale-in"
+              style={{
+                maxWidth: '520px',
+                width: '100%',
+                background: '#141722',
+                border: '1px solid rgba(255, 255, 255, 0.14)',
+                borderRadius: '20px',
+                overflow: 'hidden',
+                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.9)',
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Large Image on top */}
+              <div className="relative w-full" style={{ height: '240px' }}>
+                <img
+                  src={
+                    selectedProductModal.image && selectedProductModal.image.trim() !== ''
+                      ? selectedProductModal.image
+                      : selectedProductModal.category === 'dessert'
+                      ? 'https://images.unsplash.com/photo-1501443762994-82bd5dace89a?q=80&w=400'
+                      : 'https://images.unsplash.com/photo-1578849278619-e73505e9610f?q=80&w=400'
+                  }
+                  alt={selectedProductModal.name}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = 'https://images.unsplash.com/photo-1578849278619-e73505e9610f?q=80&w=400';
+                  }}
+                />
+                {/* Price badge */}
+                <div className="absolute top-3.5 left-3.5 px-3 py-1 rounded-full bg-black/80 backdrop-blur-md border border-white/10 text-gold-400 font-mono font-bold text-xs shadow-lg">
+                  {selectedProductModal.price.toLocaleString('vi-VN')} đ
+                </div>
+
+                {/* Circular close button (X) */}
+                <button
+                  type="button"
+                  onClick={() => setSelectedProductModal(null)}
+                  className="absolute top-3.5 right-3.5 w-9 h-9 rounded-full bg-black/70 hover:bg-ruby-600 text-white flex items-center justify-center transition-all backdrop-blur-md border border-white/10 cursor-pointer shadow-lg"
+                  title="Đóng (ESC)"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Product Info Section */}
+              <div className="p-6 space-y-5">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="px-2.5 py-0.5 rounded-full bg-cinema-800 text-slate-300 text-[10px] font-bold uppercase tracking-wider">
+                      {selectedProductModal.category === 'popcorn'
+                        ? 'Bắp Rang Bơ'
+                        : selectedProductModal.category === 'beverage'
+                        ? 'Nước Ngọt'
+                        : selectedProductModal.category === 'combo'
+                        ? 'Combo Tiết Kiệm'
+                        : selectedProductModal.category === 'hot_food'
+                        ? 'Đồ Ăn Nóng'
+                        : 'Món Bắp Nước'}
+                    </span>
+                  </div>
+                  <h3 className="text-xl font-extrabold text-white leading-snug">
+                    {selectedProductModal.name}
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
+                    {selectedProductModal.description || 'Sản phẩm phục vụ tươi ngon tại quầy bắp nước Night Movie.'}
+                  </p>
+                  <div className="mt-2 text-sm font-bold text-gold-400 font-mono">
+                    Đơn giá: {selectedProductModal.price.toLocaleString('vi-VN')} đ
+                  </div>
+                </div>
+
+                {/* Large Quantity Stepper */}
+                <div className="p-4 rounded-2xl bg-cinema-950/80 border border-cinema-800 flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-300">Số lượng chọn:</span>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      disabled={modalQuantity <= 1}
+                      onClick={() => setModalQuantity((q) => Math.max(1, q - 1))}
+                      className="w-10 h-10 rounded-xl bg-cinema-800 hover:bg-cinema-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-extrabold text-lg flex items-center justify-center transition-all cursor-pointer shadow-sm active:scale-95"
+                    >
+                      -
+                    </button>
+                    <span className="font-mono text-lg font-black text-white w-10 text-center select-none">
+                      {modalQuantity}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setModalQuantity((q) => q + 1)}
+                      className="w-10 h-10 rounded-xl bg-cinema-800 hover:bg-cinema-700 text-white font-extrabold text-lg flex items-center justify-center transition-all cursor-pointer shadow-sm active:scale-95"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+
+                {/* Footer Actions */}
+                <div className="grid grid-cols-3 gap-3 pt-3 border-t border-cinema-800">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedProductModal(null)}
+                    className="col-span-1 py-3.5 rounded-xl bg-cinema-800 hover:bg-cinema-700 text-slate-300 hover:text-white font-bold text-xs transition-colors cursor-pointer text-center"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleConfirmAddToCart}
+                    style={{ background: '#E50914' }}
+                    className="col-span-2 py-3.5 rounded-xl hover:brightness-110 text-white font-extrabold text-xs transition-all shadow-glow-red cursor-pointer flex items-center justify-center gap-2 active:scale-[0.99]"
+                  >
+                    <Plus className="w-4 h-4" />
+                    + Thêm Vào Đơn • {(selectedProductModal.price * modalQuantity).toLocaleString('vi-VN')} đ
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {/* ================= VIETQR PAYMENT MODAL ================= */}
+      {showQrModal &&
+        createPortal(
+          <div
+            className="animate-fade-in"
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 99999,
+              background: 'rgba(0, 0, 0, 0.82)',
+              backdropFilter: 'blur(8px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '20px',
+            }}
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setShowQrModal(false);
+              }
+            }}
+          >
+            <div
+              className="animate-scale-in"
+              style={{
+                maxWidth: '460px',
+                width: '100%',
+                background: '#141722',
+                border: '1px solid rgba(255, 255, 255, 0.14)',
+                borderRadius: '20px',
+                overflow: 'hidden',
+                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.9)',
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Modal Header */}
+              <div className="p-5 border-b border-cinema-800 flex items-center justify-between">
+                <div>
+                  <h3 className="text-base font-extrabold text-white flex items-center gap-2">
+                    <QrCode className="w-5 h-5 text-ruby-500" /> Thanh Toán Chuyển Khoản VietQR
+                  </h3>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Quét mã QR qua ứng dụng ngân hàng hoặc ví điện tử
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowQrModal(false)}
+                  className="w-8 h-8 rounded-full bg-cinema-800 hover:bg-ruby-600 text-slate-300 hover:text-white flex items-center justify-center transition-all cursor-pointer"
+                  title="Đóng (ESC)"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="p-5 space-y-4">
+                {/* VietQR Image Container */}
+                <div
+                  style={{
+                    width: '260px',
+                    margin: '0 auto',
+                    borderRadius: '12px',
+                    padding: '12px',
+                    background: '#ffffff',
+                    boxShadow: '0 10px 25px rgba(0, 0, 0, 0.4)',
+                  }}
+                  className="flex flex-col items-center justify-center"
+                >
+                  <img
+                    src={`https://img.vietqr.io/image/BIDV-8813341949-compact2.png?amount=${totalAmount}&addInfo=${encodeURIComponent(qrOrderCode)}`}
+                    alt="VietQR BIDV 8813341949"
+                    className="w-full h-auto object-contain rounded-lg"
+                  />
+                  <div className="text-[11px] font-bold text-slate-700 mt-1 flex items-center gap-1 font-mono">
+                    BIDV • 8813341949
+                  </div>
+                </div>
+
+                {/* Transfer Info Details */}
+                <div className="rounded-xl bg-cinema-950/90 border border-cinema-800 p-3.5 space-y-2.5 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">Ngân hàng:</span>
+                    <span className="font-bold text-white">BIDV (TMCP Đầu tư và Phát triển VN)</span>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">Số tài khoản:</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-bold text-white text-sm">8813341949</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard?.writeText('8813341949');
+                          setCopiedStk(true);
+                          setTimeout(() => setCopiedStk(false), 2000);
+                        }}
+                        className="px-2 py-0.5 rounded-lg bg-cinema-800 hover:bg-cinema-700 text-slate-300 hover:text-white text-[10px] font-semibold transition-all flex items-center gap-1 cursor-pointer"
+                      >
+                        {copiedStk ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                        {copiedStk ? 'Đã chép' : 'Sao chép'}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">Số tiền thanh toán:</span>
+                    <span className="font-mono font-black text-gold-400 text-base">
+                      {totalAmount.toLocaleString('vi-VN')} đ
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">Nội dung chuyển khoản:</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-bold text-rose-300 text-xs">{qrOrderCode}</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard?.writeText(qrOrderCode);
+                          setCopiedContent(true);
+                          setTimeout(() => setCopiedContent(false), 2000);
+                        }}
+                        className="px-2 py-0.5 rounded-lg bg-cinema-800 hover:bg-cinema-700 text-slate-300 hover:text-white text-[10px] font-semibold transition-all flex items-center gap-1 cursor-pointer"
+                      >
+                        {copiedContent ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                        {copiedContent ? 'Đã chép' : 'Sao chép'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Footer Buttons */}
+                <div className="grid grid-cols-2 gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowQrModal(false)}
+                    className="py-3 rounded-xl bg-cinema-800 hover:bg-cinema-700 text-slate-300 hover:text-white font-bold text-xs transition-colors cursor-pointer text-center"
+                  >
+                    Đóng / Đổi phương thức
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isProcessingSale}
+                    onClick={async () => {
+                      await handleCheckout();
+                    }}
+                    style={{ background: '#E50914' }}
+                    className="py-3 rounded-xl hover:brightness-110 disabled:opacity-50 text-white font-extrabold text-xs transition-all shadow-glow-red cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    <CheckCircle className="w-4 h-4" />
+                    {isProcessingSale ? 'Đang xử lý...' : 'Đã Nhận Tiền & Hoàn Tất Đơn'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
 
       {/* ================= MENU & BOM MANAGEMENT VIEW ================= */}
       {activeTab === 'menu' && (
