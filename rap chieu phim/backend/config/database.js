@@ -1152,6 +1152,15 @@ async function query(sql, params = []) {
     return memory.concession_items;
   }
   if (normalized.includes('from concession_orders')) {
+    if (normalized.includes('where order_code = ? or idempotency_key = ?')) {
+      const code = params[0];
+      const key = params[1];
+      return (memory.concession_orders || []).filter((o) => o.order_code === code || o.idempotency_key === key);
+    }
+    if (normalized.includes('where order_code = ?')) {
+      const code = params[0];
+      return (memory.concession_orders || []).filter((o) => o.order_code === code);
+    }
     if (normalized.includes('where idempotency_key = ?')) {
       const key = params[0];
       return (memory.concession_orders || []).filter((o) => o.idempotency_key === key);

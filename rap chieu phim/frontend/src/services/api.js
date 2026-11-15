@@ -197,4 +197,11 @@ export const api = {
       body: JSON.stringify({ message }),
       signal: options.signal,
     }),
+
+  // SePay Automated Bank Transfer Gateway
+  getSepayInfo: () => request('/sepay/info'),
+  registerSepayPosSession: (data) => request('/sepay/register-pos-session', { method: 'POST', body: JSON.stringify(data) }),
+  registerSepayBookingSession: (data) => request('/sepay/register-booking-session', { method: 'POST', body: JSON.stringify(data) }),
+  checkSepayStatus: (orderCode) => request(`/sepay/status/${encodeURIComponent(orderCode)}`),
+  simulateSepayPayment: (data) => request('/sepay/simulate-payment', { method: 'POST', body: JSON.stringify(data) }),
 };

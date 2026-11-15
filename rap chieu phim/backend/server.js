@@ -97,6 +97,8 @@ app.use('/api/kdm', require('./routes/kdmRoutes'));
 app.use('/api/turnaround', require('./routes/turnaroundRoutes'));
 app.use('/api/chat', require('./routes/chatRoutes'));
 app.use('/api/vouchers', require('./routes/voucherRoutes'));
+app.use('/api/sepay', require('./routes/sepayRoutes'));
+app.use('/api/payments/sepay', require('./routes/sepayRoutes'));
 
 // Error Handlers
 app.use(notFoundHandler);

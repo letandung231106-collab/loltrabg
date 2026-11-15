@@ -19,7 +19,9 @@ import {
   Image as ImageIcon,
   QrCode,
   Copy,
-  Check
+  Check,
+  RefreshCw,
+  Zap
 } from 'lucide-react';
 import { ModalPortal } from '../../components/common/ModalPortal';
 
@@ -138,6 +140,76 @@ export function ConcessionManager() {
   const clearCart = () => setCart([]);
 
   const totalAmount = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+
+  // SePay Real-Time Auto-Recognition State
+  const [sepayStatus, setSepayStatus] = useState('waiting'); // 'waiting' | 'paid'
+  const [isSimulatingSepay, setIsSimulatingSepay] = useState(false);
+  const [qrViewMode, setQrViewMode] = useState('sepay'); // 'sepay' (dynamic amount & code) | 'official' (BIDV card image)
+
+  // Tự động kết nối SePay Webhook và Polling trạng thái chuyển khoản khi mở VietQR Modal
+  useEffect(() => {
+    if (!showQrModal || cart.length === 0) return;
+
+    let isMounted = true;
+    setSepayStatus('waiting');
+
+    // 1. Đăng ký session POS với SePay backend
+    api.registerSepayPosSession({
+      orderCode: qrOrderCode,
+      items: cart,
+      totalAmount,
+      staffId: 1,
+    }).catch((err) => {
+      console.warn('[SePay Register POS]:', err.message);
+    });
+
+    // 2. Polling kiểm tra trạng thái thanh toán từ SePay mỗi 2 giây
+    const interval = setInterval(async () => {
+      if (!isMounted) return;
+      try {
+        const res = await api.checkSepayStatus(qrOrderCode);
+        if (res && res.isPaid && isMounted) {
+          clearInterval(interval);
+          setSepayStatus('paid');
+          setLastReceipt({
+            ...(res.data || {}),
+            items: [...cart],
+          });
+          setCart([]);
+          setTimeout(() => {
+            if (isMounted) {
+              setShowQrModal(false);
+              setMsg({
+                text: `✓ [SePay Tự Động] Đã nhận ${Number(res.transaction?.transferAmount || totalAmount).toLocaleString('vi-VN')} đ từ BIDV (Mã GD: ${res.transaction?.referenceCode || 'SePay'})! Đơn hàng đã tự động hoàn tất và trừ kho.`,
+                type: 'success',
+              });
+            }
+          }, 1500);
+        }
+      } catch (e) {
+        // Polling error silently handled
+      }
+    }, 2000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [showQrModal, qrOrderCode, cart, totalAmount]);
+
+  const handleSimulateSepay = async () => {
+    setIsSimulatingSepay(true);
+    try {
+      await api.simulateSepayPayment({
+        orderCode: qrOrderCode,
+        amount: totalAmount > 0 ? totalAmount : 69000,
+      });
+    } catch (err) {
+      setMsg({ text: `Lỗi giả lập SePay: ${err.message}`, type: 'error' });
+    } finally {
+      setIsSimulatingSepay(false);
+    }
+  };
 
   const handleSelectPaymentMethod = (method) => {
     setPaymentMethod(method);
@@ -735,11 +807,19 @@ export function ConcessionManager() {
               <div className="p-5 border-b border-cinema-800 flex items-center justify-between">
                 <div>
                   <h3 className="text-base font-extrabold text-white flex items-center gap-2">
-                    <QrCode className="w-5 h-5 text-ruby-500" /> Thanh Toán Chuyển Khoản VietQR
+                    <QrCode className="w-5 h-5 text-emerald-400" /> Thanh Toán VietQR & SePay Tự Động
                   </h3>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
-                    Quét mã QR qua ứng dụng ngân hàng hoặc ví điện tử
-                  </p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="flex h-2 w-2 relative">
+                      <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${sepayStatus === 'paid' ? 'bg-emerald-400' : 'bg-emerald-500'}`}></span>
+                      <span className={`relative inline-flex rounded-full h-2 w-2 ${sepayStatus === 'paid' ? 'bg-emerald-500' : 'bg-emerald-400'}`}></span>
+                    </span>
+                    <p className="text-[11px] text-emerald-400 font-medium">
+                      {sepayStatus === 'paid'
+                        ? 'Đã xác nhận giao dịch thành công qua SePay!'
+                        : 'Cổng SePay tự động phát hiện biến động số dư BIDV'}
+                    </p>
+                  </div>
                 </div>
                 <button
                   type="button"
@@ -753,32 +833,87 @@ export function ConcessionManager() {
 
               {/* Modal Body */}
               <div className="p-5 space-y-4">
-                {/* VietQR Image Container with User's Official Card */}
+                {/* Mode Selector: Dynamic SePay QR vs Official BIDV Card */}
+                <div className="flex items-center justify-center gap-2 p-1 bg-cinema-950 rounded-xl border border-cinema-800">
+                  <button
+                    type="button"
+                    onClick={() => setQrViewMode('sepay')}
+                    className={`flex-1 py-1.5 px-2.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                      qrViewMode === 'sepay'
+                        ? 'bg-emerald-600 text-white shadow-glow-emerald'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    Mã QR Động SePay (Tự điền số tiền)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setQrViewMode('official')}
+                    className={`flex-1 py-1.5 px-2.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                      qrViewMode === 'official'
+                        ? 'bg-emerald-600 text-white shadow-glow-emerald'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    Thẻ VietQR Gốc BIDV
+                  </button>
+                </div>
+
+                {/* VietQR Image Container */}
                 <div
                   style={{
-                    maxWidth: '300px',
+                    maxWidth: '280px',
                     width: '100%',
                     margin: '0 auto',
                     borderRadius: '16px',
-                    padding: '8px',
+                    padding: '10px',
                     background: '#ffffff',
                     boxShadow: '0 10px 30px rgba(0, 0, 0, 0.5)',
                   }}
-                  className="flex flex-col items-center justify-center overflow-hidden"
+                  className="flex flex-col items-center justify-center overflow-hidden transition-all"
                 >
                   <img
-                    src="/images/bidv-qr.jpg"
+                    src={
+                      qrViewMode === 'sepay' && totalAmount > 0
+                        ? `https://qr.sepay.vn/img?acc=8813341949&bank=BIDV&amount=${totalAmount}&des=${encodeURIComponent(qrOrderCode)}`
+                        : '/images/bidv-qr.jpg'
+                    }
                     alt="Mã QR BIDV - LE TAN DUNG 8813341949"
                     className="w-full h-auto object-contain rounded-xl"
                     onError={(e) => {
                       e.target.onerror = null;
-                      e.target.src = `https://img.vietqr.io/image/BIDV-8813341949-compact2.png?amount=${totalAmount}&addInfo=${encodeURIComponent(qrOrderCode)}`;
+                      e.target.src = '/images/bidv-qr.jpg';
                     }}
                   />
                 </div>
 
+                {/* SePay Real-Time Status Notification */}
+                {sepayStatus === 'paid' ? (
+                  <div className="p-3 rounded-xl bg-emerald-950/80 border border-emerald-500 text-emerald-300 text-xs font-bold text-center animate-bounce flex items-center justify-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-emerald-400" />
+                    <span>✓ ĐÃ NHẬN TIỀN QUA BIDV! Đang tự động hoàn tất đơn & xuất hóa đơn...</span>
+                  </div>
+                ) : (
+                  <div className="p-2.5 rounded-xl bg-cinema-950/90 border border-emerald-500/30 text-emerald-400 text-[11px] flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-400" />
+                      Đang lắng nghe Webhook SePay...
+                    </span>
+                    <button
+                      type="button"
+                      disabled={isSimulatingSepay}
+                      onClick={handleSimulateSepay}
+                      className="px-2.5 py-1 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/40 border border-emerald-500/40 text-emerald-300 text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer"
+                      title="Bấm để kích hoạt Webhook SePay giả lập thanh toán"
+                    >
+                      <Zap className="w-3 h-3 text-gold-400" />
+                      {isSimulatingSepay ? 'Đang gửi...' : '⚡ Test SePay Webhook'}
+                    </button>
+                  </div>
+                )}
+
                 {/* Transfer Info Details */}
-                <div className="rounded-xl bg-cinema-950/90 border border-cinema-800 p-3.5 space-y-2.5 text-xs">
+                <div className="rounded-xl bg-cinema-950/90 border border-cinema-800 p-3.5 space-y-2 text-xs">
                   <div className="flex items-center justify-between">
                     <span className="text-slate-400">Chủ tài khoản:</span>
                     <span className="font-bold text-white uppercase tracking-wide">LE TAN DUNG</span>

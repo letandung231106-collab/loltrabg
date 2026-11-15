@@ -49,6 +49,10 @@ export function PaymentModal({
   const [errorMsg, setErrorMsg] = useState('');
   const [copied, setCopied] = useState('');
 
+  // SePay Automated Bank Transfer State
+  const [sepayStatus, setSepayStatus] = useState('waiting'); // 'waiting' | 'paid'
+  const [isSimulatingSepay, setIsSimulatingSepay] = useState(false);
+
   // Voucher / Promotion state
   const [voucherInput, setVoucherInput] = useState('');
   const [appliedVoucher, setAppliedVoucher] = useState(null);
@@ -290,15 +294,72 @@ export function PaymentModal({
     }
   };
 
+  // SePay Automated Bank Transfer Hook for Movie Booking
+  useEffect(() => {
+    if (!isOpen || !activeBooking || paymentMethod !== 'vietqr') return;
+
+    let isMounted = true;
+    setSepayStatus('waiting');
+
+    // Đăng ký phiên booking với SePay backend
+    api.registerSepayBookingSession({
+      bookingId: activeBooking.bookingId,
+      bookingCode: activeBooking.bookingCode,
+      totalAmount: finalTotalAmount,
+    }).catch((err) => {
+      console.warn('[SePay Register Booking]:', err.message);
+    });
+
+    const interval = setInterval(async () => {
+      if (!isMounted) return;
+      try {
+        const res = await api.checkSepayStatus(activeBooking.bookingCode);
+        if (res && res.isPaid && isMounted) {
+          clearInterval(interval);
+          setSepayStatus('paid');
+          confetti({
+            particleCount: 140,
+            spread: 90,
+            origin: { y: 0.6 },
+          });
+          await handlePaymentSuccessPostActions('vietqr');
+          onSuccess(res.data);
+        }
+      } catch (e) {
+        // Polling error silently handled
+      }
+    }, 2000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [isOpen, activeBooking?.bookingId, activeBooking?.bookingCode, paymentMethod, finalTotalAmount]);
+
+  const handleSimulateSepay = async () => {
+    if (!activeBooking) return;
+    setIsSimulatingSepay(true);
+    try {
+      await api.simulateSepayPayment({
+        orderCode: activeBooking.bookingCode,
+        amount: finalTotalAmount,
+      });
+    } catch (err) {
+      setErrorMsg(`Lỗi giả lập SePay: ${err.message}`);
+    } finally {
+      setIsSimulatingSepay(false);
+    }
+  };
+
   const copyToClipboard = (text, type) => {
     navigator.clipboard.writeText(text);
     setCopied(type);
     setTimeout(() => setCopied(''), 2000);
   };
 
-  const vietQrUrl = `https://img.vietqr.io/image/970418-8813341949-compact2.png?amount=${finalTotalAmount}&addInfo=${encodeURIComponent(
-    activeBooking.bookingCode
-  )}&accountName=${encodeURIComponent('NIGHT MOVIE CINEMA')}`;
+  const vietQrUrl = finalTotalAmount > 0
+    ? `https://qr.sepay.vn/img?acc=8813341949&bank=BIDV&amount=${finalTotalAmount}&des=${encodeURIComponent(activeBooking.bookingCode)}`
+    : `https://img.vietqr.io/image/BIDV-8813341949-compact2.png?amount=${finalTotalAmount}&addInfo=${encodeURIComponent(activeBooking.bookingCode)}&accountName=${encodeURIComponent('LE TAN DUNG')}`;
 
   const currentTier = loyaltyService.getTier(availablePoints);
 
@@ -486,10 +547,35 @@ export function PaymentModal({
             <div className="p-4 rounded-2xl bg-cinema-950 border border-emerald-500/50 animate-scale-in space-y-3">
               <div className="text-center">
                 <h4 className="text-xs font-bold text-emerald-400 uppercase tracking-wider">
-                  Mã VietQR Chuyển Khoản Rạp Night Movie
+                  Mã VietQR & Cổng Tự Động SePay BIDV
                 </h4>
-                <p className="text-[10px] text-slate-400">Quét mã bằng app ngân hàng bất kỳ để chuyển tiền</p>
+                <p className="text-[10px] text-slate-400">Hệ thống SePay tự động ghi nhận giao dịch và xuất vé tức thì khi nhận được tiền</p>
               </div>
+
+              {/* SePay Real-Time Status Notification */}
+              {sepayStatus === 'paid' ? (
+                <div className="p-3 rounded-xl bg-emerald-950/80 border border-emerald-500 text-emerald-300 text-xs font-bold text-center animate-bounce flex items-center justify-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-emerald-400" />
+                  <span>✓ ĐÃ NHẬN TIỀN QUA BIDV! Đang tự động xuất vé điện tử...</span>
+                </div>
+              ) : (
+                <div className="p-2.5 rounded-xl bg-cinema-900 border border-emerald-500/30 text-emerald-400 text-[11px] flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-400" />
+                    Đang lắng nghe biến động số dư BIDV...
+                  </span>
+                  <button
+                    type="button"
+                    disabled={isSimulatingSepay}
+                    onClick={handleSimulateSepay}
+                    className="px-2.5 py-1 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/40 border border-emerald-500/40 text-emerald-300 text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer"
+                    title="Bấm để kích hoạt Webhook SePay giả lập thanh toán"
+                  >
+                    <Zap className="w-3 h-3 text-gold-400" />
+                    {isSimulatingSepay ? 'Đang gửi...' : '⚡ Test SePay Webhook'}
+                  </button>
+                </div>
+              )}
 
               <div className="flex flex-col sm:flex-row items-center gap-4 bg-white p-3 rounded-xl">
                 <img
@@ -497,15 +583,14 @@ export function PaymentModal({
                   alt="VietQR Code"
                   className="w-36 h-36 object-contain border border-slate-200 rounded-lg shrink-0"
                   onError={(e) => {
-                    e.target.src =
-                      'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=' +
-                      encodeURIComponent(activeBooking.bookingCode);
+                    e.target.onerror = null;
+                    e.target.src = '/images/bidv-qr.jpg';
                   }}
                 />
                 <div className="space-y-1 text-slate-800 text-xs w-full">
                   <div>
                     <span className="text-[10px] text-slate-500 block">Ngân hàng:</span>
-                    <b className="text-blue-900">BIDV</b>
+                    <b className="text-blue-900">BIDV (Đầu tư & Phát triển VN)</b>
                   </div>
                   <div>
                     <span className="text-[10px] text-slate-500 block">Số tài khoản:</span>
@@ -523,7 +608,7 @@ export function PaymentModal({
                   </div>
                   <div>
                     <span className="text-[10px] text-slate-500 block">Chủ tài khoản:</span>
-                    <b className="text-slate-900">NIGHT MOVIE CINEMA</b>
+                    <b className="text-slate-900 font-bold">LE TAN DUNG</b>
                   </div>
                   <div>
                     <span className="text-[10px] text-slate-500 block">Nội dung chuyển khoản:</span>
