@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import { Clock, Plus, UserCheck, Calendar, X, CheckCircle } from 'lucide-react';
+import { ModalPortal } from '../../components/common/ModalPortal';
 
 export function ShiftsManager() {
   const [shifts, setShifts] = useState([]);
@@ -200,123 +201,118 @@ export function ShiftsManager() {
         </div>
       </div>
 
-      {/* Modal Phân Ca */}
-      {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-fade-in">
-          <div className="relative w-full max-w-lg glass-panel rounded-3xl p-6 shadow-2xl border border-cinema-600">
-            <div className="flex items-center justify-between pb-3 border-b border-cinema-700">
-              <h3 className="font-black text-sm text-white">Phân Ca Làm Việc Mới</h3>
-              <button onClick={() => setModalOpen(false)} className="p-1 text-slate-400 hover:text-white">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleCreate} className="space-y-4 mt-3 text-xs">
-              <div>
-                <label className="block font-bold text-slate-300 mb-1">Nhân viên *</label>
-                <select
-                  required
-                  value={formData.employee_id}
-                  onChange={(e) => setFormData({ ...formData, employee_id: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
-                >
-                  {employees.map((emp) => (
-                    <option key={emp.id} value={emp.id}>{emp.name} ({emp.position} - {emp.department})</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-300 mb-1">Ngày làm việc</label>
-                  <input
-                    type="date"
-                    required
-                    value={formData.work_date}
-                    onChange={(e) => setFormData({ ...formData, work_date: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-300 mb-1">Ca làm việc</label>
-                  <select
-                    value={formData.shift_name}
-                    onChange={(e) => setFormData({ ...formData, shift_name: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
-                  >
-                    <option value="morning">Sáng (Morning)</option>
-                    <option value="afternoon">Chiều (Afternoon)</option>
-                    <option value="evening">Tối (Evening)</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-300 mb-1">Giờ bắt đầu</label>
-                  <input
-                    type="time"
-                    required
-                    value={formData.start_time}
-                    onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-300 mb-1">Giờ kết thúc</label>
-                  <input
-                    type="time"
-                    required
-                    value={formData.end_time}
-                    onChange={(e) => setFormData({ ...formData, end_time: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-300 mb-1">Vị trí trực</label>
-                <input
-                  type="text"
-                  value={formData.position}
-                  onChange={(e) => setFormData({ ...formData, position: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-300 mb-1">Phòng phân công (tùy chọn)</label>
-                <select
-                  value={formData.room_id}
-                  onChange={(e) => setFormData({ ...formData, room_id: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
-                >
-                  <option value="">-- Khu vực chung --</option>
-                  {rooms.map((r) => (
-                    <option key={r.id} value={r.id}>{r.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="flex justify-end gap-3 pt-3 border-t border-cinema-700">
-                <button
-                  type="button"
-                  onClick={() => setModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-cinema-800 text-slate-300 hover:bg-cinema-700"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  className="px-6 py-2 rounded-xl bg-ruby-600 hover:bg-ruby-500 text-white font-bold shadow-glow-red"
-                >
-                  Xác Nhận Phân Ca
-                </button>
-              </div>
-            </form>
+      {/* Modal Phân Ca - Đưa ra document.body qua ModalPortal */}
+      <ModalPortal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title="Phân Ca Làm Việc Mới"
+        subtitle="Sắp xếp nhân sự vào các ca trực sáng, chiều, tối theo phòng ban"
+        maxWidth="max-w-lg"
+      >
+        <form onSubmit={handleCreate} className="space-y-4 text-xs">
+          <div>
+            <label className="block font-bold text-slate-300 mb-1">Nhân viên *</label>
+            <select
+              required
+              value={formData.employee_id}
+              onChange={(e) => setFormData({ ...formData, employee_id: e.target.value })}
+              className="w-full px-3 py-2 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
+            >
+              {employees.map((emp) => (
+                <option key={emp.id} value={emp.id}>{emp.name} ({emp.position} - {emp.department})</option>
+              ))}
+            </select>
           </div>
-        </div>
-      )}
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block font-bold text-slate-300 mb-1">Ngày làm việc</label>
+              <input
+                type="date"
+                required
+                value={formData.work_date}
+                onChange={(e) => setFormData({ ...formData, work_date: e.target.value })}
+                className="w-full px-3 py-2 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block font-bold text-slate-300 mb-1">Ca làm việc</label>
+              <select
+                value={formData.shift_name}
+                onChange={(e) => setFormData({ ...formData, shift_name: e.target.value })}
+                className="w-full px-3 py-2 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
+              >
+                <option value="morning">Sáng (Morning)</option>
+                <option value="afternoon">Chiều (Afternoon)</option>
+                <option value="evening">Tối (Evening)</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block font-bold text-slate-300 mb-1">Giờ bắt đầu</label>
+              <input
+                type="time"
+                required
+                value={formData.start_time}
+                onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
+                className="w-full px-3 py-2 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block font-bold text-slate-300 mb-1">Giờ kết thúc</label>
+              <input
+                type="time"
+                required
+                value={formData.end_time}
+                onChange={(e) => setFormData({ ...formData, end_time: e.target.value })}
+                className="w-full px-3 py-2 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block font-bold text-slate-300 mb-1">Vị trí trực</label>
+            <input
+              type="text"
+              value={formData.position}
+              onChange={(e) => setFormData({ ...formData, position: e.target.value })}
+              className="w-full px-3 py-2 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
+            />
+          </div>
+
+          <div>
+            <label className="block font-bold text-slate-300 mb-1">Phòng phân công (tùy chọn)</label>
+            <select
+              value={formData.room_id}
+              onChange={(e) => setFormData({ ...formData, room_id: e.target.value })}
+              className="w-full px-3 py-2 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
+            >
+              <option value="">-- Khu vực chung --</option>
+              {rooms.map((r) => (
+                <option key={r.id} value={r.id}>{r.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-3 border-t border-cinema-700">
+            <button
+              type="button"
+              onClick={() => setModalOpen(false)}
+              className="px-4 py-2 rounded-xl bg-cinema-800 text-slate-300 hover:bg-cinema-700 cursor-pointer"
+            >
+              Hủy
+            </button>
+            <button
+              type="submit"
+              className="px-6 py-2 rounded-xl bg-ruby-600 hover:bg-ruby-500 text-white font-bold shadow-glow-red cursor-pointer"
+            >
+              Xác Nhận Phân Ca
+            </button>
+          </div>
+        </form>
+      </ModalPortal>
     </div>
   );
 }

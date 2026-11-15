@@ -189,6 +189,14 @@ async function getMe(req, res, next) {
  */
 async function fastSwitchRole(req, res, next) {
   try {
+    // STT 03: Chặn switch-role trong môi trường production hoặc khi ENABLE_DEMO_TOOLS !== 'true'
+    if (process.env.NODE_ENV === 'production' || process.env.ENABLE_DEMO_TOOLS !== 'true') {
+      return res.status(403).json({
+        success: false,
+        message: 'Tính năng chuyển đổi vai trò nhanh (switch-role) đã bị vô hiệu hóa vì lý do bảo mật. Chỉ cho phép khi NODE_ENV !== "production" và ENABLE_DEMO_TOOLS=true.',
+      });
+    }
+
     const { targetRole } = req.body; // 'admin', 'manager', 'staff', 'technician', 'customer'
     
     let defaultUsername = 'admin';

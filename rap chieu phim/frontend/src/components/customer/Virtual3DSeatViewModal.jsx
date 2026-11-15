@@ -1,27 +1,98 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Eye, Monitor, MapPin } from 'lucide-react';
 
 export function Virtual3DSeatViewModal({ seat, schedule, isOpen, onClose }) {
+  // Cơ chế 1: Thoát Modal bằng phím tắt ESC
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' || e.key === 'Esc' || e.keyCode === 27) {
+        onClose?.();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
+  // Cơ chế 2: Khóa cuộn trang nền khi mở Modal và dọn dẹp sạch khi đóng / unmount
+  useEffect(() => {
+    if (isOpen) {
+      const prevOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = prevOverflow || 'unset';
+      };
+    }
+  }, [isOpen]);
+
   if (!isOpen || !seat) return null;
 
   // Tính toán góc nhìn và khoảng cách dựa vào hàng ghế (A -> F) và số ghế (1 -> 12)
-  const rowChar = seat.row_number.toUpperCase();
+  const rowChar = (seat.row_number || 'D').toUpperCase();
   const rowIdx = rowChar.charCodeAt(0) - 65; // A=0, B=1, C=2, D=3, E=4, F=5
   const seatNum = parseInt(seat.seat_number, 10) || 5;
 
   // Ghế càng gần màn hình (A, B) màn hình càng to và hơi nghiêng lên.
   // Ghế càng xa (E, F) góc nhìn càng bao quát toàn cảnh.
   // Ghế ở giữa (5, 6, 7) nhìn thẳng tâm, ghế mép trái (<4) nhìn lệch sang phải, mép phải (>8) nhìn lệch sang trái.
-  const screenScale = 1.35 - rowIdx * 0.12; // A=1.35x, F=0.75x
+  const screenScale = Math.max(0.6, 1.35 - rowIdx * 0.12); // A=1.35x, F=0.75x
   const screenRotateX = Math.max(0, (3 - rowIdx) * 4); // Hàng A ngước nhìn 12 độ
   const screenRotateY = (seatNum - 6) * -3.5; // Lệch góc quay trái/phải theo số ghế
   const distanceMeters = (rowIdx + 2) * 2.8; // 5m -> 19m
 
-  return (
-    <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-[130] flex items-center justify-center p-3 sm:p-4 animate-fade-in">
-      <div className="bg-gradient-to-b from-cinema-900 via-cinema-950 to-black border border-cinema-700/80 rounded-3xl max-w-2xl w-full overflow-hidden shadow-2xl relative">
+  const modalContent = (
+    <div
+      className="fixed inset-0 z-[99999] flex items-center justify-center p-4 sm:p-6 bg-black/90 backdrop-blur-md animate-fade-in"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        width: '100vw',
+        height: '100vh',
+        zIndex: 99999,
+        background: 'rgba(0, 0, 0, 0.85)',
+        backdropFilter: 'blur(8px)',
+        WebkitBackdropFilter: 'blur(8px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '24px',
+      }}
+      onClick={(e) => {
+        // Cơ chế 3: Click Outside (Bấm ra ngoài vùng nền tối để đóng Modal)
+        if (e.target === e.currentTarget) {
+          onClose?.();
+        }
+      }}
+    >
+      <div
+        className="relative w-full max-w-[700px] max-h-[88vh] flex flex-col overflow-hidden rounded-2xl bg-[#12151f] border border-white/10 shadow-2xl animate-scale-up"
+        style={{
+          position: 'relative',
+          width: '100%',
+          maxWidth: '700px',
+          maxHeight: '88vh',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          borderRadius: '16px',
+          background: '#12151f',
+          border: '1px solid rgba(255,255,255,0.12)',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Nút Đóng (X) cố định ở góc trên bên phải, kích thước 36x36px */}
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 z-50 w-9 h-9 rounded-full bg-black/75 hover:bg-ruby-600 text-white backdrop-blur-md transition-all flex items-center justify-center border border-white/20 shadow-lg cursor-pointer hover:scale-105 active:scale-95"
+          title="Đóng (phím ESC)"
+          aria-label="Đóng"
+        >
+          <X className="w-5 h-5" />
+        </button>
+
         {/* Header */}
-        <div className="px-6 py-4 bg-cinema-950/90 border-b border-cinema-800 flex items-center justify-between">
+        <div className="px-6 py-4 bg-cinema-950/90 border-b border-cinema-800 flex items-center justify-between shrink-0 pr-16">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/40 flex items-center justify-center">
               <Eye className="w-5 h-5" />
@@ -29,8 +100,8 @@ export function Virtual3DSeatViewModal({ seat, schedule, isOpen, onClose }) {
             <div>
               <h3 className="text-sm font-extrabold text-white flex items-center gap-2">
                 Mô Phỏng Góc Nhìn 3D Từ Ghế {seat.row_number}{seat.seat_number}
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-mono">
-                  {seat.seat_type?.toUpperCase()}
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-mono uppercase">
+                  {seat.seat_type || 'STANDARD'}
                 </span>
               </h3>
               <p className="text-[11px] text-slate-400">
@@ -38,16 +109,17 @@ export function Virtual3DSeatViewModal({ seat, schedule, isOpen, onClose }) {
               </p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full bg-cinema-800 hover:bg-cinema-700 text-slate-400 hover:text-white flex items-center justify-center transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
         </div>
 
-        {/* 3D Simulated Perspective Viewport */}
-        <div className="p-6 flex flex-col items-center">
+        {/* 3D Simulated Perspective Viewport Body */}
+        <div
+          className="modal-body flex-1 overflow-y-auto p-6 flex flex-col items-center space-y-4"
+          style={{
+            overflowY: 'auto',
+            flex: 1,
+            padding: '24px',
+          }}
+        >
           <div
             className="w-full h-72 sm:h-80 bg-cinema-950 rounded-2xl border-2 border-cinema-800 overflow-hidden relative flex items-center justify-center shadow-inner"
             style={{ perspective: '800px' }}
@@ -69,10 +141,14 @@ export function Virtual3DSeatViewModal({ seat, schedule, isOpen, onClose }) {
                 <img
                   src={
                     schedule?.movie_poster ||
-                    'https://image.tmdb.org/t/p/w780/1pdfLvkbY9ohJlCjQH2CZjjYVvJ.jpg'
+                    'https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=800'
                   }
                   alt="Màn hình chiếu"
                   className="w-full h-full object-cover opacity-85"
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?q=80&w=800';
+                  }}
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30" />
 
@@ -99,7 +175,7 @@ export function Virtual3DSeatViewModal({ seat, schedule, isOpen, onClose }) {
           </div>
 
           {/* Seat Position Commentary */}
-          <div className="w-full mt-4 p-3.5 rounded-2xl bg-cinema-900 border border-cinema-800 flex items-center justify-between text-xs">
+          <div className="w-full p-3.5 rounded-2xl bg-cinema-900 border border-cinema-800 flex items-center justify-between text-xs">
             <div className="space-y-0.5">
               <span className="font-bold text-white block">Đánh giá góc nhìn vị trí này:</span>
               <span className="text-slate-400 text-[11px]">
@@ -120,8 +196,9 @@ export function Virtual3DSeatViewModal({ seat, schedule, isOpen, onClose }) {
           </div>
 
           <button
+            type="button"
             onClick={onClose}
-            className="w-full mt-4 py-2.5 rounded-xl bg-ruby-600 hover:bg-ruby-500 text-white font-bold text-xs shadow-glow-red transition-all"
+            className="w-full py-2.5 rounded-xl bg-ruby-600 hover:bg-ruby-500 text-white font-bold text-xs shadow-glow-red transition-all cursor-pointer"
           >
             Đã Hiểu, Chọn Ghế Này
           </button>
@@ -129,4 +206,7 @@ export function Virtual3DSeatViewModal({ seat, schedule, isOpen, onClose }) {
       </div>
     </div>
   );
+
+  if (typeof document === 'undefined') return null;
+  return createPortal(modalContent, document.body);
 }

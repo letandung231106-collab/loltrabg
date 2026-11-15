@@ -6,7 +6,6 @@ import {
   Clock,
   Check,
   Eye,
-  Heart,
   Crown,
   Footprints,
   ArrowDown,
@@ -280,13 +279,9 @@ export function SeatMap({ scheduleData, onProceedToPayment, onCancelHold }) {
                               )}
                             </div>
                           ) : isCouple ? (
-                            /* Minh họa ghế đôi 2 chỗ ngồi với icon trái tim */
-                            <div className="flex items-center justify-center gap-0.5 sm:gap-1 w-full">
-                              <Heart className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-pink-400 fill-pink-500/40 shrink-0" />
-                              <span className="font-bold text-[10px] sm:text-[11px] font-mono tracking-tight">
-                                {seat.row_number}{seat.seat_number}
-                              </span>
-                            </div>
+                            <span className="font-bold text-[10px] sm:text-[11px] font-mono tracking-tight">
+                              {seat.row_number}{seat.seat_number}
+                            </span>
                           ) : (
                             <span className="font-bold font-mono">
                               {seat.row_number}{seat.seat_number}
@@ -364,8 +359,8 @@ export function SeatMap({ scheduleData, onProceedToPayment, onCancelHold }) {
 
           {/* 3. Ghế Đôi Couple */}
           <div className="flex items-center gap-2 p-2 rounded-xl bg-cinema-900/50 border border-cinema-800">
-            <div className="w-9 h-6 rounded-md bg-pink-950/70 border border-pink-500/70 text-pink-300 flex items-center justify-center text-[10px] font-bold font-mono gap-0.5">
-              <Heart className="w-2.5 h-2.5 text-pink-400 fill-pink-400" /> F1
+            <div className="w-9 h-6 rounded-md bg-pink-950/70 border border-pink-500/70 text-pink-300 flex items-center justify-center text-[10px] font-bold font-mono">
+              F1
             </div>
             <div>
               <div className="font-bold text-pink-300 text-[11px] flex items-center gap-1">
@@ -455,11 +450,9 @@ export function SeatMap({ scheduleData, onProceedToPayment, onCancelHold }) {
                     <span
                       className={`px-2.5 py-1 rounded-lg border font-bold text-xs flex items-center gap-1 shadow-sm ${badgeStyle}`}
                     >
-                      {isCouple ? (
-                        <Heart className="w-3 h-3 text-pink-400 fill-pink-400" />
-                      ) : isVip ? (
+                      {isVip && (
                         <Crown className="w-3 h-3 text-amber-400" />
-                      ) : null}
+                      )}
                       <span>
                         {s.row_number}{s.seat_number}{' '}
                         {isCouple

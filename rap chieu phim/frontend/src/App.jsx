@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { BookingProvider, useBooking } from './context/BookingContext';
@@ -15,25 +15,25 @@ import { SchedulesPage } from './pages/customer/SchedulesPage';
 import { BookingFlowPage } from './pages/customer/BookingFlowPage';
 import { MyTicketsPage } from './pages/customer/MyTicketsPage';
 
-// Admin & Operations modules
-import { AdminLayout } from './pages/admin/AdminLayout';
-import { DashboardView } from './pages/admin/DashboardView';
-import { MoviesManager } from './pages/admin/MoviesManager';
-import { RoomsManager } from './pages/admin/RoomsManager';
-import { SchedulesManager } from './pages/admin/SchedulesManager';
-import { TicketsManager } from './pages/admin/TicketsManager';
-import { EquipmentManager } from './pages/admin/EquipmentManager';
-import { IncidentsManager } from './pages/admin/IncidentsManager';
-import { MaintenanceManager } from './pages/admin/MaintenanceManager';
-import { InspectionsManager } from './pages/admin/InspectionsManager';
-import { ShiftsManager } from './pages/admin/ShiftsManager';
-import { EmployeesManager } from './pages/admin/EmployeesManager';
-import { CustomersManager } from './pages/admin/CustomersManager';
-import { ReportsManager } from './pages/admin/ReportsManager';
-import { ConcessionManager } from './pages/admin/ConcessionManager';
-import { InventoryManager } from './pages/admin/InventoryManager';
-import { ShiftHandoverManager } from './pages/admin/ShiftHandoverManager';
-import { KdmProjectorManager } from './pages/admin/KdmProjectorManager';
+// Admin & Operations modules - Code Splitting (Tải lười theo nhu cầu để tối ưu bundle khách hàng)
+const AdminLayout = lazy(() => import('./pages/admin/AdminLayout').then((m) => ({ default: m.AdminLayout })));
+const DashboardView = lazy(() => import('./pages/admin/DashboardView').then((m) => ({ default: m.DashboardView })));
+const MoviesManager = lazy(() => import('./pages/admin/MoviesManager').then((m) => ({ default: m.MoviesManager })));
+const RoomsManager = lazy(() => import('./pages/admin/RoomsManager').then((m) => ({ default: m.RoomsManager })));
+const SchedulesManager = lazy(() => import('./pages/admin/SchedulesManager').then((m) => ({ default: m.SchedulesManager })));
+const TicketsManager = lazy(() => import('./pages/admin/TicketsManager').then((m) => ({ default: m.TicketsManager })));
+const EquipmentManager = lazy(() => import('./pages/admin/EquipmentManager').then((m) => ({ default: m.EquipmentManager })));
+const IncidentsManager = lazy(() => import('./pages/admin/IncidentsManager').then((m) => ({ default: m.IncidentsManager })));
+const MaintenanceManager = lazy(() => import('./pages/admin/MaintenanceManager').then((m) => ({ default: m.MaintenanceManager })));
+const InspectionsManager = lazy(() => import('./pages/admin/InspectionsManager').then((m) => ({ default: m.InspectionsManager })));
+const ShiftsManager = lazy(() => import('./pages/admin/ShiftsManager').then((m) => ({ default: m.ShiftsManager })));
+const EmployeesManager = lazy(() => import('./pages/admin/EmployeesManager').then((m) => ({ default: m.EmployeesManager })));
+const CustomersManager = lazy(() => import('./pages/admin/CustomersManager').then((m) => ({ default: m.CustomersManager })));
+const ReportsManager = lazy(() => import('./pages/admin/ReportsManager').then((m) => ({ default: m.ReportsManager })));
+const ConcessionManager = lazy(() => import('./pages/admin/ConcessionManager').then((m) => ({ default: m.ConcessionManager })));
+const InventoryManager = lazy(() => import('./pages/admin/InventoryManager').then((m) => ({ default: m.InventoryManager })));
+const ShiftHandoverManager = lazy(() => import('./pages/admin/ShiftHandoverManager').then((m) => ({ default: m.ShiftHandoverManager })));
+const KdmProjectorManager = lazy(() => import('./pages/admin/KdmProjectorManager').then((m) => ({ default: m.KdmProjectorManager })));
 
 function MainApp() {
   const { isAuthenticated, isManager, isStaff, isTechnician, user } = useAuth();
@@ -200,25 +200,34 @@ function MainApp() {
 
         {/* Operations Internal Portal (Admin / Manager / Staff / Technician) */}
         {currentView === 'admin-dashboard' && (
-          <AdminLayout currentTab={adminTab} onSelectTab={setAdminTab}>
-            {adminTab === 'dashboard' && <DashboardView onNavigateTab={setAdminTab} />}
-            {adminTab === 'movies' && <MoviesManager />}
-            {adminTab === 'concessions' && <ConcessionManager />}
-            {adminTab === 'inventory' && <InventoryManager />}
-            {adminTab === 'handovers' && <ShiftHandoverManager />}
-            {adminTab === 'kdm' && <KdmProjectorManager />}
-            {adminTab === 'rooms' && <RoomsManager />}
-            {adminTab === 'schedules' && <SchedulesManager />}
-            {adminTab === 'tickets' && <TicketsManager />}
-            {adminTab === 'equipment' && <EquipmentManager />}
-            {adminTab === 'incidents' && <IncidentsManager />}
-            {adminTab === 'maintenance' && <MaintenanceManager />}
-            {adminTab === 'inspections' && <InspectionsManager />}
-            {adminTab === 'shifts' && <ShiftsManager />}
-            {adminTab === 'employees' && <EmployeesManager />}
-            {adminTab === 'customers' && <CustomersManager />}
-            {adminTab === 'reports' && <ReportsManager />}
-          </AdminLayout>
+          <Suspense
+            fallback={
+              <div className="py-24 text-center">
+                <div className="w-10 h-10 border-4 border-ruby-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                <p className="text-slate-400 text-xs">Đang tải phân hệ quản trị rạp chiếu...</p>
+              </div>
+            }
+          >
+            <AdminLayout currentTab={adminTab} onSelectTab={setAdminTab}>
+              {adminTab === 'dashboard' && <DashboardView onNavigateTab={setAdminTab} />}
+              {adminTab === 'movies' && <MoviesManager />}
+              {adminTab === 'concessions' && <ConcessionManager />}
+              {adminTab === 'inventory' && <InventoryManager />}
+              {adminTab === 'handovers' && <ShiftHandoverManager />}
+              {adminTab === 'kdm' && <KdmProjectorManager />}
+              {adminTab === 'rooms' && <RoomsManager />}
+              {adminTab === 'schedules' && <SchedulesManager />}
+              {adminTab === 'tickets' && <TicketsManager />}
+              {adminTab === 'equipment' && <EquipmentManager />}
+              {adminTab === 'incidents' && <IncidentsManager />}
+              {adminTab === 'maintenance' && <MaintenanceManager />}
+              {adminTab === 'inspections' && <InspectionsManager />}
+              {adminTab === 'shifts' && <ShiftsManager />}
+              {adminTab === 'employees' && <EmployeesManager />}
+              {adminTab === 'customers' && <CustomersManager />}
+              {adminTab === 'reports' && <ReportsManager />}
+            </AdminLayout>
+          </Suspense>
         )}
       </div>
 

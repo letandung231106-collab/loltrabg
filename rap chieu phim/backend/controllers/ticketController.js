@@ -12,7 +12,7 @@ async function getAllTickets(req, res, next) {
              m.name AS movie_name, m.poster AS movie_poster,
              s.start_time, s.end_time,
              r.name AS room_name,
-             st.row_number, st.seat_number, st.seat_type,
+             st.\`row_number\`, st.seat_number, st.seat_type,
              c.name AS customer_name, c.email AS customer_email, c.phone AS customer_phone,
              b.booking_code
       FROM tickets t
@@ -73,7 +73,7 @@ async function getMyTickets(req, res, next) {
               m.name AS movie_name, m.poster AS movie_poster, m.duration, m.age_rating,
               s.start_time, s.end_time, s.format AS screening_format,
               r.name AS room_name, r.room_type,
-              st.row_number, st.seat_number, st.seat_type,
+              st.\`row_number\`, st.seat_number, st.seat_type,
               b.booking_code, b.total_amount
        FROM tickets t
        JOIN screening_schedules s ON t.screening_id = s.id
@@ -106,7 +106,7 @@ async function getTicketById(req, res, next) {
               m.name AS movie_name, m.poster AS movie_poster, m.duration, m.age_rating,
               s.start_time, s.end_time, s.format AS screening_format,
               r.name AS room_name, r.room_type,
-              st.row_number, st.seat_number, st.seat_type,
+              st.\`row_number\`, st.seat_number, st.seat_type,
               c.name AS customer_name, c.email AS customer_email, c.phone AS customer_phone,
               b.booking_code, b.total_amount
        FROM tickets t
@@ -125,14 +125,15 @@ async function getTicketById(req, res, next) {
     }
 
     const ticket = tickets[0];
-    const customerId = req.user.customerId || req.user.id;
-    if (
-      req.user.role === 'customer' &&
-      ticket.customer_id &&
-      ticket.customer_id !== customerId &&
-      ticket.customer_id !== req.user.id
-    ) {
-      return res.status(403).json({ success: false, message: 'Bạn không có quyền xem vé này.' });
+    // STT 10: Chống lỗ hổng IDOR - Customer chỉ được xem vé của chính mình
+    if (req.user?.role === 'customer') {
+      const currentCustomerId = req.user.customerId || req.user.id;
+      if (Number(ticket.customer_id) !== Number(currentCustomerId) && Number(ticket.customer_id) !== Number(req.user.id)) {
+        return res.status(403).json({
+          success: false,
+          message: 'Bạn không có quyền truy cập vào thông tin vé xem phim này.',
+        });
+      }
     }
 
     return res.status(200).json({ success: true, data: ticket });
@@ -160,7 +161,7 @@ async function verifyTicket(req, res, next) {
               m.name AS movie_name,
               s.start_time, s.end_time,
               r.name AS room_name,
-              st.row_number, st.seat_number,
+              st.\`row_number\`, st.seat_number,
               c.name AS customer_name,
               b.status AS booking_status
        FROM tickets t
@@ -221,8 +222,20 @@ async function verifyTicket(req, res, next) {
       });
     }
 
-    // Đánh dấu vé đã sử dụng (Check-in)
-    await db.query(`UPDATE tickets SET status = 'used' WHERE id = ?`, [ticket.id]);
+    // STT 21: Soát vé nguyên tử (Atomic Update) chống race condition
+    const updateResult = await db.query(
+      `UPDATE tickets SET status = 'used' WHERE id = ? AND status = 'active'`,
+      [ticket.id]
+    );
+
+    const affectedRows = updateResult?.affectedRows ?? updateResult?.[0]?.affectedRows ?? 0;
+    if (affectedRows === 0) {
+      return res.status(409).json({
+        success: false,
+        message: 'Vé này vừa được soát tại cổng hoặc không còn ở trạng thái hợp lệ.',
+        data: ticket,
+      });
+    }
 
     return res.status(200).json({
       success: true,

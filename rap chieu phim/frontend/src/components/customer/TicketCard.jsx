@@ -54,13 +54,13 @@ export function TicketCard({ ticket, onCancel, onSelectDetail, onOpenNavigator }
           <div className="grid grid-cols-2 gap-3 text-xs text-slate-300 mb-4">
             <div className="flex items-center gap-2">
               <Calendar className="w-4 h-4 text-gold-400" />
-              <span>{ticket.start_time ? new Date(ticket.start_time).toLocaleDateString('vi-VN') : '14/09/2026'}</span>
+              <span>{ticket.start_time ? new Date(typeof ticket.start_time === 'string' ? ticket.start_time.replace(' ', 'T') : ticket.start_time).toLocaleDateString('vi-VN') : '14/09/2026'}</span>
             </div>
             <div className="flex items-center gap-2">
               <Clock className="w-4 h-4 text-gold-400" />
               <span className="font-bold text-white">
                 {ticket.start_time
-                  ? new Date(ticket.start_time).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+                  ? new Date(typeof ticket.start_time === 'string' ? ticket.start_time.replace(' ', 'T') : ticket.start_time).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
                   : '18:00'}
               </span>
             </div>

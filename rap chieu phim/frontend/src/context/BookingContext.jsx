@@ -16,9 +16,11 @@ export function BookingProvider({ children }) {
 
     if (activeBooking && activeBooking.holdExpire) {
       const updateTimer = () => {
-        const expireTime = new Date(activeBooking.holdExpire).getTime();
+        const rawExpire = activeBooking.holdExpire;
+        const isoStr = typeof rawExpire === 'string' ? rawExpire.replace(' ', 'T') : rawExpire;
+        const expireTime = new Date(isoStr).getTime();
         const now = Date.now();
-        const diffSeconds = Math.max(0, Math.floor((expireTime - now) / 1000));
+        const diffSeconds = isNaN(expireTime) ? 0 : Math.max(0, Math.floor((expireTime - now) / 1000));
 
         setHoldRemainingSeconds(diffSeconds);
 

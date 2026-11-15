@@ -15,6 +15,7 @@ import {
   Flame,
   CheckSquare
 } from 'lucide-react';
+import { ModalPortal } from '../../components/common/ModalPortal';
 
 export function KdmProjectorManager() {
   const [licenses, setLicenses] = useState([]);
@@ -378,216 +379,202 @@ export function KdmProjectorManager() {
         </div>
       )}
 
-      {/* Modal Nhập Khóa KDM */}
-      {kdmModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-fade-in">
-          <div className="relative w-full max-w-md glass-panel rounded-3xl p-6 shadow-2xl border border-cinema-600">
-            <div className="flex items-center justify-between pb-3 border-b border-cinema-700">
-              <h3 className="font-extrabold text-base text-white flex items-center gap-2">
-                <Key className="w-5 h-5 text-ruby-500" /> Nhập Khóa Bản Quyền KDM Mới
-              </h3>
-              <button onClick={() => setKdmModalOpen(false)} className="p-1 text-slate-400 hover:text-white">
-                <X className="w-5 h-5" />
-              </button>
+      {/* Modal Nhập Khóa KDM - Đưa ra document.body qua ModalPortal */}
+      <ModalPortal
+        isOpen={kdmModalOpen}
+        onClose={() => setKdmModalOpen(false)}
+        title="Nhập Khóa Bản Quyền KDM Mới"
+        subtitle="Cập nhật chứng thư bảo mật DCI Server và thời hạn giải mã DCP"
+        maxWidth="max-w-md"
+      >
+        <form onSubmit={handleKdmSubmit} className="space-y-4 text-xs">
+          <div>
+            <label className="block font-bold text-slate-200 mb-1">Tên phim *</label>
+            <input
+              type="text"
+              required
+              value={kdmForm.movie_name}
+              onChange={(e) => setKdmForm({ ...kdmForm, movie_name: e.target.value })}
+              className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block font-bold text-slate-200 mb-1">Phòng chiếu *</label>
+              <input
+                type="text"
+                required
+                value={kdmForm.room_name}
+                onChange={(e) => setKdmForm({ ...kdmForm, room_name: e.target.value })}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
+              />
             </div>
 
-            <form onSubmit={handleKdmSubmit} className="space-y-4 mt-4 text-xs">
-              <div>
-                <label className="block font-bold text-slate-200 mb-1">Tên phim *</label>
-                <input
-                  type="text"
-                  required
-                  value={kdmForm.movie_name}
-                  onChange={(e) => setKdmForm({ ...kdmForm, movie_name: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-200 mb-1">Phòng chiếu *</label>
-                  <input
-                    type="text"
-                    required
-                    value={kdmForm.room_name}
-                    onChange={(e) => setKdmForm({ ...kdmForm, room_name: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-bold text-slate-200 mb-1">DCI Server Serial</label>
-                  <input
-                    type="text"
-                    value={kdmForm.server_serial}
-                    onChange={(e) => setKdmForm({ ...kdmForm, server_serial: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white font-mono focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-200 mb-1">Hiệu lực từ ngày *</label>
-                  <input
-                    type="date"
-                    required
-                    value={kdmForm.valid_from.slice(0, 10)}
-                    onChange={(e) => setKdmForm({ ...kdmForm, valid_from: e.target.value + ' 00:00:00' })}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-bold text-slate-200 mb-1">Hết hạn vào ngày *</label>
-                  <input
-                    type="date"
-                    required
-                    value={kdmForm.valid_until.slice(0, 10)}
-                    onChange={(e) => setKdmForm({ ...kdmForm, valid_until: e.target.value + ' 23:59:59' })}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-200 mb-1">Tên tệp khóa KDM (.xml)</label>
-                <input
-                  type="text"
-                  value={kdmForm.key_file}
-                  onChange={(e) => setKdmForm({ ...kdmForm, key_file: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white font-mono focus:outline-none"
-                />
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4 border-t border-cinema-700">
-                <button
-                  type="button"
-                  onClick={() => setKdmModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-cinema-800 text-slate-300 hover:bg-cinema-700"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  className="px-6 py-2 rounded-xl bg-ruby-600 hover:bg-ruby-500 text-white font-bold shadow-glow-red"
-                >
-                  Xác Nhận Nạp KDM
-                </button>
-              </div>
-            </form>
+            <div>
+              <label className="block font-bold text-slate-200 mb-1">DCI Server Serial</label>
+              <input
+                type="text"
+                value={kdmForm.server_serial}
+                onChange={(e) => setKdmForm({ ...kdmForm, server_serial: e.target.value })}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white font-mono focus:outline-none"
+              />
+            </div>
           </div>
-        </div>
-      )}
 
-      {/* Modal Checklist Dọn Rạp */}
-      {turnaroundModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-fade-in">
-          <div className="relative w-full max-w-md glass-panel rounded-3xl p-6 shadow-2xl border border-cinema-600">
-            <div className="flex items-center justify-between pb-3 border-b border-cinema-700">
-              <h3 className="font-extrabold text-base text-white flex items-center gap-2">
-                <CheckCircle className="w-5 h-5 text-emerald-400" /> Xác Nhận Vệ Sinh Phòng Chiếu
-              </h3>
-              <button onClick={() => setTurnaroundModalOpen(false)} className="p-1 text-slate-400 hover:text-white">
-                <X className="w-5 h-5" />
-              </button>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block font-bold text-slate-200 mb-1">Hiệu lực từ ngày *</label>
+              <input
+                type="date"
+                required
+                value={kdmForm.valid_from.slice(0, 10)}
+                onChange={(e) => setKdmForm({ ...kdmForm, valid_from: e.target.value + ' 00:00:00' })}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
+              />
             </div>
 
-            <form onSubmit={handleTurnaroundSubmit} className="space-y-4 mt-4 text-xs">
-              <div>
-                <label className="block font-bold text-slate-200 mb-1">Phòng chiếu *</label>
-                <input
-                  type="text"
-                  required
-                  value={turnaroundForm.room_name}
-                  onChange={(e) => setTurnaroundForm({ ...turnaroundForm, room_name: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-200 mb-1">Người dọn rạp *</label>
-                  <input
-                    type="text"
-                    required
-                    value={turnaroundForm.cleaned_by_name}
-                    onChange={(e) => setTurnaroundForm({ ...turnaroundForm, cleaned_by_name: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-bold text-slate-200 mb-1">Thời gian hoàn thành (Phút)</label>
-                  <input
-                    type="number"
-                    value={turnaroundForm.actual_minutes}
-                    onChange={(e) => setTurnaroundForm({ ...turnaroundForm, actual_minutes: parseInt(e.target.value, 10) || 0 })}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              {/* Checklist checkboxes */}
-              <div className="p-3.5 rounded-2xl bg-cinema-950 border border-cinema-800 space-y-2">
-                <label className="block font-bold text-emerald-400 text-[11px] mb-1">Checklist tiêu chuẩn vệ sinh rạp:</label>
-                <label className="flex items-center gap-2 cursor-pointer text-slate-200">
-                  <input
-                    type="checkbox"
-                    checked={turnaroundForm.seats_checked}
-                    onChange={(e) => setTurnaroundForm({ ...turnaroundForm, seats_checked: e.target.checked })}
-                    className="w-4 h-4 accent-ruby-600 rounded"
-                  />
-                  <span>1. Kiểm tra không để sót đồ đạc khách hàng trên ghế</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer text-slate-200">
-                  <input
-                    type="checkbox"
-                    checked={turnaroundForm.trash_cleared}
-                    onChange={(e) => setTurnaroundForm({ ...turnaroundForm, trash_cleared: e.target.checked })}
-                    className="w-4 h-4 accent-ruby-600 rounded"
-                  />
-                  <span>2. Dọn sạch rác, vỏ bắp, ly nước trên sàn và hộc ghế</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer text-slate-200">
-                  <input
-                    type="checkbox"
-                    checked={turnaroundForm.spilled_liquid_cleaned}
-                    onChange={(e) => setTurnaroundForm({ ...turnaroundForm, spilled_liquid_cleaned: e.target.checked })}
-                    className="w-4 h-4 accent-ruby-600 rounded"
-                  />
-                  <span>3. Lau khô nước ngọt đổ, sàn không trơn trượt</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer text-slate-200">
-                  <input
-                    type="checkbox"
-                    checked={turnaroundForm.aircon_normal}
-                    onChange={(e) => setTurnaroundForm({ ...turnaroundForm, aircon_normal: e.target.checked })}
-                    className="w-4 h-4 accent-ruby-600 rounded"
-                  />
-                  <span>4. Điều hòa khán phòng đạt chuẩn 21-23°C</span>
-                </label>
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4 border-t border-cinema-700">
-                <button
-                  type="button"
-                  onClick={() => setTurnaroundModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-cinema-800 text-slate-300 hover:bg-cinema-700"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  className="px-6 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold shadow-glow-emerald"
-                >
-                  Xác Nhận Mở Cửa Rạp
-                </button>
-              </div>
-            </form>
+            <div>
+              <label className="block font-bold text-slate-200 mb-1">Hết hạn vào ngày *</label>
+              <input
+                type="date"
+                required
+                value={kdmForm.valid_until.slice(0, 10)}
+                onChange={(e) => setKdmForm({ ...kdmForm, valid_until: e.target.value + ' 23:59:59' })}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
+              />
+            </div>
           </div>
-        </div>
-      )}
+
+          <div>
+            <label className="block font-bold text-slate-200 mb-1">Tên tệp khóa KDM (.xml)</label>
+            <input
+              type="text"
+              value={kdmForm.key_file}
+              onChange={(e) => setKdmForm({ ...kdmForm, key_file: e.target.value })}
+              className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white font-mono focus:outline-none"
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-cinema-700">
+            <button
+              type="button"
+              onClick={() => setKdmModalOpen(false)}
+              className="px-4 py-2 rounded-xl bg-cinema-800 text-slate-300 hover:bg-cinema-700 cursor-pointer"
+            >
+              Hủy
+            </button>
+            <button
+              type="submit"
+              className="px-6 py-2 rounded-xl bg-ruby-600 hover:bg-ruby-500 text-white font-bold shadow-glow-red cursor-pointer"
+            >
+              Xác Nhận Nạp KDM
+            </button>
+          </div>
+        </form>
+      </ModalPortal>
+
+      {/* Modal Checklist Dọn Rạp - Đưa ra document.body qua ModalPortal */}
+      <ModalPortal
+        isOpen={turnaroundModalOpen}
+        onClose={() => setTurnaroundModalOpen(false)}
+        title="Xác Nhận Vệ Sinh Phòng Chiếu"
+        subtitle="Kiểm tra 4 tiêu chí dọn rạp cấp tốc giữa hai suất chiếu"
+        maxWidth="max-w-md"
+      >
+        <form onSubmit={handleTurnaroundSubmit} className="space-y-4 text-xs">
+          <div>
+            <label className="block font-bold text-slate-200 mb-1">Phòng chiếu *</label>
+            <input
+              type="text"
+              required
+              value={turnaroundForm.room_name}
+              onChange={(e) => setTurnaroundForm({ ...turnaroundForm, room_name: e.target.value })}
+              className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block font-bold text-slate-200 mb-1">Người dọn rạp *</label>
+              <input
+                type="text"
+                required
+                value={turnaroundForm.cleaned_by_name}
+                onChange={(e) => setTurnaroundForm({ ...turnaroundForm, cleaned_by_name: e.target.value })}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-200 mb-1">Thời gian hoàn thành (Phút)</label>
+              <input
+                type="number"
+                value={turnaroundForm.actual_minutes}
+                onChange={(e) => setTurnaroundForm({ ...turnaroundForm, actual_minutes: parseInt(e.target.value, 10) || 0 })}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
+              />
+            </div>
+          </div>
+
+          {/* Checklist checkboxes */}
+          <div className="p-3.5 rounded-2xl bg-cinema-950 border border-cinema-800 space-y-2">
+            <label className="block font-bold text-emerald-400 text-[11px] mb-1">Checklist tiêu chuẩn vệ sinh rạp:</label>
+            <label className="flex items-center gap-2 cursor-pointer text-slate-200">
+              <input
+                type="checkbox"
+                checked={turnaroundForm.seats_checked}
+                onChange={(e) => setTurnaroundForm({ ...turnaroundForm, seats_checked: e.target.checked })}
+                className="w-4 h-4 accent-ruby-600 rounded"
+              />
+              <span>1. Kiểm tra không để sót đồ đạc khách hàng trên ghế</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer text-slate-200">
+              <input
+                type="checkbox"
+                checked={turnaroundForm.trash_cleared}
+                onChange={(e) => setTurnaroundForm({ ...turnaroundForm, trash_cleared: e.target.checked })}
+                className="w-4 h-4 accent-ruby-600 rounded"
+              />
+              <span>2. Dọn sạch rác, vỏ bắp, ly nước trên sàn và hộc ghế</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer text-slate-200">
+              <input
+                type="checkbox"
+                checked={turnaroundForm.spilled_liquid_cleaned}
+                onChange={(e) => setTurnaroundForm({ ...turnaroundForm, spilled_liquid_cleaned: e.target.checked })}
+                className="w-4 h-4 accent-ruby-600 rounded"
+              />
+              <span>3. Lau khô nước ngọt đổ, sàn không trơn trượt</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer text-slate-200">
+              <input
+                type="checkbox"
+                checked={turnaroundForm.aircon_normal}
+                onChange={(e) => setTurnaroundForm({ ...turnaroundForm, aircon_normal: e.target.checked })}
+                className="w-4 h-4 accent-ruby-600 rounded"
+              />
+              <span>4. Điều hòa khán phòng đạt chuẩn 21-23°C</span>
+            </label>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-cinema-700">
+            <button
+              type="button"
+              onClick={() => setTurnaroundModalOpen(false)}
+              className="px-4 py-2 rounded-xl bg-cinema-800 text-slate-300 hover:bg-cinema-700 cursor-pointer"
+            >
+              Hủy
+            </button>
+            <button
+              type="submit"
+              className="px-6 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold shadow-glow-emerald cursor-pointer"
+            >
+              Xác Nhận Mở Cửa Rạp
+            </button>
+          </div>
+        </form>
+      </ModalPortal>
     </div>
   );
 }

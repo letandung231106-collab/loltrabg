@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
 import {
@@ -32,6 +33,29 @@ export function UserProfileModal({ isOpen, onClose, onNavigateMyTickets }) {
 
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState({ text: '', type: '' });
+
+  // Cơ chế 1: Thoát Modal bằng phím tắt ESC
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' || e.key === 'Esc' || e.keyCode === 27) {
+        onClose?.();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
+  // Cơ chế 2: Khóa cuộn trang nền khi mở Modal và dọn dẹp sạch khi đóng / unmount
+  useEffect(() => {
+    if (isOpen) {
+      const prevOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = prevOverflow || 'unset';
+      };
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     if (user) {
@@ -108,16 +132,52 @@ export function UserProfileModal({ isOpen, onClose, onNavigateMyTickets }) {
 
   const membership = user.membership_level || (user.role === 'customer' ? 'gold' : 'platinum');
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
-      <div className="relative w-full max-w-xl glass-panel bg-cinema-900 border border-cinema-700/80 rounded-3xl p-6 sm:p-8 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
-        {/* Ambient Top Glow */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-1.5 bg-gradient-to-r from-transparent via-ruby-500 to-transparent shadow-glow-red" />
-
-        {/* Close Button */}
+  const modalContent = (
+    <div
+      className="fixed inset-0 z-[99999] flex items-center justify-center p-4 sm:p-6 bg-black/85 backdrop-blur-md animate-fade-in"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        width: '100vw',
+        height: '100vh',
+        zIndex: 99999,
+        background: 'rgba(0, 0, 0, 0.82)',
+        backdropFilter: 'blur(8px)',
+        WebkitBackdropFilter: 'blur(8px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '24px',
+      }}
+      onClick={(e) => {
+        // Cơ chế 3: Click Outside (Bấm ra ngoài vùng nền tối để đóng Modal)
+        if (e.target === e.currentTarget) {
+          onClose?.();
+        }
+      }}
+    >
+      <div
+        className="relative w-full max-w-[650px] max-h-[88vh] flex flex-col overflow-hidden rounded-2xl bg-[#12151f] border border-white/10 shadow-2xl p-6 sm:p-8 animate-scale-up"
+        style={{
+          position: 'relative',
+          width: '100%',
+          maxWidth: '650px',
+          maxHeight: '88vh',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          borderRadius: '16px',
+          background: '#12151f',
+          border: '1px solid rgba(255,255,255,0.12)',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Nút Đóng (X) cố định ở góc trên bên phải, kích thước 36x36px */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 p-2 rounded-xl text-slate-400 hover:text-white hover:bg-cinema-800 transition-colors"
+          className="absolute top-4 right-4 z-50 w-9 h-9 rounded-full bg-black/75 hover:bg-ruby-600 text-white backdrop-blur-md transition-all flex items-center justify-center border border-white/20 shadow-lg cursor-pointer hover:scale-105 active:scale-95"
+          title="Đóng (phím ESC)"
+          aria-label="Đóng"
         >
           <X className="w-5 h-5" />
         </button>
@@ -328,4 +388,7 @@ export function UserProfileModal({ isOpen, onClose, onNavigateMyTickets }) {
       </div>
     </div>
   );
+
+  if (typeof document === 'undefined') return null;
+  return createPortal(modalContent, document.body);
 }

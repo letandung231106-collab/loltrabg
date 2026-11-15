@@ -90,6 +90,8 @@ export const api = {
   processPayment: (paymentData) => request('/payments/process', { method: 'POST', body: JSON.stringify(paymentData) }),
   createMomoPayment: (data) => request('/payments/momo/create', { method: 'POST', body: JSON.stringify(data) }),
   verifyMomoReturn: (data) => request('/payments/momo/momo-return', { method: 'POST', body: JSON.stringify(data) }),
+  getVouchers: () => request('/vouchers'),
+  validateVoucher: (data) => request('/vouchers/validate', { method: 'POST', body: JSON.stringify(data) }),
   getAllTickets: (params = {}) => request(`/tickets${buildQueryString(params)}`),
   getMyTickets: () => request('/tickets/my-tickets'),
   getTicketById: (id) => request(`/tickets/${id}`),

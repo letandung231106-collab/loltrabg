@@ -86,7 +86,7 @@ async function getScheduleSeatMap(req, res, next) {
 
     // 2. Lấy toàn bộ danh sách ghế vật lý của phòng
     const physicalSeats = await db.query(
-      `SELECT * FROM seats WHERE room_id = ? ORDER BY row_number ASC, seat_number ASC`,
+      `SELECT * FROM seats WHERE room_id = ? ORDER BY \`row_number\` ASC, seat_number ASC`,
       [schedule.room_id]
     );
 

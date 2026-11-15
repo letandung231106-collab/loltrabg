@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import { Calendar, Plus, Trash2, Edit2, Clock, Film, Building, AlertTriangle, CheckCircle, X } from 'lucide-react';
+import { ModalPortal } from '../../components/common/ModalPortal';
 
 export function SchedulesManager() {
   const [schedules, setSchedules] = useState([]);
@@ -63,10 +64,24 @@ export function SchedulesManager() {
 
   const handleOpenEdit = (s) => {
     setEditingSchedule(s);
-    const startStr = s.start_time.replace(' ', 'T').slice(0, 16);
+    let startStr = '';
+    if (s?.start_time) {
+      try {
+        const d = new Date(s.start_time);
+        if (!isNaN(d.getTime())) {
+          const pad = (n) => String(n).padStart(2, '0');
+          startStr = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        } else {
+          startStr = String(s.start_time).replace(' ', 'T').slice(0, 16);
+        }
+      } catch (e) {
+        startStr = String(s.start_time).replace(' ', 'T').slice(0, 16);
+      }
+    }
+
     setFormData({
-      movie_id: s.movie_id,
-      room_id: s.room_id,
+      movie_id: s.movie_id || '',
+      room_id: s.room_id || '',
       start_time: startStr,
       ticket_price: s.ticket_price || s.price || 90000,
       format: s.format || '2D Phụ đề',
@@ -78,11 +93,18 @@ export function SchedulesManager() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      const payload = {
+        ...formData,
+        ticket_price: parseFloat(formData.ticket_price) || 90000,
+        start_time: formData.start_time?.includes('T')
+          ? formData.start_time.replace('T', ' ') + (formData.start_time.length === 16 ? ':00' : '')
+          : formData.start_time,
+      };
       if (editingSchedule) {
-        const res = await api.updateSchedule(editingSchedule.id, formData);
+        const res = await api.updateSchedule(editingSchedule.id, payload);
         setMsg({ text: res.message || 'Cập nhật suất chiếu thành công!', type: 'success' });
       } else {
-        const res = await api.createSchedule(formData);
+        const res = await api.createSchedule(payload);
         setMsg({ text: res.message || 'Lập lịch chiếu thành công!', type: 'success' });
       }
       setModalOpen(false);
@@ -228,111 +250,112 @@ export function SchedulesManager() {
         </div>
       </div>
 
-      {/* Modal Lập / Sửa Lịch Chiếu */}
-      {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-fade-in">
-          <div className="relative w-full max-w-lg glass-panel rounded-3xl p-6 shadow-2xl border border-cinema-600">
-            <div className="flex items-center justify-between pb-4 border-b border-cinema-700">
-              <h3 className="font-black text-base text-white">
-                {editingSchedule ? 'Cập Nhật Suất Chiếu' : 'Lập Lịch Chiếu Mới'}
-              </h3>
-              <button onClick={() => setModalOpen(false)} className="p-1 text-slate-400 hover:text-white">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmit} className="space-y-4 mt-4 text-xs">
-              <div>
-                <label className="block font-bold text-slate-300 mb-1">Chọn Phim *</label>
-                <select
-                  required
-                  value={formData.movie_id}
-                  onChange={(e) => setFormData({ ...formData, movie_id: e.target.value })}
-                  className="w-full px-3 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none focus:border-ruby-500"
-                >
-                  <option value="">-- Chọn phim --</option>
-                  {movies.map((m) => (
-                    <option key={m.id} value={m.id}>{m.name} ({m.duration} phút)</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-300 mb-1">Chọn Phòng Chiếu *</label>
-                <select
-                  required
-                  value={formData.room_id}
-                  onChange={(e) => setFormData({ ...formData, room_id: e.target.value })}
-                  className="w-full px-3 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none focus:border-ruby-500"
-                >
-                  <option value="">-- Chọn phòng --</option>
-                  {rooms.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.name} ({r.room_type?.toUpperCase()} - Trạng thái: {r.status})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-300 mb-1">Thời gian bắt đầu *</label>
-                <input
-                  type="datetime-local"
-                  required
-                  value={formData.start_time}
-                  onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
-                  className="w-full px-3 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none focus:border-ruby-500"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-300 mb-1">Giá vé cơ bản (VNĐ)</label>
-                  <input
-                    type="number"
-                    step="5000"
-                    value={formData.ticket_price}
-                    onChange={(e) => setFormData({ ...formData, ticket_price: parseFloat(e.target.value) })}
-                    className="w-full px-3 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-300 mb-1">Định dạng chiếu</label>
-                  <input
-                    type="text"
-                    value={formData.format}
-                    onChange={(e) => setFormData({ ...formData, format: e.target.value })}
-                    className="w-full px-3 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="p-3 rounded-xl bg-cinema-900 border border-cinema-700 text-[11px] text-slate-400 space-y-1">
-                <div className="font-bold text-gold-400">🛡️ Tự động kiểm tra ràng buộc (Business Rules):</div>
-                <div>• BR01: Chặn xung đột giờ chiếu cùng phòng (+15p dọn phòng)</div>
-                <div>• BR02: Chặn phòng đang bảo trì / sự cố</div>
-                <div>• BR03: Chặn nếu máy chiếu / âm thanh phòng đang hỏng</div>
-              </div>
-
-              <div className="flex justify-end gap-3 pt-3 border-t border-cinema-700">
-                <button
-                  type="button"
-                  onClick={() => setModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-cinema-800 text-slate-300 hover:bg-cinema-700"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  className="px-6 py-2 rounded-xl bg-ruby-600 hover:bg-ruby-500 text-white font-bold shadow-glow-red"
-                >
-                  {editingSchedule ? 'Lưu Cập Nhật Suất Chiếu' : 'Xác Nhận Lập Lịch'}
-                </button>
-              </div>
-            </form>
+      {/* Modal Lập / Sửa Lịch Chiếu - Đưa ra document.body qua ModalPortal */}
+      <ModalPortal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title={editingSchedule ? 'Cập Nhật Suất Chiếu' : 'Lập Lịch Chiếu Mới'}
+        subtitle={
+          editingSchedule
+            ? 'Chỉnh sửa phòng chiếu, thời gian bắt đầu, giá vé và định dạng'
+            : 'Tự động tính giờ kết thúc dựa trên thời lượng phim và kiểm tra chống xung đột lịch'
+        }
+        maxWidth="max-w-[680px]"
+      >
+        <form onSubmit={handleSubmit} className="space-y-4 text-xs">
+          <div>
+            <label className="block font-bold text-slate-300 mb-1">Chọn Phim *</label>
+            <select
+              required
+              value={formData.movie_id}
+              onChange={(e) => setFormData({ ...formData, movie_id: e.target.value })}
+              className="w-full px-3 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none focus:border-ruby-500"
+            >
+              <option value="">-- Chọn phim --</option>
+              {movies.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name} ({m.duration} phút)
+                </option>
+              ))}
+            </select>
           </div>
-        </div>
-      )}
+
+          <div>
+            <label className="block font-bold text-slate-300 mb-1">Chọn Phòng Chiếu *</label>
+            <select
+              required
+              value={formData.room_id}
+              onChange={(e) => setFormData({ ...formData, room_id: e.target.value })}
+              className="w-full px-3 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none focus:border-ruby-500"
+            >
+              <option value="">-- Chọn phòng --</option>
+              {rooms.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.name} ({r.room_type?.toUpperCase()} - Trạng thái: {r.status})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block font-bold text-slate-300 mb-1">Thời gian bắt đầu *</label>
+            <input
+              type="datetime-local"
+              required
+              value={formData.start_time}
+              onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
+              className="w-full px-3 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none focus:border-ruby-500"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block font-bold text-slate-300 mb-1">Giá vé cơ bản (VNĐ)</label>
+              <input
+                type="number"
+                step="5000"
+                value={formData.ticket_price}
+                onChange={(e) => setFormData({ ...formData, ticket_price: parseFloat(e.target.value) })}
+                className="w-full px-3 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block font-bold text-slate-300 mb-1">Định dạng chiếu</label>
+              <input
+                type="text"
+                value={formData.format}
+                onChange={(e) => setFormData({ ...formData, format: e.target.value })}
+                className="w-full px-3 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-cinema-900/90 border border-cinema-700/80 text-[11px] text-slate-400 space-y-1">
+            <div className="font-bold text-gold-400 flex items-center gap-1.5">
+              <span>🛡️</span> Tự động kiểm tra ràng buộc (Business Rules):
+            </div>
+            <div>• <strong>BR01:</strong> Chặn xung đột giờ chiếu cùng phòng (+15p dọn phòng)</div>
+            <div>• <strong>BR02:</strong> Chặn phòng đang bảo trì / sự cố</div>
+            <div>• <strong>BR03:</strong> Chặn nếu máy chiếu / âm thanh phòng đang hỏng</div>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-3 border-t border-cinema-700">
+            <button
+              type="button"
+              onClick={() => setModalOpen(false)}
+              className="px-4 py-2 rounded-xl bg-cinema-800 text-slate-300 hover:bg-cinema-700 font-semibold transition-colors cursor-pointer"
+            >
+              Hủy
+            </button>
+            <button
+              type="submit"
+              className="px-6 py-2 rounded-xl bg-ruby-600 hover:bg-ruby-500 text-white font-bold shadow-glow-red transition-all cursor-pointer"
+            >
+              {editingSchedule ? 'Lưu Cập Nhật Suất Chiếu' : 'Xác Nhận Lập Lịch'}
+            </button>
+          </div>
+        </form>
+      </ModalPortal>
     </div>
   );
 }

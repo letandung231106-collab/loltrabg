@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { AlertTriangle, Plus, UserCheck, Wrench, CheckCircle2, History, X, MessageSquare } from 'lucide-react';
+import { ModalPortal } from '../../components/common/ModalPortal';
 
 export function IncidentsManager() {
   const { user, isManager, isTechnician, isStaff } = useAuth();
@@ -313,286 +314,269 @@ export function IncidentsManager() {
         </div>
       </div>
 
-      {/* Modal Báo Cáo Sự Cố Mới */}
-      {createModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-fade-in">
-          <div className="relative w-full max-w-lg glass-panel rounded-3xl p-6 shadow-2xl border border-cinema-600">
-            <div className="flex items-center justify-between pb-4 border-b border-cinema-700">
-              <h3 className="font-black text-base text-white">Báo Cáo Sự Cố Kỹ Thuật / Phòng Chiếu</h3>
-              <button onClick={() => setCreateModalOpen(false)} className="p-1 text-slate-400 hover:text-white">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateIncident} className="space-y-4 mt-4 text-xs">
-              <div>
-                <label className="block font-bold text-slate-300 mb-1">Tiêu đề sự cố *</label>
-                <input
-                  type="text"
-                  required
-                  value={createForm.title}
-                  onChange={(e) => setCreateForm({ ...createForm, title: e.target.value })}
-                  placeholder="Ví dụ: Loa surround vách phải bị rè"
-                  className="w-full px-3 py-2 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none focus:border-ruby-500"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-300 mb-1">Phòng chiếu</label>
-                  <select
-                    value={createForm.room_id}
-                    onChange={(e) => setCreateForm({ ...createForm, room_id: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
-                  >
-                    <option value="">-- Khu vực chung --</option>
-                    {rooms.map((r) => (
-                      <option key={r.id} value={r.id}>{r.name}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block font-bold text-slate-300 mb-1">Thiết bị gặp sự cố</label>
-                  <select
-                    value={createForm.equipment_id}
-                    onChange={(e) => setCreateForm({ ...createForm, equipment_id: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
-                  >
-                    <option value="">-- Không rõ / Không có --</option>
-                    {equipmentList.map((eq) => (
-                      <option key={eq.id} value={eq.id}>{eq.name} ({eq.code})</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-300 mb-1">Mức độ nghiêm trọng</label>
-                <select
-                  value={createForm.severity}
-                  onChange={(e) => setCreateForm({ ...createForm, severity: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
-                >
-                  <option value="low">Thấp (Low) - Không ảnh hưởng suất chiếu</option>
-                  <option value="medium">Trung bình (Medium) - Cần khắc phục trong ngày</option>
-                  <option value="high">Cao (High) - Có thể hoãn suất chiếu</option>
-                  <option value="critical">Khẩn cấp (Critical) - Ngừng hoạt động phòng ngay</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-300 mb-1">Mô tả hiện tượng chi tiết *</label>
-                <textarea
-                  rows={3}
-                  required
-                  value={createForm.description}
-                  onChange={(e) => setCreateForm({ ...createForm, description: e.target.value })}
-                  placeholder="Mô tả triệu chứng hư hỏng, thời điểm phát hiện..."
-                  className="w-full px-3 py-2 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
-                />
-              </div>
-
-              <div className="flex justify-end gap-3 pt-3 border-t border-cinema-700">
-                <button
-                  type="button"
-                  onClick={() => setCreateModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-cinema-800 text-slate-300 hover:bg-cinema-700"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  className="px-6 py-2 rounded-xl bg-ruby-600 hover:bg-ruby-500 text-white font-bold shadow-glow-red"
-                >
-                  Gửi Báo Cáo Sự Cố
-                </button>
-              </div>
-            </form>
+      {/* Modal Báo Cáo Sự Cố Mới - Đưa ra document.body qua ModalPortal */}
+      <ModalPortal
+        isOpen={createModalOpen}
+        onClose={() => setCreateModalOpen(false)}
+        title="Báo Cáo Sự Cố Kỹ Thuật / Phòng Chiếu"
+        subtitle="Tiếp nhận thông tin sự cố trang thiết bị, âm thanh, ánh sáng hoặc máy chiếu"
+        maxWidth="max-w-lg"
+      >
+        <form onSubmit={handleCreateIncident} className="space-y-4 text-xs">
+          <div>
+            <label className="block font-bold text-slate-300 mb-1">Tiêu đề sự cố *</label>
+            <input
+              type="text"
+              required
+              value={createForm.title}
+              onChange={(e) => setCreateForm({ ...createForm, title: e.target.value })}
+              placeholder="Ví dụ: Loa surround vách phải bị rè"
+              className="w-full px-3 py-2 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none focus:border-ruby-500"
+            />
           </div>
-        </div>
-      )}
 
-      {/* Modal Phân Công Kỹ Thuật Viên (Manager) */}
-      {assignModalData && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-fade-in">
-          <div className="relative w-full max-w-md glass-panel rounded-3xl p-6 shadow-2xl border border-cinema-600">
-            <div className="flex items-center justify-between pb-3 border-b border-cinema-700">
-              <h3 className="font-black text-sm text-white">Phân Công Kỹ Thuật Viên Xử Lý</h3>
-              <button onClick={() => setAssignModalData(null)} className="p-1 text-slate-400 hover:text-white">
-                <X className="w-5 h-5" />
-              </button>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block font-bold text-slate-300 mb-1">Phòng chiếu</label>
+              <select
+                value={createForm.room_id}
+                onChange={(e) => setCreateForm({ ...createForm, room_id: e.target.value })}
+                className="w-full px-3 py-2 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
+              >
+                <option value="">-- Khu vực chung --</option>
+                {rooms.map((r) => (
+                  <option key={r.id} value={r.id}>{r.name}</option>
+                ))}
+              </select>
             </div>
 
-            <div className="my-3 p-3 rounded-xl bg-cinema-900 text-xs">
+            <div>
+              <label className="block font-bold text-slate-300 mb-1">Thiết bị gặp sự cố</label>
+              <select
+                value={createForm.equipment_id}
+                onChange={(e) => setCreateForm({ ...createForm, equipment_id: e.target.value })}
+                className="w-full px-3 py-2 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
+              >
+                <option value="">-- Không rõ / Không có --</option>
+                {equipmentList.map((eq) => (
+                  <option key={eq.id} value={eq.id}>{eq.name} ({eq.code})</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block font-bold text-slate-300 mb-1">Mức độ nghiêm trọng</label>
+            <select
+              value={createForm.severity}
+              onChange={(e) => setCreateForm({ ...createForm, severity: e.target.value })}
+              className="w-full px-3 py-2 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
+            >
+              <option value="low">Thấp (Low) - Không ảnh hưởng suất chiếu</option>
+              <option value="medium">Trung bình (Medium) - Cần khắc phục trong ngày</option>
+              <option value="high">Cao (High) - Có thể hoãn suất chiếu</option>
+              <option value="critical">Khẩn cấp (Critical) - Ngừng hoạt động phòng ngay</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block font-bold text-slate-300 mb-1">Mô tả hiện tượng chi tiết *</label>
+            <textarea
+              rows={3}
+              required
+              value={createForm.description}
+              onChange={(e) => setCreateForm({ ...createForm, description: e.target.value })}
+              placeholder="Mô tả triệu chứng hư hỏng, thời điểm phát hiện..."
+              className="w-full px-3 py-2 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-3 border-t border-cinema-700">
+            <button
+              type="button"
+              onClick={() => setCreateModalOpen(false)}
+              className="px-4 py-2 rounded-xl bg-cinema-800 text-slate-300 hover:bg-cinema-700 cursor-pointer"
+            >
+              Hủy
+            </button>
+            <button
+              type="submit"
+              className="px-6 py-2 rounded-xl bg-ruby-600 hover:bg-ruby-500 text-white font-bold shadow-glow-red cursor-pointer"
+            >
+              Gửi Báo Cáo Sự Cố
+            </button>
+          </div>
+        </form>
+      </ModalPortal>
+
+      {/* Modal Phân Công Kỹ Thuật Viên (Manager) - Đưa ra document.body qua ModalPortal */}
+      <ModalPortal
+        isOpen={Boolean(assignModalData)}
+        onClose={() => setAssignModalData(null)}
+        title="Phân Công Kỹ Thuật Viên Xử Lý"
+        subtitle={assignModalData ? `Mã sự cố: ${assignModalData.code} • Mức độ: ${assignModalData.severity?.toUpperCase()}` : ''}
+        maxWidth="max-w-md"
+      >
+        <div className="space-y-4 text-xs">
+          {assignModalData && (
+            <div className="p-3 rounded-xl bg-cinema-900 text-xs border border-cinema-700/60">
               <div className="font-bold text-white mb-1">{assignModalData.title}</div>
-              <div className="text-slate-400">Mã sự cố: {assignModalData.code} • Mức độ: <strong className="text-amber-400 uppercase">{assignModalData.severity}</strong></div>
+              <div className="text-slate-400">
+                Mã: {assignModalData.code} • Mức độ: <strong className="text-amber-400 uppercase">{assignModalData.severity}</strong>
+              </div>
+            </div>
+          )}
+
+          <form onSubmit={handleAssignTechnician} className="space-y-4">
+            <div>
+              <label className="block font-bold text-slate-300 mb-1">Chọn Kỹ thuật viên phụ trách *</label>
+              <select
+                required
+                value={selectedTechId}
+                onChange={(e) => setSelectedTechId(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none focus:border-gold-500"
+              >
+                {technicians.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name} ({t.position} - Đang xử lý: {t.pending_tasks} việc)
+                  </option>
+                ))}
+              </select>
             </div>
 
-            <form onSubmit={handleAssignTechnician} className="space-y-4 text-xs">
-              <div>
-                <label className="block font-bold text-slate-300 mb-1">Chọn Kỹ thuật viên phụ trách *</label>
-                <select
-                  required
-                  value={selectedTechId}
-                  onChange={(e) => setSelectedTechId(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none focus:border-gold-500"
-                >
-                  {technicians.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.name} ({t.position} - Đang xử lý: {t.pending_tasks} việc)
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="flex justify-end gap-3 pt-3 border-t border-cinema-700">
-                <button
-                  type="button"
-                  onClick={() => setAssignModalData(null)}
-                  className="px-4 py-2 rounded-xl bg-cinema-800 text-slate-300 hover:bg-cinema-700"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  className="px-6 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-cinema-950 font-bold shadow-glow-amber"
-                >
-                  Giao Nhiệm Vụ Ngay
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Modal Kỹ Thuật Viên Cập Nhật Kết Quả (Technician - BR12, BR15) */}
-      {resolveModalData && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-fade-in">
-          <div className="relative w-full max-w-lg glass-panel rounded-3xl p-6 shadow-2xl border border-cinema-600">
-            <div className="flex items-center justify-between pb-3 border-b border-cinema-700">
-              <h3 className="font-black text-sm text-white">Cập Nhật Tiến Trình & Phương Án Sửa Chữa</h3>
-              <button onClick={() => setResolveModalData(null)} className="p-1 text-slate-400 hover:text-white">
-                <X className="w-5 h-5" />
+            <div className="flex justify-end gap-3 pt-3 border-t border-cinema-700">
+              <button
+                type="button"
+                onClick={() => setAssignModalData(null)}
+                className="px-4 py-2 rounded-xl bg-cinema-800 text-slate-300 hover:bg-cinema-700 cursor-pointer"
+              >
+                Hủy
+              </button>
+              <button
+                type="submit"
+                className="px-6 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-cinema-950 font-bold shadow-glow-amber cursor-pointer"
+              >
+                Giao Nhiệm Vụ Ngay
               </button>
             </div>
-
-            <form onSubmit={handleResolveIncident} className="space-y-4 mt-3 text-xs">
-              <div>
-                <label className="block font-bold text-slate-300 mb-1">Tiêu đề hành động xử lý</label>
-                <input
-                  type="text"
-                  value={resolveForm.action_title}
-                  onChange={(e) => setResolveForm({ ...resolveForm, action_title: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-300 mb-1">Nguyên nhân & Cách khắc phục *</label>
-                <textarea
-                  rows={3}
-                  required
-                  value={resolveForm.description}
-                  onChange={(e) => setResolveForm({ ...resolveForm, description: e.target.value })}
-                  placeholder="Mô tả nguyên nhân hư hỏng, các bước đo đạc, căn chỉnh hoặc thay thế..."
-                  className="w-full px-3 py-2 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-300 mb-1">Linh kiện thay thế (nếu có)</label>
-                  <input
-                    type="text"
-                    value={resolveForm.spare_parts}
-                    onChange={(e) => setResolveForm({ ...resolveForm, spare_parts: e.target.value })}
-                    placeholder="Ví dụ: Tụ điện 50uF, dây LED 12V..."
-                    className="w-full px-3 py-2 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-300 mb-1">Chi phí vật tư (VNĐ)</label>
-                  <input
-                    type="number"
-                    value={resolveForm.cost}
-                    onChange={(e) => setResolveForm({ ...resolveForm, cost: parseFloat(e.target.value) || 0 })}
-                    className="w-full px-3 py-2 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="p-3 rounded-xl bg-cinema-900 border border-cinema-700 flex items-center justify-between">
-                <span className="font-bold text-slate-300">Đã hoàn thành sửa chữa (Chờ nghiệm thu)?</span>
-                <input
-                  type="checkbox"
-                  checked={resolveForm.is_completed}
-                  onChange={(e) => setResolveForm({ ...resolveForm, is_completed: e.target.checked })}
-                  className="w-4 h-4 accent-emerald-500 rounded cursor-pointer"
-                />
-              </div>
-
-              <div className="flex justify-end gap-3 pt-3 border-t border-cinema-700">
-                <button
-                  type="button"
-                  onClick={() => setResolveModalData(null)}
-                  className="px-4 py-2 rounded-xl bg-cinema-800 text-slate-300 hover:bg-cinema-700"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  className="px-6 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold shadow-glow-emerald"
-                >
-                  Lưu & Gửi Báo Cáo
-                </button>
-              </div>
-            </form>
-          </div>
+          </form>
         </div>
-      )}
+      </ModalPortal>
 
-      {/* Modal Lịch Sử Xử Lý (Incident History Timeline - BR15) */}
-      {historyModalData && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-fade-in">
-          <div className="relative w-full max-w-2xl glass-panel rounded-3xl p-6 shadow-2xl border border-cinema-600 overflow-y-auto max-h-[85vh] space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-cinema-700">
-              <div>
-                <h3 className="font-black text-base text-white">Lịch Sử Xử Lý: {historyModalData.code}</h3>
-                <span className="text-xs text-slate-400">{historyModalData.title}</span>
-              </div>
-              <button onClick={() => setHistoryModalData(null)} className="p-1 text-slate-400 hover:text-white">
-                <X className="w-5 h-5" />
-              </button>
+      {/* Modal Kỹ Thuật Viên Cập Nhật Kết Quả - Đưa ra document.body qua ModalPortal */}
+      <ModalPortal
+        isOpen={Boolean(resolveModalData)}
+        onClose={() => setResolveModalData(null)}
+        title="Cập Nhật Tiến Trình & Phương Án Sửa Chữa"
+        subtitle={resolveModalData ? `Sự cố: ${resolveModalData.title} (${resolveModalData.code})` : ''}
+        maxWidth="max-w-lg"
+      >
+        <form onSubmit={handleResolveIncident} className="space-y-4 text-xs">
+          <div>
+            <label className="block font-bold text-slate-300 mb-1">Tiêu đề hành động xử lý</label>
+            <input
+              type="text"
+              value={resolveForm.action_title}
+              onChange={(e) => setResolveForm({ ...resolveForm, action_title: e.target.value })}
+              className="w-full px-3 py-2 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
+            />
+          </div>
+
+          <div>
+            <label className="block font-bold text-slate-300 mb-1">Nguyên nhân & Cách khắc phục *</label>
+            <textarea
+              rows={3}
+              required
+              value={resolveForm.description}
+              onChange={(e) => setResolveForm({ ...resolveForm, description: e.target.value })}
+              placeholder="Mô tả nguyên nhân hư hỏng, các bước đo đạc, căn chỉnh hoặc thay thế..."
+              className="w-full px-3 py-2 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block font-bold text-slate-300 mb-1">Linh kiện thay thế (nếu có)</label>
+              <input
+                type="text"
+                value={resolveForm.spare_parts}
+                onChange={(e) => setResolveForm({ ...resolveForm, spare_parts: e.target.value })}
+                placeholder="Ví dụ: Tụ điện 50uF, dây LED 12V..."
+                className="w-full px-3 py-2 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
+              />
             </div>
+            <div>
+              <label className="block font-bold text-slate-300 mb-1">Chi phí vật tư (VNĐ)</label>
+              <input
+                type="number"
+                value={resolveForm.cost}
+                onChange={(e) => setResolveForm({ ...resolveForm, cost: parseFloat(e.target.value) || 0 })}
+                className="w-full px-3 py-2 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
+              />
+            </div>
+          </div>
 
-            <div className="space-y-4">
-              {historyModalData.histories?.length === 0 ? (
-                <p className="text-slate-400 text-xs text-center py-6">Chưa có lịch sử xử lý.</p>
-              ) : (
-                historyModalData.histories?.map((h, idx) => (
-                  <div key={h.id} className="p-4 rounded-2xl bg-cinema-900 border border-cinema-700 text-xs space-y-1.5 relative">
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-amber-400 flex items-center gap-1.5">
-                        <MessageSquare className="w-3.5 h-3.5" /> {h.action}
-                      </span>
-                      <span className="text-[10px] text-slate-500 font-mono">{h.created_at}</span>
-                    </div>
-                    <div className="text-slate-200 leading-relaxed">{h.description}</div>
-                    {(h.spare_parts || parseFloat(h.cost) > 0) && (
-                      <div className="pt-2 border-t border-cinema-800 flex items-center gap-4 text-[11px] text-slate-400">
-                        {h.spare_parts && <span>Linh kiện: <strong className="text-white">{h.spare_parts}</strong></span>}
-                        {parseFloat(h.cost) > 0 && <span>Chi phí: <strong className="text-emerald-400 font-mono">{parseFloat(h.cost).toLocaleString('vi-VN')}đ</strong></span>}
-                      </div>
-                    )}
-                    <div className="text-[10px] text-slate-500 text-right">Thực hiện bởi: {h.employee_name} ({h.position})</div>
+          <div className="p-3 rounded-xl bg-cinema-900 border border-cinema-700 flex items-center justify-between">
+            <span className="font-bold text-slate-300">Đã hoàn thành sửa chữa (Chờ nghiệm thu)?</span>
+            <input
+              type="checkbox"
+              checked={resolveForm.is_completed}
+              onChange={(e) => setResolveForm({ ...resolveForm, is_completed: e.target.checked })}
+              className="w-4 h-4 accent-emerald-500 rounded cursor-pointer"
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-3 border-t border-cinema-700">
+            <button
+              type="button"
+              onClick={() => setResolveModalData(null)}
+              className="px-4 py-2 rounded-xl bg-cinema-800 text-slate-300 hover:bg-cinema-700 cursor-pointer"
+            >
+              Hủy
+            </button>
+            <button
+              type="submit"
+              className="px-6 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold shadow-glow-emerald cursor-pointer"
+            >
+              Lưu & Gửi Báo Cáo
+            </button>
+          </div>
+        </form>
+      </ModalPortal>
+
+      {/* Modal Lịch Sử Xử Lý - Đưa ra document.body qua ModalPortal */}
+      <ModalPortal
+        isOpen={Boolean(historyModalData)}
+        onClose={() => setHistoryModalData(null)}
+        title={historyModalData ? `Lịch Sử Xử Lý: ${historyModalData.code}` : ''}
+        subtitle={historyModalData?.title}
+        maxWidth="max-w-2xl"
+      >
+        <div className="space-y-4 text-xs">
+          {historyModalData?.histories?.length === 0 ? (
+            <p className="text-slate-400 text-xs text-center py-6">Chưa có lịch sử xử lý.</p>
+          ) : (
+            historyModalData?.histories?.map((h) => (
+              <div key={h.id} className="p-4 rounded-2xl bg-cinema-900 border border-cinema-700 text-xs space-y-1.5 relative">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-amber-400 flex items-center gap-1.5">
+                    <MessageSquare className="w-3.5 h-3.5" /> {h.action}
+                  </span>
+                  <span className="text-[10px] text-slate-500 font-mono">{h.created_at}</span>
+                </div>
+                <div className="text-slate-200 leading-relaxed">{h.description}</div>
+                {(h.spare_parts || parseFloat(h.cost) > 0) && (
+                  <div className="pt-2 border-t border-cinema-800 flex items-center gap-4 text-[11px] text-slate-400">
+                    {h.spare_parts && <span>Linh kiện: <strong className="text-white">{h.spare_parts}</strong></span>}
+                    {parseFloat(h.cost) > 0 && <span>Chi phí: <strong className="text-emerald-400 font-mono">{parseFloat(h.cost).toLocaleString('vi-VN')}đ</strong></span>}
                   </div>
-                ))
-              )}
-            </div>
-          </div>
+                )}
+                <div className="text-[10px] text-slate-500 text-right">Thực hiện bởi: {h.employee_name} ({h.position})</div>
+              </div>
+            ))
+          )}
         </div>
-      )}
+      </ModalPortal>
     </div>
   );
 }

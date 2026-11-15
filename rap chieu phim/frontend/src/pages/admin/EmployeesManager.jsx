@@ -14,6 +14,7 @@ import {
   AlertCircle,
   Lock,
 } from 'lucide-react';
+import { ModalPortal } from '../../components/common/ModalPortal';
 
 export function EmployeesManager() {
   const [employees, setEmployees] = useState([]);
@@ -244,146 +245,142 @@ export function EmployeesManager() {
         ))}
       </div>
 
-      {/* Modal Thêm / Chỉnh Sửa Nhân Sự */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-fade-in">
-          <div className="relative w-full max-w-lg glass-panel rounded-3xl p-6 sm:p-8 shadow-2xl border border-cinema-600/70 overflow-hidden">
-            <button
-              onClick={() => setIsModalOpen(false)}
-              className="absolute top-4 right-4 p-2 rounded-xl text-slate-400 hover:text-white"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <h3 className="text-xl font-extrabold text-white mb-1 flex items-center gap-2">
-              <Shield className="w-5 h-5 text-ruby-500" />
-              {editingEmployee ? 'Chỉnh Sửa & Phân Quyền Nhân Sự' : 'Thêm Mới Nhân Viên'}
-            </h3>
-            <p className="text-xs text-slate-400 mb-5">
-              {editingEmployee
-                ? `Cập nhật thông tin và vai trò truy cập hệ thống của @${editingEmployee.username}`
-                : 'Khởi tạo hồ sơ nhân viên và tài khoản đăng nhập vào hệ thống'}
-            </p>
-
-            <form onSubmit={handleSubmit} className="space-y-4 text-xs">
-              {!editingEmployee && (
-                <div className="grid grid-cols-2 gap-3 p-3 rounded-2xl bg-cinema-900 border border-cinema-700/60">
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-300 mb-1">Username *</label>
-                    <input
-                      type="text"
-                      required
-                      value={formData.username}
-                      onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                      placeholder="staff_nguyen"
-                      className="w-full px-3 py-2 rounded-xl bg-cinema-850 border border-cinema-700 text-white focus:outline-none focus:border-ruby-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-300 mb-1">Mật khẩu *</label>
-                    <input
-                      type="password"
-                      required
-                      value={formData.password}
-                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                      placeholder="password123"
-                      className="w-full px-3 py-2 rounded-xl bg-cinema-850 border border-cinema-700 text-white focus:outline-none focus:border-ruby-500"
-                    />
-                  </div>
-                </div>
-              )}
-
+      {/* Modal Thêm / Chỉnh Sửa Nhân Sự - Đưa ra document.body qua ModalPortal */}
+      <ModalPortal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        title={editingEmployee ? 'Chỉnh Sửa & Phân Quyền Nhân Sự' : 'Thêm Mới Nhân Viên'}
+        subtitle={
+          editingEmployee
+            ? `Cập nhật thông tin và vai trò truy cập hệ thống của @${editingEmployee.username}`
+            : 'Khởi tạo hồ sơ nhân viên và tài khoản đăng nhập vào hệ thống'
+        }
+        maxWidth="max-w-lg"
+      >
+        <form onSubmit={handleSubmit} className="space-y-4 text-xs">
+          {!editingEmployee && (
+            <div className="grid grid-cols-2 gap-3 p-3 rounded-2xl bg-cinema-900 border border-cinema-700/60">
               <div>
-                <label className="block font-semibold text-slate-300 mb-1">Họ và tên nhân viên *</label>
+                <label className="block text-[11px] font-semibold text-slate-300 mb-1">Username *</label>
                 <input
                   type="text"
                   required
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="Trần Văn Bình"
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-850 border border-cinema-700 text-white focus:outline-none focus:border-ruby-500"
+                  value={formData.username}
+                  onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                  placeholder="staff_nguyen"
+                  className="w-full px-3 py-2 rounded-xl bg-cinema-850 border border-cinema-700 text-white focus:outline-none focus:border-ruby-500"
                 />
               </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-slate-300 mb-1">Số điện thoại</label>
-                  <input
-                    type="tel"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    placeholder="0912345678"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-850 border border-cinema-700 text-white focus:outline-none font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold text-slate-300 mb-1">Email</label>
-                  <input
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    placeholder="binh.tran@cinema.vn"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-850 border border-cinema-700 text-white focus:outline-none"
-                  />
-                </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-300 mb-1">Mật khẩu *</label>
+                <input
+                  type="password"
+                  required
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  placeholder="password123"
+                  className="w-full px-3 py-2 rounded-xl bg-cinema-850 border border-cinema-700 text-white focus:outline-none focus:border-ruby-500"
+                />
               </div>
+            </div>
+          )}
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-slate-300 mb-1">Chức vụ hiển thị</label>
-                  <input
-                    type="text"
-                    value={formData.position}
-                    onChange={(e) => setFormData({ ...formData, position: e.target.value })}
-                    placeholder="Giám sát ca / Nhân viên soát vé"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-850 border border-cinema-700 text-white focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold text-slate-300 mb-1">Phòng ban</label>
-                  <select
-                    value={formData.department}
-                    onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-850 border border-cinema-700 text-white focus:outline-none"
-                  >
-                    <option value="Vận Hành Rạp">Vận Hành Rạp</option>
-                    <option value="Kỹ Thuật & Bảo Trì">Kỹ Thuật & Bảo Trì</option>
-                    <option value="Ban Giám Đốc">Ban Giám Đốc</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="p-3.5 rounded-2xl bg-cinema-900 border border-gold-500/40 space-y-2">
-                <label className="block font-bold text-gold-400 uppercase tracking-wider">
-                  👑 Phân quyền hệ thống (System Role):
-                </label>
-                <select
-                  value={formData.role}
-                  onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-cinema-850 border border-cinema-700 text-white focus:outline-none font-bold"
-                >
-                  <option value="staff">Staff - Nhân viên vận hành (Checklist, Bán vé, Soát vé)</option>
-                  <option value="technician">Technician - Kỹ thuật viên (Bảo trì máy chiếu, sự cố thiết bị)</option>
-                  <option value="manager">Manager - Quản lý rạp (Lịch chiếu, vận hành, kiểm tra rạp)</option>
-                  <option value="admin">Admin - Toàn quyền quản trị hệ thống</option>
-                </select>
-                <div className="text-[10px] text-slate-400">
-                  Vai trò quyết định các module mà nhân sự có quyền xem và thao tác trên thanh menu.
-                </div>
-              </div>
-
-              <div className="pt-2">
-                <button
-                  type="submit"
-                  className="w-full py-3 rounded-xl bg-ruby-600 hover:bg-ruby-500 text-white font-bold text-xs shadow-glow-red transition-all"
-                >
-                  {editingEmployee ? 'Lưu Thông Tin & Phân Quyền' : 'Tạo Nhân Viên Mới'}
-                </button>
-              </div>
-            </form>
+          <div>
+            <label className="block font-semibold text-slate-300 mb-1">Họ và tên nhân viên *</label>
+            <input
+              type="text"
+              required
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              placeholder="Trần Văn Bình"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-850 border border-cinema-700 text-white focus:outline-none focus:border-ruby-500"
+            />
           </div>
-        </div>
-      )}
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block font-semibold text-slate-300 mb-1">Số điện thoại</label>
+              <input
+                type="tel"
+                value={formData.phone}
+                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                placeholder="0912345678"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-850 border border-cinema-700 text-white focus:outline-none font-mono"
+              />
+            </div>
+            <div>
+              <label className="block font-semibold text-slate-300 mb-1">Email</label>
+              <input
+                type="email"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                placeholder="binh.tran@cinema.vn"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-850 border border-cinema-700 text-white focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block font-semibold text-slate-300 mb-1">Chức vụ hiển thị</label>
+              <input
+                type="text"
+                value={formData.position}
+                onChange={(e) => setFormData({ ...formData, position: e.target.value })}
+                placeholder="Giám sát ca / Nhân viên soát vé"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-850 border border-cinema-700 text-white focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block font-semibold text-slate-300 mb-1">Phòng ban</label>
+              <select
+                value={formData.department}
+                onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-850 border border-cinema-700 text-white focus:outline-none"
+              >
+                <option value="Vận Hành Rạp">Vận Hành Rạp</option>
+                <option value="Kỹ Thuật & Bảo Trì">Kỹ Thuật & Bảo Trì</option>
+                <option value="Ban Giám Đốc">Ban Giám Đốc</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="p-3.5 rounded-2xl bg-cinema-900 border border-gold-500/40 space-y-2">
+            <label className="block font-bold text-gold-400 uppercase tracking-wider">
+              👑 Phân quyền hệ thống (System Role):
+            </label>
+            <select
+              value={formData.role}
+              onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+              className="w-full px-3 py-2 rounded-xl bg-cinema-850 border border-cinema-700 text-white focus:outline-none font-bold"
+            >
+              <option value="staff">Staff - Nhân viên vận hành (Checklist, Bán vé, Soát vé)</option>
+              <option value="technician">Technician - Kỹ thuật viên (Bảo trì máy chiếu, sự cố thiết bị)</option>
+              <option value="manager">Manager - Quản lý rạp (Lịch chiếu, vận hành, kiểm tra rạp)</option>
+              <option value="admin">Admin - Toàn quyền quản trị hệ thống</option>
+            </select>
+            <div className="text-[10px] text-slate-400">
+              Vai trò quyết định các module mà nhân sự có quyền xem và thao tác trên thanh menu.
+            </div>
+          </div>
+
+          <div className="pt-2 flex justify-end gap-3 border-t border-cinema-700/60">
+            <button
+              type="button"
+              onClick={() => setIsModalOpen(false)}
+              className="px-4 py-2 rounded-xl bg-cinema-800 text-slate-300 hover:bg-cinema-700 font-semibold cursor-pointer"
+            >
+              Hủy
+            </button>
+            <button
+              type="submit"
+              className="px-6 py-2.5 rounded-xl bg-ruby-600 hover:bg-ruby-500 text-white font-bold text-xs shadow-glow-red transition-all cursor-pointer"
+            >
+              {editingEmployee ? 'Lưu Thông Tin & Phân Quyền' : 'Tạo Nhân Viên Mới'}
+            </button>
+          </div>
+        </form>
+      </ModalPortal>
     </div>
   );
 }

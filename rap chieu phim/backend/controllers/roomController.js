@@ -45,7 +45,7 @@ async function getRoomById(req, res, next) {
 
     // Lấy danh sách ghế
     const seats = await db.query(
-      `SELECT * FROM seats WHERE room_id = ? ORDER BY row_number ASC, seat_number ASC`,
+      `SELECT * FROM seats WHERE room_id = ? ORDER BY \`row_number\` ASC, seat_number ASC`,
       [id]
     );
 
@@ -153,7 +153,7 @@ async function createRoom(req, res, next) {
 
       if (seatValues.length > 0) {
         await conn.query(
-          `INSERT INTO seats (room_id, row_number, seat_number, seat_type, status) VALUES ?`,
+          `INSERT INTO seats (room_id, \`row_number\`, seat_number, seat_type, status) VALUES ?`,
           [seatValues]
         );
       }

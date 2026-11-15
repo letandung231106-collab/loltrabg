@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { api } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import {
@@ -36,6 +37,29 @@ export function MovieDetailModal({ isOpen, onClose, movie, onSelectSchedule }) {
   const [submittingReview, setSubmittingReview] = useState(false);
   const [reviewMsg, setReviewMsg] = useState('');
 
+  // Cơ chế 1: Thoát Modal bằng phím tắt ESC
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' || e.key === 'Esc' || e.keyCode === 27) {
+        onClose?.();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
+  // Cơ chế 2: Khóa cuộn trang nền khi mở Modal và phục hồi sạch khi đóng/unmount
+  useEffect(() => {
+    if (isOpen) {
+      const prevOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = prevOverflow || 'unset';
+      };
+    }
+  }, [isOpen]);
+
   useEffect(() => {
     if (isOpen && movie?.id) {
       fetchMovieSchedules(movie.id);
@@ -44,18 +68,22 @@ export function MovieDetailModal({ isOpen, onClose, movie, onSelectSchedule }) {
       setReviewMsg('');
       setNewComment('');
       setNewRating(5);
+      setSelectedDate('all');
     }
-  }, [isOpen, movie]);
+  }, [isOpen, movie?.id]);
 
   const fetchMovieSchedules = async (movieId) => {
     setLoadingSchedules(true);
     try {
       const res = await api.getSchedules({ movie_id: movieId, status: 'scheduled' });
-      if (res.success && res.data) {
+      if (res && res.success && Array.isArray(res.data)) {
         setSchedules(res.data);
+      } else {
+        setSchedules([]);
       }
     } catch (err) {
       console.error('Lỗi tải lịch chiếu phim:', err);
+      setSchedules([]);
     } finally {
       setLoadingSchedules(false);
     }
@@ -64,13 +92,14 @@ export function MovieDetailModal({ isOpen, onClose, movie, onSelectSchedule }) {
   const fetchMovieReviews = async (movieId) => {
     try {
       const res = await api.getMovieReviews(movieId);
-      if (res.success && res.data) {
-        setReviews(res.data.reviews || []);
+      if (res && res.success && res.data) {
+        setReviews(Array.isArray(res.data.reviews) ? res.data.reviews : []);
         setAverageRating(res.data.averageRating ?? null);
-        setTotalReviews(res.data.totalReviews || 0);
+        setTotalReviews(Number(res.data.totalReviews || 0));
       }
     } catch (err) {
       console.warn('Lỗi tải đánh giá phim:', err);
+      setReviews([]);
     }
   };
 
@@ -91,7 +120,7 @@ export function MovieDetailModal({ isOpen, onClose, movie, onSelectSchedule }) {
         rating: newRating,
         comment: newComment.trim(),
       });
-      if (res.success && res.data) {
+      if (res && res.success && res.data) {
         setReviews((prev) => {
           const updated = [res.data, ...prev];
           const avg = updated.reduce((sum, item) => sum + Number(item.rating || 0), 0) / updated.length;
@@ -112,9 +141,58 @@ export function MovieDetailModal({ isOpen, onClose, movie, onSelectSchedule }) {
 
   if (!isOpen || !movie) return null;
 
+  // Defensive formatting for genres
+  const formattedGenre = Array.isArray(movie.genres)
+    ? movie.genres.join(', ')
+    : Array.isArray(movie.genre)
+    ? movie.genre.join(', ')
+    : typeof movie.genre === 'string'
+    ? movie.genre
+    : typeof movie.genres === 'string'
+    ? movie.genres
+    : 'Chưa phân loại';
+
+  // Defensive formatting for cast & director
+  const movieCast = Array.isArray(movie.cast)
+    ? movie.cast.join(', ')
+    : Array.isArray(movie.actors)
+    ? movie.actors.join(', ')
+    : typeof movie.actors === 'string'
+    ? movie.actors
+    : typeof movie.cast === 'string'
+    ? movie.cast
+    : 'Đang cập nhật';
+
+  const movieDirector = Array.isArray(movie.director)
+    ? movie.director.join(', ')
+    : typeof movie.director === 'string'
+    ? movie.director
+    : 'Đang cập nhật';
+
+  // Defensive schedule date/time parsing
+  const safeSchedules = Array.isArray(schedules) ? schedules : [];
+  const getDateStr = (sched) => {
+    const raw = sched?.start_time;
+    if (!raw || typeof raw !== 'string') return '';
+    return raw.split('T')[0] || raw.split(' ')[0] || '';
+  };
+  const getTimeStr = (time) => {
+    if (!time || typeof time !== 'string') return '--:--';
+    return time.split('T')[1]?.slice(0, 5) || time.split(' ')[1]?.slice(0, 5) || '--:--';
+  };
+
+  const availableDates = Array.from(
+    new Set(safeSchedules.map(getDateStr).filter(Boolean))
+  );
+
+  const filteredSchedules = safeSchedules.filter((s) => {
+    if (selectedDate === 'all') return true;
+    return getDateStr(s) === selectedDate;
+  });
+
   // Convert standard YouTube watch link to embed link
   const getEmbedUrl = (url) => {
-    if (!url) return '';
+    if (!url || typeof url !== 'string') return '';
     if (url.includes('youtube.com/embed/')) return url;
     const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/);
     return match ? `https://www.youtube.com/embed/${match[1]}?autoplay=1` : url;
@@ -122,56 +200,107 @@ export function MovieDetailModal({ isOpen, onClose, movie, onSelectSchedule }) {
 
   const embedUrl = getEmbedUrl(movie.trailer);
 
-  // Group schedules by Date
-  const availableDates = Array.from(
-    new Set(schedules.map((s) => s.start_time.split('T')[0] || s.start_time.split(' ')[0]))
-  );
+  const displayRating =
+    averageRating !== null && !isNaN(Number(averageRating))
+      ? Number(averageRating).toFixed(1)
+      : movie?.rating !== undefined && !isNaN(Number(movie.rating))
+      ? Number(movie.rating).toFixed(1)
+      : null;
 
-  const filteredSchedules = schedules.filter((s) => {
-    if (selectedDate === 'all') return true;
-    const sDate = s.start_time.split('T')[0] || s.start_time.split(' ')[0];
-    return sDate === selectedDate;
-  });
+  const modalContent = (
+    <div
+      className="fixed inset-0 z-[99999] flex items-center justify-center p-4 sm:p-6 bg-black/85 backdrop-blur-md animate-fade-in"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        width: '100vw',
+        height: '100vh',
+        zIndex: 99999,
+        background: 'rgba(0, 0, 0, 0.82)',
+        backdropFilter: 'blur(8px)',
+        WebkitBackdropFilter: 'blur(8px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '24px',
+      }}
+      onClick={(e) => {
+        // Cơ chế 3: Click Outside (Bấm ra ngoài vùng nền tối để đóng Modal)
+        if (e.target === e.currentTarget) {
+          onClose?.();
+        }
+      }}
+    >
+      <div
+        className="relative w-full max-w-[850px] max-h-[88vh] flex flex-col overflow-hidden rounded-2xl bg-[#12151f] border border-white/10 shadow-2xl animate-scale-up"
+        style={{
+          position: 'relative',
+          width: '100%',
+          maxWidth: '850px',
+          maxHeight: '88vh',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          borderRadius: '16px',
+          background: '#12151f',
+          border: '1px solid rgba(255,255,255,0.12)',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Nút Đóng (X) cố định ở góc trên bên phải, kích thước rõ ràng 36x36px, màu nền tối viền sáng nổi bật */}
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 z-50 w-9 h-9 rounded-full bg-black/75 hover:bg-ruby-600 text-white backdrop-blur-md transition-all flex items-center justify-center border border-white/20 shadow-lg cursor-pointer hover:scale-105 active:scale-95"
+          title="Đóng cửa sổ (phím ESC)"
+          aria-label="Đóng"
+        >
+          <X className="w-5 h-5" />
+        </button>
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-fade-in">
-      <div className="relative w-full max-w-4xl bg-cinema-900 border border-cinema-700/80 rounded-3xl overflow-hidden shadow-2xl max-h-[92vh] flex flex-col">
         {/* Header / Backdrop banner */}
-        <div className="relative h-64 sm:h-80 w-full overflow-hidden shrink-0 bg-cinema-950">
+        <div className="relative h-60 sm:h-72 w-full overflow-hidden shrink-0 bg-cinema-950">
           {isPlayingTrailer && embedUrl ? (
-            <iframe
-              src={embedUrl}
-              title={`Trailer: ${movie.name}`}
-              className="w-full h-full object-cover"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-            />
+            <div className="relative w-full h-full">
+              <iframe
+                src={embedUrl}
+                title={`Trailer: ${movie.name}`}
+                className="w-full h-full object-cover"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+              />
+              <button
+                onClick={() => setIsPlayingTrailer(false)}
+                className="absolute bottom-3 right-3 px-3 py-1.5 rounded-xl bg-black/75 hover:bg-black/95 text-white text-xs font-bold border border-white/20 backdrop-blur-md"
+              >
+                Thu nhỏ Trailer
+              </button>
+            </div>
           ) : (
             <>
               <img
-                src={movie.poster}
-                alt={movie.name}
-                className="w-full h-full object-cover filter brightness-[0.65] blur-sm scale-105"
+                src={movie.poster || 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=800'}
+                alt={movie.name || 'Chi tiết phim'}
+                className="w-full h-full object-cover filter brightness-[0.55] blur-sm scale-105"
                 onError={(e) => {
                   e.target.onerror = null;
                   e.target.src = 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?q=80&w=800';
                 }}
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-cinema-900 via-cinema-900/60 to-transparent" />
-              <div className="absolute inset-0 bg-gradient-to-r from-cinema-900 via-transparent to-cinema-900" />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#12151f] via-[#12151f]/60 to-transparent" />
+              <div className="absolute inset-0 bg-gradient-to-r from-[#12151f] via-transparent to-[#12151f]" />
 
               {/* Poster thumbnail inside banner */}
-              <div className="absolute bottom-4 left-6 flex items-end gap-5">
+              <div className="absolute bottom-4 left-6 right-16 flex items-end gap-5">
                 <img
-                  src={movie.poster}
-                  alt={movie.name}
-                  className="w-24 sm:w-32 aspect-[2/3] object-cover rounded-2xl border-2 border-ruby-500 shadow-glow-red shrink-0"
+                  src={movie.poster || 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=800'}
+                  alt={movie.name || 'Poster'}
+                  className="w-24 sm:w-28 aspect-[2/3] object-cover rounded-2xl border-2 border-ruby-500 shadow-glow-red shrink-0"
                   onError={(e) => {
                     e.target.onerror = null;
                     e.target.src = 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=800';
                   }}
                 />
-                <div className="space-y-1.5 pb-1">
+                <div className="space-y-1.5 pb-1 min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="px-2.5 py-0.5 rounded-full bg-ruby-600 text-white font-extrabold text-[11px] uppercase tracking-wider">
                       {movie.age_rating || 'P'}
@@ -183,60 +312,60 @@ export function MovieDetailModal({ isOpen, onClose, movie, onSelectSchedule }) {
                       {movie.status === 'now_showing' ? 'Đang chiếu' : 'Sắp chiếu'}
                     </span>
                   </div>
-                  <h2 className="text-xl sm:text-3xl font-black text-white leading-tight drop-shadow-md">
+                  <h2 className="text-xl sm:text-2xl md:text-3xl font-black text-white leading-tight drop-shadow-md truncate">
                     {movie.name}
                   </h2>
-                  <p className="text-xs text-ruby-400 font-semibold">{movie.genre}</p>
+                  <p className="text-xs text-ruby-400 font-semibold truncate">{formattedGenre}</p>
                 </div>
               </div>
 
               {/* Play Trailer Floating Button */}
               {movie.trailer && (
                 <button
+                  type="button"
                   onClick={() => setIsPlayingTrailer(true)}
-                  className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 px-5 py-2.5 rounded-full bg-ruby-600/90 hover:bg-ruby-500 text-white font-bold text-xs shadow-glow-red flex items-center gap-2 backdrop-blur-sm transition-all hover:scale-105"
+                  className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 px-4 py-2 rounded-full bg-ruby-600/90 hover:bg-ruby-500 text-white font-bold text-xs shadow-glow-red flex items-center gap-2 backdrop-blur-sm transition-all hover:scale-105 active:scale-95 cursor-pointer"
                 >
                   <Play className="w-4 h-4 fill-white" /> Xem Trailer Phim
                 </button>
               )}
             </>
           )}
-
-          {/* Close button */}
-          <button
-            onClick={onClose}
-            className="absolute top-4 right-4 p-2 rounded-2xl bg-black/60 hover:bg-ruby-600 text-white backdrop-blur-sm transition-colors z-10 border border-white/20"
-          >
-            <X className="w-5 h-5" />
-          </button>
         </div>
 
         {/* Scrollable Content Body */}
-        <div className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-6">
+        <div
+          className="modal-body flex-1 overflow-y-auto p-6 space-y-6"
+          style={{
+            overflowY: 'auto',
+            flex: 1,
+            padding: '24px',
+          }}
+        >
           {/* Quick Stats Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="p-3 rounded-2xl bg-cinema-850 border border-cinema-700/60 text-xs">
+            <div className="p-3 rounded-2xl bg-cinema-850/80 border border-cinema-700/60 text-xs">
               <span className="text-slate-400 text-[11px] flex items-center gap-1 mb-1">
                 <Clock className="w-3.5 h-3.5 text-ruby-400" /> Thời lượng
               </span>
-              <strong className="text-white text-sm">{movie.duration} phút</strong>
+              <strong className="text-white text-sm">{movie.duration || 120} phút</strong>
             </div>
 
-            <div className="p-3 rounded-2xl bg-cinema-850 border border-cinema-700/60 text-xs">
+            <div className="p-3 rounded-2xl bg-cinema-850/80 border border-cinema-700/60 text-xs">
               <span className="text-slate-400 text-[11px] flex items-center gap-1 mb-1">
                 <Calendar className="w-3.5 h-3.5 text-ruby-400" /> Ngày khởi chiếu
               </span>
-              <strong className="text-white text-sm">{movie.release_date}</strong>
+              <strong className="text-white text-sm">{movie.release_date || 'Đang cập nhật'}</strong>
             </div>
 
-            <div className="p-3 rounded-2xl bg-cinema-850 border border-cinema-700/60 text-xs">
+            <div className="p-3 rounded-2xl bg-cinema-850/80 border border-cinema-700/60 text-xs">
               <span className="text-slate-400 text-[11px] flex items-center gap-1 mb-1">
                 <Film className="w-3.5 h-3.5 text-ruby-400" /> Ngôn ngữ
               </span>
               <strong className="text-white text-sm truncate block">{movie.language || 'Tiếng Việt'}</strong>
             </div>
 
-            <div className="p-3 rounded-2xl bg-cinema-850 border border-cinema-700/60 text-xs">
+            <div className="p-3 rounded-2xl bg-cinema-850/80 border border-cinema-700/60 text-xs">
               <span className="text-slate-400 text-[11px] flex items-center gap-1 mb-1">
                 <Info className="w-3.5 h-3.5 text-amber-400" /> Giới hạn tuổi
               </span>
@@ -245,7 +374,7 @@ export function MovieDetailModal({ isOpen, onClose, movie, onSelectSchedule }) {
                   ? 'Phổ biến mọi lứa tuổi'
                   : movie.age_rating === 'K'
                   ? 'Dưới 13 tuổi có phụ huynh'
-                  : `Cấm khán giả dưới ${movie.age_rating?.replace('T', '')} tuổi`}
+                  : `Cấm khán giả dưới ${String(movie.age_rating || 'T16').replace('T', '')} tuổi`}
               </strong>
             </div>
           </div>
@@ -266,14 +395,14 @@ export function MovieDetailModal({ isOpen, onClose, movie, onSelectSchedule }) {
                 <span className="text-slate-400 font-semibold flex items-center gap-1 mb-1">
                   <User className="w-3.5 h-3.5 text-gold-400" /> Đạo diễn
                 </span>
-                <p className="font-bold text-white text-sm">{movie.director || 'Đang cập nhật'}</p>
+                <p className="font-bold text-white text-sm">{movieDirector}</p>
               </div>
 
               <div>
                 <span className="text-slate-400 font-semibold flex items-center gap-1 mb-1">
                   <Users className="w-3.5 h-3.5 text-gold-400" /> Diễn viên chính
                 </span>
-                <p className="font-medium text-slate-200 leading-snug">{movie.actors || 'Đang cập nhật'}</p>
+                <p className="font-medium text-slate-200 leading-snug">{movieCast}</p>
               </div>
             </div>
           </div>
@@ -294,6 +423,7 @@ export function MovieDetailModal({ isOpen, onClose, movie, onSelectSchedule }) {
               {availableDates.length > 0 && (
                 <div className="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-full">
                   <button
+                    type="button"
                     onClick={() => setSelectedDate('all')}
                     className={`px-3 py-1 rounded-xl text-xs font-bold transition-all ${
                       selectedDate === 'all'
@@ -301,11 +431,12 @@ export function MovieDetailModal({ isOpen, onClose, movie, onSelectSchedule }) {
                         : 'bg-cinema-800 text-slate-400 hover:text-white'
                     }`}
                   >
-                    Tất cả ({schedules.length})
+                    Tất cả ({safeSchedules.length})
                   </button>
                   {availableDates.map((d) => (
                     <button
                       key={d}
+                      type="button"
                       onClick={() => setSelectedDate(d)}
                       className={`px-3 py-1 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
                         selectedDate === d
@@ -324,9 +455,17 @@ export function MovieDetailModal({ isOpen, onClose, movie, onSelectSchedule }) {
             {loadingSchedules ? (
               <div className="py-8 text-center text-xs text-slate-400">Đang tải lịch chiếu trực tiếp...</div>
             ) : filteredSchedules.length === 0 ? (
-              <div className="p-6 text-center rounded-2xl bg-cinema-850/60 border border-cinema-700/60">
-                <Ticket className="w-8 h-8 text-slate-600 mx-auto mb-2" />
-                <p className="text-slate-400 text-xs">Hiện chưa có suất chiếu được lên lịch cho bộ phim này.</p>
+              <div className="p-8 text-center rounded-2xl bg-cinema-850/60 border border-cinema-700/60 space-y-3">
+                <Ticket className="w-8 h-8 text-slate-500 mx-auto" />
+                <p className="text-slate-300 text-sm font-semibold">Hiện chưa có suất chiếu cho phim này.</p>
+                <p className="text-slate-500 text-xs">Vui lòng quay lại sau hoặc khám phá các bộ phim khác đang có lịch chiếu tại rạp.</p>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="mt-2 px-5 py-2.5 rounded-xl bg-cinema-800 hover:bg-cinema-700 text-slate-200 text-xs font-bold border border-cinema-600 transition-colors inline-flex items-center gap-2 cursor-pointer shadow-sm"
+                >
+                  <X className="w-4 h-4" /> Đóng / Chọn phim khác
+                </button>
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
@@ -345,23 +484,24 @@ export function MovieDetailModal({ isOpen, onClose, movie, onSelectSchedule }) {
                         </span>
                       </div>
                       <div className="text-base font-black text-white group-hover:text-ruby-400 transition-colors">
-                        {s.start_time.split('T')[1]?.slice(0, 5) || s.start_time.split(' ')[1]?.slice(0, 5)}
+                        {getTimeStr(s.start_time)}
                         <span className="text-xs text-slate-400 font-normal ml-2">
-                          ~ {s.end_time?.split('T')[1]?.slice(0, 5) || s.end_time?.split(' ')[1]?.slice(0, 5)}
+                          ~ {getTimeStr(s.end_time)}
                         </span>
                       </div>
                       <div className="text-[11px] text-slate-400 flex items-center gap-1.5">
                         <Calendar className="w-3 h-3 text-slate-500" />
-                        {s.start_time.split('T')[0] || s.start_time.split(' ')[0]} • {s.format}
+                        {getDateStr(s)} • {s.format || '2D'}
                       </div>
                     </div>
 
                     <button
+                      type="button"
                       onClick={() => {
-                        onClose();
-                        onSelectSchedule(s.id);
+                        onClose?.();
+                        onSelectSchedule?.(s.id);
                       }}
-                      className="w-full py-2 rounded-xl bg-ruby-600 hover:bg-ruby-500 text-white text-xs font-bold transition-all shadow-glow-red flex items-center justify-center gap-1.5"
+                      className="w-full py-2 rounded-xl bg-ruby-600 hover:bg-ruby-500 text-white text-xs font-bold transition-all shadow-glow-red flex items-center justify-center gap-1.5 cursor-pointer"
                     >
                       <Ticket className="w-3.5 h-3.5" /> Đặt Vé Suất Này
                     </button>
@@ -385,10 +525,10 @@ export function MovieDetailModal({ isOpen, onClose, movie, onSelectSchedule }) {
 
               {/* Rating summary pill */}
               <div className="flex items-center gap-3 px-4 py-2 rounded-2xl bg-cinema-850 border border-cinema-700/80 self-start sm:self-auto">
-                {averageRating !== null && averageRating > 0 ? (
+                {displayRating ? (
                   <>
                     <div className="text-2xl font-black text-amber-400 font-mono flex items-center gap-1">
-                      <span>{Number(averageRating).toFixed(1)}</span>
+                      <span>{displayRating}</span>
                       <span className="text-xs text-slate-400 font-normal">/ 5</span>
                     </div>
                     <div className="text-left border-l border-cinema-700 pl-3">
@@ -397,7 +537,7 @@ export function MovieDetailModal({ isOpen, onClose, movie, onSelectSchedule }) {
                           <Star
                             key={star}
                             className={`w-3 h-3 ${
-                              star <= Math.round(averageRating) ? 'fill-amber-400 text-amber-400' : 'text-slate-600'
+                              star <= Math.round(Number(displayRating)) ? 'fill-amber-400 text-amber-400' : 'text-slate-600'
                             }`}
                           />
                         ))}
@@ -463,7 +603,7 @@ export function MovieDetailModal({ isOpen, onClose, movie, onSelectSchedule }) {
                 <button
                   type="submit"
                   disabled={submittingReview}
-                  className="px-4 py-2 rounded-xl bg-ruby-600 hover:bg-ruby-500 text-white text-xs font-bold shadow-glow-red transition-all flex items-center gap-1.5 ml-auto"
+                  className="px-4 py-2 rounded-xl bg-ruby-600 hover:bg-ruby-500 text-white text-xs font-bold shadow-glow-red transition-all flex items-center gap-1.5 ml-auto cursor-pointer"
                 >
                   <Send className="w-3.5 h-3.5" />
                   {submittingReview ? 'Đang gửi...' : 'Gửi Nhận Xét'}
@@ -497,15 +637,16 @@ export function MovieDetailModal({ isOpen, onClose, movie, onSelectSchedule }) {
                           <Star
                             key={star}
                             className={`w-3 h-3 ${
-                              star <= r.rating ? 'fill-amber-400 text-amber-400' : 'text-slate-600'
+                              star <= (r.rating || 5) ? 'fill-amber-400 text-amber-400' : 'text-slate-600'
                             }`}
                           />
                         ))}
                       </div>
                     </div>
-                    <p className="text-xs text-slate-300 leading-relaxed pl-8">{r.comment}</p>
+                    <p className="text-xs text-slate-300 leading-relaxed pl-8">{r.comment || ''}</p>
                     <div className="text-[10px] text-slate-500 pl-8">
-                      {new Date(r.created_at).toLocaleDateString('vi-VN')} {new Date(r.created_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                      {r.created_at ? new Date(r.created_at).toLocaleDateString('vi-VN') : ''}{' '}
+                      {r.created_at ? new Date(r.created_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : ''}
                     </div>
                   </div>
                 ))
@@ -516,4 +657,7 @@ export function MovieDetailModal({ isOpen, onClose, movie, onSelectSchedule }) {
       </div>
     </div>
   );
+
+  if (typeof document === 'undefined') return null;
+  return createPortal(modalContent, document.body);
 }

@@ -16,6 +16,7 @@ import {
   QrCode,
   Banknote
 } from 'lucide-react';
+import { ModalPortal } from '../../components/common/ModalPortal';
 
 export function ShiftHandoverManager() {
   const [handovers, setHandovers] = useState([]);
@@ -250,175 +251,167 @@ export function ShiftHandoverManager() {
         </div>
       </div>
 
-      {/* Modal Lập Biên Bản Bàn Giao Ca */}
-      {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-fade-in">
-          <div className="relative w-full max-w-xl glass-panel rounded-3xl p-6 shadow-2xl border border-cinema-600 overflow-y-auto max-h-[90vh]">
-            <div className="flex items-center justify-between pb-3 border-b border-cinema-700">
-              <h3 className="font-extrabold text-base text-white flex items-center gap-2">
-                <Calculator className="w-5 h-5 text-ruby-500" />
-                Lập Biên Bản Đối Soát & Bàn Giao Két Tiền
-              </h3>
-              <button onClick={() => setModalOpen(false)} className="p-1 text-slate-400 hover:text-white">
-                <X className="w-5 h-5" />
-              </button>
+      {/* Modal Lập Biên Bản Bàn Giao Ca - Đưa ra document.body qua ModalPortal */}
+      <ModalPortal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title="Lập Biên Bản Đối Soát & Bàn Giao Két Tiền"
+        subtitle="Đối soát doanh thu thực thu giữa tiền mặt, quẹt thẻ POS và quét mã VietQR"
+        maxWidth="max-w-xl"
+      >
+        <form onSubmit={handleSubmit} className="space-y-4 text-xs">
+          {/* Cash Reconciliation Calculation Box */}
+          <div className="p-4 rounded-2xl bg-cinema-950/90 border border-cinema-700/80 space-y-3">
+            <div className="font-extrabold text-white text-xs flex items-center justify-between">
+              <span>Tự động đối soát doanh thu ca</span>
+              <span className="text-gold-400 font-mono">Tổng thu: {totalRevenue.toLocaleString('vi-VN')} đ</span>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4 mt-4 text-xs">
-              {/* Cash Reconciliation Calculation Box */}
-              <div className="p-4 rounded-2xl bg-cinema-950/90 border border-cinema-700/80 space-y-3">
-                <div className="font-extrabold text-white text-xs flex items-center justify-between">
-                  <span>Tự động đối soát doanh thu ca</span>
-                  <span className="text-gold-400 font-mono">Tổng thu: {totalRevenue.toLocaleString('vi-VN')} đ</span>
-                </div>
-
-                <div className="grid grid-cols-3 gap-2">
-                  <div className="p-2 rounded-xl bg-cinema-900 border border-cinema-800 text-center">
-                    <div className="text-[10px] text-slate-400">💵 Tiền Mặt</div>
-                    <div className="font-mono font-bold text-white">{parseFloat(formData.cash_sales || 0).toLocaleString('vi-VN')} đ</div>
-                  </div>
-                  <div className="p-2 rounded-xl bg-cinema-900 border border-cinema-800 text-center">
-                    <div className="text-[10px] text-slate-400">💳 Quẹt Thẻ</div>
-                    <div className="font-mono font-bold text-blue-400">{parseFloat(formData.card_sales || 0).toLocaleString('vi-VN')} đ</div>
-                  </div>
-                  <div className="p-2 rounded-xl bg-cinema-900 border border-cinema-800 text-center">
-                    <div className="text-[10px] text-slate-400">📱 Chuyển QR</div>
-                    <div className="font-mono font-bold text-purple-400">{parseFloat(formData.qr_sales || 0).toLocaleString('vi-VN')} đ</div>
-                  </div>
-                </div>
-
-                <div className="pt-2 border-t border-cinema-800 flex items-center justify-between text-[11px]">
-                  <span className="text-slate-300 font-bold">Tiền mặt lý thuyết (Đầu ca + Thu):</span>
-                  <span className="font-mono font-black text-white">{expectedCash.toLocaleString('vi-VN')} đ</span>
-                </div>
+            <div className="grid grid-cols-3 gap-2">
+              <div className="p-2 rounded-xl bg-cinema-900 border border-cinema-800 text-center">
+                <div className="text-[10px] text-slate-400">💵 Tiền Mặt</div>
+                <div className="font-mono font-bold text-white">{parseFloat(formData.cash_sales || 0).toLocaleString('vi-VN')} đ</div>
               </div>
-
-              {/* Form Input Grid */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-200 mb-1">Tiền lẻ đầu ca (VNĐ) *</label>
-                  <input
-                    type="number"
-                    step={1000}
-                    required
-                    value={formData.opening_float}
-                    onChange={(e) => setFormData({ ...formData, opening_float: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white font-mono focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-bold text-slate-200 mb-1">Doanh thu tiền mặt thu được *</label>
-                  <input
-                    type="number"
-                    step={1000}
-                    required
-                    value={formData.cash_sales}
-                    onChange={(e) => setFormData({ ...formData, cash_sales: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white font-mono focus:outline-none"
-                  />
-                </div>
+              <div className="p-2 rounded-xl bg-cinema-900 border border-cinema-800 text-center">
+                <div className="text-[10px] text-slate-400">💳 Quẹt Thẻ</div>
+                <div className="font-mono font-bold text-blue-400">{parseFloat(formData.card_sales || 0).toLocaleString('vi-VN')} đ</div>
               </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-200 mb-1">Doanh thu qua thẻ POS</label>
-                  <input
-                    type="number"
-                    step={1000}
-                    value={formData.card_sales}
-                    onChange={(e) => setFormData({ ...formData, card_sales: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white font-mono focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-bold text-slate-200 mb-1">Doanh thu quét mã QR</label>
-                  <input
-                    type="number"
-                    step={1000}
-                    value={formData.qr_sales}
-                    onChange={(e) => setFormData({ ...formData, qr_sales: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white font-mono focus:outline-none"
-                  />
-                </div>
+              <div className="p-2 rounded-xl bg-cinema-900 border border-cinema-800 text-center">
+                <div className="text-[10px] text-slate-400">📱 Chuyển QR</div>
+                <div className="font-mono font-bold text-purple-400">{parseFloat(formData.qr_sales || 0).toLocaleString('vi-VN')} đ</div>
               </div>
+            </div>
 
-              {/* Physical Cash Counted */}
-              <div className="p-3.5 rounded-2xl bg-ruby-950/40 border border-ruby-600/40 space-y-2">
-                <label className="block font-bold text-ruby-300">Tiền mặt kiểm đếm thực tế trong két (VNĐ) *</label>
-                <input
-                  type="number"
-                  step={1000}
-                  required
-                  value={formData.actual_cash_counted}
-                  onChange={(e) => setFormData({ ...formData, actual_cash_counted: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-950 border border-ruby-500/60 text-white font-mono text-sm font-bold focus:outline-none"
-                />
-
-                <div className="flex items-center justify-between text-xs pt-1">
-                  <span className="text-slate-400 font-semibold">Chênh lệch két thực tế:</span>
-                  <span className={`font-mono font-bold text-sm ${currentVariance === 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                    {currentVariance > 0 ? `+${currentVariance.toLocaleString('vi-VN')}` : currentVariance.toLocaleString('vi-VN')} đ
-                    {currentVariance === 0 ? ' (Khớp tuyệt đối ✓)' : ' (Lệch két ⚠️)'}
-                  </span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-200 mb-1">Tiền nộp về két chính rạp</label>
-                  <input
-                    type="number"
-                    step={1000}
-                    value={formData.cash_dropped_to_safe}
-                    onChange={(e) => setFormData({ ...formData, cash_dropped_to_safe: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white font-mono focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-bold text-slate-200 mb-1">Tiền để lại ca sau (Float)</label>
-                  <input
-                    type="number"
-                    step={1000}
-                    value={formData.next_shift_float}
-                    onChange={(e) => setFormData({ ...formData, next_shift_float: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white font-mono focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-200 mb-1">Ghi chú bàn giao</label>
-                <textarea
-                  rows={2}
-                  value={formData.notes}
-                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                  placeholder="Ghi chú về tiền rách, giao dịch hủy hoặc sự cố ca trực..."
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
-                />
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4 border-t border-cinema-700">
-                <button
-                  type="button"
-                  onClick={() => setModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-cinema-800 text-slate-300 hover:bg-cinema-700"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  className="px-6 py-2 rounded-xl bg-ruby-600 hover:bg-ruby-500 text-white font-bold shadow-glow-red"
-                >
-                  Ký & Lưu Bàn Giao
-                </button>
-              </div>
-            </form>
+            <div className="pt-2 border-t border-cinema-800 flex items-center justify-between text-[11px]">
+              <span className="text-slate-300 font-bold">Tiền mặt lý thuyết (Đầu ca + Thu):</span>
+              <span className="font-mono font-black text-white">{expectedCash.toLocaleString('vi-VN')} đ</span>
+            </div>
           </div>
-        </div>
-      )}
+
+          {/* Form Input Grid */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block font-bold text-slate-200 mb-1">Tiền lẻ đầu ca (VNĐ) *</label>
+              <input
+                type="number"
+                step={1000}
+                required
+                value={formData.opening_float}
+                onChange={(e) => setFormData({ ...formData, opening_float: e.target.value })}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white font-mono focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-200 mb-1">Doanh thu tiền mặt thu được *</label>
+              <input
+                type="number"
+                step={1000}
+                required
+                value={formData.cash_sales}
+                onChange={(e) => setFormData({ ...formData, cash_sales: e.target.value })}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white font-mono focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block font-bold text-slate-200 mb-1">Doanh thu qua thẻ POS</label>
+              <input
+                type="number"
+                step={1000}
+                value={formData.card_sales}
+                onChange={(e) => setFormData({ ...formData, card_sales: e.target.value })}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white font-mono focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-200 mb-1">Doanh thu quét mã QR</label>
+              <input
+                type="number"
+                step={1000}
+                value={formData.qr_sales}
+                onChange={(e) => setFormData({ ...formData, qr_sales: e.target.value })}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white font-mono focus:outline-none"
+              />
+            </div>
+          </div>
+
+          {/* Physical Cash Counted */}
+          <div className="p-3.5 rounded-2xl bg-ruby-950/40 border border-ruby-600/40 space-y-2">
+            <label className="block font-bold text-ruby-300">Tiền mặt kiểm đếm thực tế trong két (VNĐ) *</label>
+            <input
+              type="number"
+              step={1000}
+              required
+              value={formData.actual_cash_counted}
+              onChange={(e) => setFormData({ ...formData, actual_cash_counted: e.target.value })}
+              className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-950 border border-ruby-500/60 text-white font-mono text-sm font-bold focus:outline-none"
+            />
+
+            <div className="flex items-center justify-between text-xs pt-1">
+              <span className="text-slate-400 font-semibold">Chênh lệch két thực tế:</span>
+              <span className={`font-mono font-bold text-sm ${currentVariance === 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                {currentVariance > 0 ? `+${currentVariance.toLocaleString('vi-VN')}` : currentVariance.toLocaleString('vi-VN')} đ
+                {currentVariance === 0 ? ' (Khớp tuyệt đối ✓)' : ' (Lệch két ⚠️)'}
+              </span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block font-bold text-slate-200 mb-1">Tiền nộp về két chính rạp</label>
+              <input
+                type="number"
+                step={1000}
+                value={formData.cash_dropped_to_safe}
+                onChange={(e) => setFormData({ ...formData, cash_dropped_to_safe: e.target.value })}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white font-mono focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-200 mb-1">Tiền để lại ca sau (Float)</label>
+              <input
+                type="number"
+                step={1000}
+                value={formData.next_shift_float}
+                onChange={(e) => setFormData({ ...formData, next_shift_float: e.target.value })}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white font-mono focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block font-bold text-slate-200 mb-1">Ghi chú bàn giao</label>
+            <textarea
+              rows={2}
+              value={formData.notes}
+              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+              placeholder="Ghi chú về tiền rách, giao dịch hủy hoặc sự cố ca trực..."
+              className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-cinema-700">
+            <button
+              type="button"
+              onClick={() => setModalOpen(false)}
+              className="px-4 py-2 rounded-xl bg-cinema-800 text-slate-300 hover:bg-cinema-700 cursor-pointer"
+            >
+              Hủy
+            </button>
+            <button
+              type="submit"
+              className="px-6 py-2 rounded-xl bg-ruby-600 hover:bg-ruby-500 text-white font-bold shadow-glow-red cursor-pointer"
+            >
+              Ký & Lưu Bàn Giao
+            </button>
+          </div>
+        </form>
+      </ModalPortal>
     </div>
   );
 }

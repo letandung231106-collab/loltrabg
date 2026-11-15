@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import { UserCheck, Search, DollarSign, Ticket, Eye, Edit2, X, CheckCircle, AlertCircle } from 'lucide-react';
+import { ModalPortal } from '../../components/common/ModalPortal';
 
 export function CustomersManager() {
   const [customers, setCustomers] = useState([]);
@@ -185,128 +186,107 @@ export function CustomersManager() {
       </div>
 
       {/* Customer History Modal */}
-      {selectedCustomer && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-fade-in">
-          <div className="relative w-full max-w-2xl glass-panel rounded-3xl p-6 shadow-2xl border border-cinema-600 overflow-y-auto max-h-[85vh] space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-cinema-700">
-              <div>
-                <h3 className="font-black text-base text-white">{selectedCustomer.name}</h3>
-                <span className="text-xs text-slate-400">
-                  {selectedCustomer.email} • {selectedCustomer.phone}
-                </span>
-              </div>
-              <button onClick={() => setSelectedCustomer(null)} className="p-1 text-slate-400 hover:text-white">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="space-y-3">
-              <div className="text-xs font-bold text-gold-400 uppercase tracking-wider">LỊCH SỬ ĐẶT VÉ:</div>
-              {selectedCustomer.bookings?.length === 0 ? (
-                <p className="text-slate-400 text-xs py-4 text-center">Khách hàng chưa có giao dịch nào.</p>
-              ) : (
-                selectedCustomer.bookings?.map((b) => (
-                  <div
-                    key={b.id}
-                    className="p-3 rounded-xl bg-cinema-900 border border-cinema-700 text-xs flex items-center justify-between"
-                  >
-                    <div>
-                      <div className="font-bold text-white">{b.movie_name}</div>
-                      <div className="text-[10px] text-slate-400">
-                        {b.room_name} • {b.start_time}
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-mono font-bold text-amber-400">
-                        {parseFloat(b.total_amount).toLocaleString('vi-VN')}đ
-                      </div>
-                      <span className="text-[10px] font-bold uppercase text-emerald-400">{b.status}</span>
+      <ModalPortal
+        isOpen={Boolean(selectedCustomer)}
+        onClose={() => setSelectedCustomer(null)}
+        title={selectedCustomer?.name}
+        subtitle={`${selectedCustomer?.email || 'Chưa có email'} • ${selectedCustomer?.phone || 'Chưa có SĐT'}`}
+        maxWidth="max-w-2xl"
+      >
+        <div className="space-y-4">
+          <div className="text-xs font-bold text-gold-400 uppercase tracking-wider">LỊCH SỬ ĐẶT VÉ:</div>
+          {selectedCustomer?.bookings?.length === 0 ? (
+            <p className="text-slate-400 text-xs py-4 text-center">Khách hàng chưa có giao dịch nào.</p>
+          ) : (
+            <div className="space-y-2.5 max-h-[60vh] overflow-y-auto pr-1">
+              {selectedCustomer?.bookings?.map((b) => (
+                <div
+                  key={b.id}
+                  className="p-3 rounded-xl bg-cinema-900 border border-cinema-700 text-xs flex items-center justify-between"
+                >
+                  <div>
+                    <div className="font-bold text-white">{b.movie_name}</div>
+                    <div className="text-[10px] text-slate-400">
+                      {b.room_name} • {b.start_time}
                     </div>
                   </div>
-                ))
-              )}
+                  <div className="text-right">
+                    <div className="font-mono font-bold text-amber-400">
+                      {parseFloat(b.total_amount).toLocaleString('vi-VN')}đ
+                    </div>
+                    <span className="text-[10px] font-bold uppercase text-emerald-400">{b.status}</span>
+                  </div>
+                </div>
+              ))}
             </div>
-          </div>
+          )}
         </div>
-      )}
+      </ModalPortal>
 
       {/* Customer Edit Modal */}
-      {isEditOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-fade-in">
-          <div className="relative w-full max-w-md glass-panel rounded-3xl p-6 shadow-2xl border border-cinema-600 overflow-hidden">
-            <button
-              onClick={() => setIsEditOpen(false)}
-              className="absolute top-4 right-4 p-2 rounded-xl text-slate-400 hover:text-white"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <h3 className="text-xl font-extrabold text-white mb-1 flex items-center gap-2">
-              <Edit2 className="w-5 h-5 text-gold-400" />
-              Cập Nhật Khách Hàng
-            </h3>
-            <p className="text-xs text-slate-400 mb-5">
-              Chỉnh sửa thông tin liên hệ và phân hạng thành viên VIP
-            </p>
-
-            <form onSubmit={handleSubmitEdit} className="space-y-4 text-xs">
-              <div>
-                <label className="block font-semibold text-slate-300 mb-1">Họ và tên *</label>
-                <input
-                  type="text"
-                  required
-                  value={editFormData.name}
-                  onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-850 border border-cinema-700 text-white focus:outline-none focus:border-ruby-500"
-                />
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-300 mb-1">Email</label>
-                <input
-                  type="email"
-                  value={editFormData.email}
-                  onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-850 border border-cinema-700 text-white focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-300 mb-1">Số điện thoại</label>
-                <input
-                  type="tel"
-                  value={editFormData.phone}
-                  onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-850 border border-cinema-700 text-white focus:outline-none font-mono"
-                />
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-300 mb-1">Hạng thẻ thành viên</label>
-                <select
-                  value={editFormData.membership_level}
-                  onChange={(e) => setEditFormData({ ...editFormData, membership_level: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-850 border border-cinema-700 text-white focus:outline-none font-bold"
-                >
-                  <option value="standard">Standard - Thành viên tiêu chuẩn</option>
-                  <option value="silver">Silver - Thành viên Bạc (Tích điểm 5%)</option>
-                  <option value="gold">Gold - Thành viên Vàng (Tích điểm 10%)</option>
-                  <option value="platinum">Platinum - Thành viên Bạch Kim (Tích điểm 15%)</option>
-                </select>
-              </div>
-
-              <div className="pt-2">
-                <button
-                  type="submit"
-                  className="w-full py-3 rounded-xl bg-ruby-600 hover:bg-ruby-500 text-white font-bold text-xs shadow-glow-red transition-all"
-                >
-                  Lưu Thông Tin Khách Hàng
-                </button>
-              </div>
-            </form>
+      <ModalPortal
+        isOpen={isEditOpen}
+        onClose={() => setIsEditOpen(false)}
+        title="Cập Nhật Khách Hàng"
+        subtitle="Chỉnh sửa thông tin liên hệ và phân hạng thành viên VIP"
+        maxWidth="max-w-md"
+      >
+        <form onSubmit={handleSubmitEdit} className="space-y-4 text-xs">
+          <div>
+            <label className="block font-semibold text-slate-300 mb-1">Họ và tên *</label>
+            <input
+              type="text"
+              required
+              value={editFormData.name}
+              onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
+              className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-850 border border-cinema-700 text-white focus:outline-none focus:border-ruby-500"
+            />
           </div>
-        </div>
-      )}
+
+          <div>
+            <label className="block font-semibold text-slate-300 mb-1">Email</label>
+            <input
+              type="email"
+              value={editFormData.email}
+              onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
+              className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-850 border border-cinema-700 text-white focus:outline-none"
+            />
+          </div>
+
+          <div>
+            <label className="block font-semibold text-slate-300 mb-1">Số điện thoại</label>
+            <input
+              type="tel"
+              value={editFormData.phone}
+              onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value })}
+              className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-850 border border-cinema-700 text-white focus:outline-none font-mono"
+            />
+          </div>
+
+          <div>
+            <label className="block font-semibold text-slate-300 mb-1">Hạng thẻ thành viên</label>
+            <select
+              value={editFormData.membership_level}
+              onChange={(e) => setEditFormData({ ...editFormData, membership_level: e.target.value })}
+              className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-850 border border-cinema-700 text-white focus:outline-none font-bold"
+            >
+              <option value="standard">Standard - Thành viên tiêu chuẩn</option>
+              <option value="silver">Silver - Thành viên Bạc (Tích điểm 5%)</option>
+              <option value="gold">Gold - Thành viên Vàng (Tích điểm 10%)</option>
+              <option value="platinum">Platinum - Thành viên Bạch Kim (Tích điểm 15%)</option>
+            </select>
+          </div>
+
+          <div className="pt-2">
+            <button
+              type="submit"
+              className="w-full py-3 rounded-xl bg-ruby-600 hover:bg-ruby-500 text-white font-bold text-xs shadow-glow-red transition-all cursor-pointer"
+            >
+              Lưu Thông Tin Khách Hàng
+            </button>
+          </div>
+        </form>
+      </ModalPortal>
     </div>
   );
 }

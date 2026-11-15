@@ -13,12 +13,34 @@ export function AuthProvider({ children }) {
   const [notifications, setNotifications] = useState([]);
   const [unreadNotifCount, setUnreadNotifCount] = useState(0);
 
-  // Load user profile on mount if token exists
+  // Load user profile and poll notifications periodically
   useEffect(() => {
-    if (token) {
-      fetchMe();
-      fetchNotifications();
+    if (!token) return;
+    fetchMe();
+    fetchNotifications();
+
+    // Tự động tải lại thông báo mỗi 30 giây khi tab đang hoạt động
+    const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && !document.hidden) {
+        fetchNotifications();
+      }
+    }, 30000);
+
+    const handleVisibilityChange = () => {
+      if (typeof document !== 'undefined' && !document.hidden) {
+        fetchNotifications();
+      }
+    };
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibilityChange);
     }
+
+    return () => {
+      clearInterval(interval);
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      }
+    };
   }, [token]);
 
   const fetchMe = async () => {
@@ -44,6 +66,26 @@ export function AuthProvider({ children }) {
       }
     } catch (err) {
       // ignore
+    }
+  };
+
+  const markAsRead = async (id = 'all') => {
+    if (!token) return;
+    try {
+      const res = await api.markNotificationAsRead(id);
+      if (res.success) {
+        if (id === 'all') {
+          setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+          setUnreadNotifCount(0);
+        } else {
+          setNotifications((prev) =>
+            prev.map((n) => (n.id === id ? { ...n, is_read: true } : n))
+          );
+          setUnreadNotifCount((prev) => Math.max(0, prev - 1));
+        }
+      }
+    } catch (err) {
+      console.error('Lỗi khi đánh dấu thông báo đã đọc:', err);
     }
   };
 
@@ -86,6 +128,8 @@ export function AuthProvider({ children }) {
   const logout = () => {
     setUser(null);
     setToken('');
+    setNotifications([]);
+    setUnreadNotifCount(0);
     localStorage.removeItem('token');
     localStorage.removeItem('user');
   };
@@ -119,6 +163,7 @@ export function AuthProvider({ children }) {
         loading,
         notifications,
         unreadNotifCount,
+        markAsRead,
         login,
         register,
         logout,

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
 import { api } from '../../services/api';
+import { ModalPortal } from '../../components/common/ModalPortal';
 import {
   Film,
   Plus,
@@ -409,38 +409,25 @@ export function MoviesManager() {
       </div>
 
       {/* Modal Thêm/Sửa Phim (Portaled to document.body) */}
-      {modalOpen &&
-        createPortal(
-          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 sm:p-6 bg-black/80 backdrop-blur-md animate-fade-in">
-            {/* Modal Container */}
-            <div
-              className="relative w-full max-w-[720px] max-h-[88vh] flex flex-col rounded-2xl border border-white/10 shadow-2xl shadow-black/90 overflow-hidden animate-scale-up"
-              style={{ background: '#12141c' }}
-            >
-              {/* 1. Modal Header (Cố định ở trên) */}
-              <div className="px-6 py-5 border-b border-white/[0.08] flex items-center justify-between shrink-0 bg-[#12141c]">
-                <div>
-                  <h3 className="font-extrabold text-base sm:text-lg text-white flex items-center gap-2">
-                    <Film className="w-5 h-5 text-ruby-500" />
-                    {editingMovie ? `Chỉnh Sửa Phim: ${editingMovie.name}` : 'Thêm Phim Mới Vào Rạp'}
-                  </h3>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
-                    {editingMovie
-                      ? 'Cập nhật thông tin chi tiết, lịch chiếu, poster và video trailer'
-                      : 'Cập nhật ngày chiếu qua lịch, tải ảnh poster trực tiếp từ máy tính và chèn video/link trailer'}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setModalOpen(false)}
-                  className="p-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              {/* Form wrapping Scrollable Body and Sticky Footer */}
-              <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+      <ModalPortal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title={
+          <span className="flex items-center gap-2">
+            <Film className="w-5 h-5 text-ruby-500" />
+            {editingMovie ? `Chỉnh Sửa Phim: ${editingMovie.name}` : 'Thêm Phim Mới Vào Rạp'}
+          </span>
+        }
+        subtitle={
+          editingMovie
+            ? 'Cập nhật thông tin chi tiết, lịch chiếu, poster và video trailer'
+            : 'Cập nhật ngày chiếu qua lịch, tải ảnh poster trực tiếp từ máy tính và chèn video/link trailer'
+        }
+        maxWidth="max-w-[720px]"
+        noPadding={true}
+      >
+        {/* Form wrapping Scrollable Body and Sticky Footer */}
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
                 {/* 2. Modal Body (Cho phép cuộn dọc) */}
                 <div className="p-6 overflow-y-auto flex-1 space-y-4 text-xs scrollbar-thin scrollbar-thumb-cinema-700 scrollbar-track-transparent">
                   {/* Basic Details Grid (2 Cột) */}
@@ -931,10 +918,7 @@ export function MoviesManager() {
                   </button>
                 </div>
               </form>
-            </div>
-          </div>,
-          document.body
-        )}
+      </ModalPortal>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import {
@@ -18,7 +18,32 @@ import {
   Ticket,
   Sun,
   Moon,
+  CheckCheck,
 } from 'lucide-react';
+
+function formatNotifTime(dateStr) {
+  if (!dateStr) return '';
+  const isoStr = typeof dateStr === 'string' ? dateStr.replace(' ', 'T') : dateStr;
+  const d = new Date(isoStr);
+  if (isNaN(d.getTime())) return dateStr;
+  const now = new Date();
+  const isToday =
+    d.getDate() === now.getDate() &&
+    d.getMonth() === now.getMonth() &&
+    d.getFullYear() === now.getFullYear();
+
+  const hours = String(d.getHours()).padStart(2, '0');
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  const timeStr = `${hours}:${minutes}`;
+
+  if (isToday) {
+    return `Hôm nay ${timeStr}`;
+  }
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  return `${day}/${month}/${year} ${timeStr}`;
+}
 
 export function Header({
   onOpenAuth,
@@ -27,10 +52,23 @@ export function Header({
   onOpenInSeatDelivery,
   onOpenProfile,
 }) {
-  const { user, isAuthenticated, logout, notifications, unreadNotifCount, isManager, isStaff, isTechnician } = useAuth();
+  const { user, isAuthenticated, logout, notifications, unreadNotifCount, markAsRead, isManager, isStaff, isTechnician } = useAuth();
   const { isDark, toggleTheme } = useTheme();
   const [showNotifMenu, setShowNotifMenu] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const notifRef = useRef(null);
+
+  // Đóng bảng thông báo khi bấm ra ngoài
+  useEffect(() => {
+    if (!showNotifMenu) return;
+    const handleClickOutside = (e) => {
+      if (notifRef.current && !notifRef.current.contains(e.target)) {
+        setShowNotifMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showNotifMenu]);
 
   return (
     <header className="sticky top-0 z-40 bg-cinema-950/85 backdrop-blur-md border-b border-cinema-700/50">
@@ -137,10 +175,12 @@ export function Header({
 
             {/* Notification Bell */}
             {isAuthenticated && (
-              <div className="relative">
+              <div className="relative" ref={notifRef}>
                 <button
+                  type="button"
                   onClick={() => setShowNotifMenu(!showNotifMenu)}
-                  className="p-2 rounded-xl bg-cinema-850 hover:bg-cinema-800 text-slate-300 hover:text-white border border-cinema-700/50 relative transition-colors"
+                  className="p-2 rounded-xl bg-cinema-850 hover:bg-cinema-800 text-slate-300 hover:text-white border border-cinema-700/50 relative transition-colors cursor-pointer"
+                  title="Thông báo"
                 >
                   <Bell className="w-4 h-4" />
                   {unreadNotifCount > 0 && (
@@ -152,29 +192,69 @@ export function Header({
 
                 {/* Notifications Panel */}
                 {showNotifMenu && (
-                  <div className="absolute right-0 mt-2 w-80 sm:w-96 glass-panel rounded-2xl p-4 shadow-2xl z-50 animate-scale-in border border-cinema-600/60">
-                    <div className="flex items-center justify-between pb-3 border-b border-cinema-700">
-                      <h4 className="font-bold text-sm text-white flex items-center gap-2">
-                        <Bell className="w-4 h-4 text-gold-400" /> Thông báo hệ thống ({notifications.length})
-                      </h4>
-                      <span className="text-xs text-slate-400">Thời gian thực</span>
+                  <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl p-4 shadow-2xl z-50 animate-scale-in border bg-white/95 dark:bg-[#12151f]/95 border-slate-200 dark:border-white/10 backdrop-blur-xl">
+                    <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-cinema-700/60">
+                      <div className="flex items-center gap-2">
+                        <Bell className="w-4 h-4 text-gold-400 shrink-0" />
+                        <h4 className="font-bold text-sm text-slate-900 dark:text-white">
+                          Thông báo ({unreadNotifCount} chưa đọc)
+                        </h4>
+                      </div>
+                      {unreadNotifCount > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => markAsRead?.('all')}
+                          className="text-xs font-semibold text-ruby-600 dark:text-ruby-400 hover:text-ruby-700 dark:hover:text-ruby-300 transition-colors cursor-pointer flex items-center gap-1"
+                          title="Đánh dấu tất cả là đã đọc"
+                        >
+                          <CheckCheck className="w-3.5 h-3.5" />
+                          <span>Đánh dấu đã đọc tất cả</span>
+                        </button>
+                      )}
                     </div>
                     <div className="max-h-72 overflow-y-auto mt-2 space-y-2">
                       {notifications.length === 0 ? (
-                        <p className="text-xs text-slate-400 text-center py-4">Không có thông báo mới.</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 text-center py-4">
+                          Không có thông báo mới.
+                        </p>
                       ) : (
-                        notifications.map((n) => (
-                          <div
-                            key={n.id}
-                            className={`p-2.5 rounded-xl text-xs transition-colors ${
-                              n.is_read ? 'bg-cinema-900/60 text-slate-400' : 'bg-cinema-800 text-slate-200 border-l-2 border-ruby-500'
-                            }`}
-                          >
-                            <div className="font-semibold text-white mb-0.5">{n.title}</div>
-                            <div className="text-slate-300 leading-relaxed">{n.message}</div>
-                            <div className="text-[10px] text-slate-500 mt-1">{new Date(n.created_at).toLocaleTimeString('vi-VN')}</div>
-                          </div>
-                        ))
+                        notifications.map((n) => {
+                          const isRead = Boolean(n.is_read);
+                          return (
+                            <div
+                              key={n.id}
+                              onClick={() => {
+                                if (!isRead) {
+                                  markAsRead?.(n.id);
+                                }
+                              }}
+                              className={`p-2.5 rounded-xl text-xs transition-all ${
+                                isRead
+                                  ? 'bg-slate-100/80 dark:bg-cinema-900/60 text-slate-500 dark:text-slate-400'
+                                  : 'bg-ruby-50/90 dark:bg-cinema-800 text-slate-800 dark:text-slate-200 border-l-2 border-ruby-500 hover:bg-ruby-100/70 dark:hover:bg-cinema-750 cursor-pointer shadow-sm'
+                              }`}
+                              title={isRead ? 'Đã đọc' : 'Bấm để đánh dấu đã đọc'}
+                            >
+                              <div className="flex items-center justify-between gap-2 mb-0.5">
+                                <span className={`font-semibold truncate ${isRead ? 'text-slate-700 dark:text-slate-300' : 'text-slate-900 dark:text-white'}`}>
+                                  {n.title}
+                                </span>
+                                {!isRead && (
+                                  <span className="w-2 h-2 rounded-full bg-ruby-500 shrink-0" title="Chưa đọc" />
+                                )}
+                              </div>
+                              <div className={`${isRead ? 'text-slate-500 dark:text-slate-400' : 'text-slate-700 dark:text-slate-300'} leading-relaxed`}>
+                                {n.message}
+                              </div>
+                              <div className="text-[10px] text-slate-400 dark:text-slate-500 mt-1 flex items-center justify-between">
+                                <span>{formatNotifTime(n.created_at)}</span>
+                                {isRead && (
+                                  <span className="text-[9px] text-slate-400">Đã đọc</span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })
                       )}
                     </div>
                   </div>

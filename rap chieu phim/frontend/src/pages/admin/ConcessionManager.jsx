@@ -17,6 +17,7 @@ import {
   UploadCloud,
   Image as ImageIcon
 } from 'lucide-react';
+import { ModalPortal } from '../../components/common/ModalPortal';
 
 export function ConcessionManager() {
   const [items, setItems] = useState([]);
@@ -524,21 +525,15 @@ export function ConcessionManager() {
         </div>
       )}
 
-      {/* Modal Thêm/Sửa Món F&B */}
-      {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-fade-in">
-          <div className="relative w-full max-w-lg glass-panel rounded-3xl p-6 shadow-2xl border border-cinema-600">
-            <div className="flex items-center justify-between pb-3 border-b border-cinema-700">
-              <h3 className="font-extrabold text-base text-white flex items-center gap-2">
-                <Utensils className="w-5 h-5 text-ruby-500" />
-                {editingItem ? `Chỉnh Sửa Món: ${editingItem.name}` : 'Thêm Món F&B Mới'}
-              </h3>
-              <button onClick={() => setModalOpen(false)} className="p-1 text-slate-400 hover:text-white">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmit} className="space-y-4 mt-4 text-xs">
+      {/* Modal Thêm/Sửa Món F&B - Đưa ra document.body qua ModalPortal */}
+      <ModalPortal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title={editingItem ? `Chỉnh Sửa Món: ${editingItem.name}` : 'Thêm Món F&B Mới'}
+        subtitle="Cập nhật danh mục bắp nước, giá bán, giá vốn và hình ảnh sản phẩm"
+        maxWidth="max-w-lg"
+      >
+        <form onSubmit={handleSubmit} className="space-y-4 text-xs">
               <div>
                 <label className="block font-bold text-slate-200 mb-1">Tên món bắp nước / combo *</label>
                 <input
@@ -644,21 +639,19 @@ export function ConcessionManager() {
                 <button
                   type="button"
                   onClick={() => setModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-cinema-800 text-slate-300 hover:bg-cinema-700"
+                  className="px-4 py-2 rounded-xl bg-cinema-800 text-slate-300 hover:bg-cinema-700 cursor-pointer"
                 >
                   Hủy bỏ
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2 rounded-xl bg-ruby-600 hover:bg-ruby-500 text-white font-bold shadow-glow-red"
+                  className="px-6 py-2 rounded-xl bg-ruby-600 hover:bg-ruby-500 text-white font-bold shadow-glow-red cursor-pointer"
                 >
                   Lưu Thông Tin
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+      </ModalPortal>
     </div>
   );
 }

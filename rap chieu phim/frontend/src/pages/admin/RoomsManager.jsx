@@ -14,6 +14,7 @@ import {
   MapPin,
   Info,
 } from 'lucide-react';
+import { ModalPortal } from '../../components/common/ModalPortal';
 
 export function RoomsManager() {
   const [rooms, setRooms] = useState([]);
@@ -279,100 +280,83 @@ export function RoomsManager() {
         })}
       </div>
 
-      {/* Room Details Modal */}
-      {selectedRoom && roomDetails && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-fade-in">
-          <div className="relative w-full max-w-4xl glass-panel rounded-3xl p-6 shadow-2xl border border-cinema-600 overflow-y-auto max-h-[90vh] space-y-6">
-            <div className="flex items-center justify-between pb-4 border-b border-cinema-700">
-              <div>
-                <h3 className="text-xl font-black text-white">{roomDetails.name}</h3>
-                <span className="text-xs text-slate-400">
-                  {roomDetails.location} • Sức chứa: {roomDetails.capacity} ghế • Loại: {roomDetails.room_type}
-                </span>
-              </div>
-              <button onClick={() => setSelectedRoom(null)} className="p-1 text-slate-400 hover:text-white">
-                <X className="w-6 h-6" />
-              </button>
+      {/* Room Details Modal - Đưa ra document.body qua ModalPortal */}
+      <ModalPortal
+        isOpen={Boolean(selectedRoom && roomDetails)}
+        onClose={() => setSelectedRoom(null)}
+        title={roomDetails?.name}
+        subtitle={`${roomDetails?.location || ''} • Sức chứa: ${roomDetails?.capacity || 0} ghế • Loại: ${roomDetails?.room_type || ''}`}
+        maxWidth="max-w-4xl"
+      >
+        <div className="space-y-6">
+          {/* Visual Seat Matrix */}
+          <div>
+            <div className="text-xs font-bold text-gold-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+              <Layers className="w-4 h-4" /> SƠ ĐỒ BỐ TRÍ GHẾ VẬT LÝ ({roomDetails?.seats?.length || 0} ghế):
             </div>
+            <div className="p-4 rounded-2xl bg-cinema-900 border border-cinema-700 flex flex-wrap gap-2 justify-center max-h-56 overflow-y-auto">
+              {roomDetails?.seats?.map((seat) => (
+                <div
+                  key={seat.id}
+                  className={`w-9 h-8 rounded-lg text-xs font-bold flex items-center justify-center border ${
+                    seat.seat_type === 'vip'
+                      ? 'bg-amber-950/40 text-amber-300 border-amber-500/50'
+                      : seat.seat_type === 'couple'
+                      ? 'bg-pink-950/40 text-pink-300 border-pink-500/50 w-16'
+                      : 'bg-cinema-800 text-slate-300 border-cinema-700'
+                  }`}
+                >
+                  {seat.row_number}
+                  {seat.seat_number}
+                </div>
+              ))}
+            </div>
+          </div>
 
-            {/* Visual Seat Matrix */}
-            <div>
-              <div className="text-xs font-bold text-gold-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-                <Layers className="w-4 h-4" /> SƠ ĐỒ BỐ TRÍ GHẾ VẬT LÝ ({roomDetails.seats?.length} ghế):
-              </div>
-              <div className="p-4 rounded-2xl bg-cinema-900 border border-cinema-700 flex flex-wrap gap-2 justify-center max-h-56 overflow-y-auto">
-                {roomDetails.seats?.map((seat) => (
-                  <div
-                    key={seat.id}
-                    className={`w-9 h-8 rounded-lg text-xs font-bold flex items-center justify-center border ${
-                      seat.seat_type === 'vip'
-                        ? 'bg-amber-950/40 text-amber-300 border-amber-500/50'
-                        : seat.seat_type === 'couple'
-                        ? 'bg-pink-950/40 text-pink-300 border-pink-500/50 w-16'
-                        : 'bg-cinema-800 text-slate-300 border-cinema-700'
+          {/* Equipment Attached */}
+          <div>
+            <div className="text-xs font-bold text-gold-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+              <Wrench className="w-4 h-4" /> DANH SÁCH THIẾT BỊ GẮN TRONG PHÒNG ({roomDetails?.equipment?.length || 0} thiết bị):
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {roomDetails?.equipment?.map((eq) => (
+                <div
+                  key={eq.id}
+                  className="p-3 rounded-xl bg-cinema-900 border border-cinema-700 text-xs flex items-center justify-between"
+                >
+                  <div>
+                    <div className="font-bold text-white">{eq.name}</div>
+                    <div className="text-[10px] text-slate-400">
+                      {eq.type_name} • {eq.code}
+                    </div>
+                  </div>
+                  <span
+                    className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                      eq.status === 'good' ? 'text-emerald-400 bg-emerald-950' : 'text-rose-400 bg-rose-950'
                     }`}
                   >
-                    {seat.row_number}
-                    {seat.seat_number}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Equipment Attached */}
-            <div>
-              <div className="text-xs font-bold text-gold-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-                <Wrench className="w-4 h-4" /> DANH SÁCH THIẾT BỊ GẮN TRONG PHÒNG ({roomDetails.equipment?.length || 0} thiết bị):
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {roomDetails.equipment?.map((eq) => (
-                  <div
-                    key={eq.id}
-                    className="p-3 rounded-xl bg-cinema-900 border border-cinema-700 text-xs flex items-center justify-between"
-                  >
-                    <div>
-                      <div className="font-bold text-white">{eq.name}</div>
-                      <div className="text-[10px] text-slate-400">
-                        {eq.type_name} • {eq.code}
-                      </div>
-                    </div>
-                    <span
-                      className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                        eq.status === 'good' ? 'text-emerald-400 bg-emerald-950' : 'text-rose-400 bg-rose-950'
-                      }`}
-                    >
-                      {eq.status}
-                    </span>
-                  </div>
-                ))}
-              </div>
+                    {eq.status}
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
         </div>
-      )}
+      </ModalPortal>
 
-      {/* Create / Edit Room Modal */}
-      {isCreateOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-fade-in">
-          <div className="relative w-full max-w-lg glass-panel rounded-3xl p-6 sm:p-8 shadow-2xl border border-cinema-600/70 overflow-hidden">
-            <button
-              onClick={() => setIsCreateOpen(false)}
-              className="absolute top-4 right-4 p-2 rounded-xl text-slate-400 hover:text-white"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <h3 className="text-xl font-extrabold text-white mb-1 flex items-center gap-2">
-              <Building className="w-5 h-5 text-ruby-500" />
-              {editingRoom ? 'Chỉnh Sửa Phòng Chiếu' : 'Khởi Tạo Phòng Chiếu Mới'}
-            </h3>
-            <p className="text-xs text-slate-400 mb-5">
-              {editingRoom
-                ? 'Cập nhật tên, loại phòng, vị trí và mô tả phòng chiếu'
-                : 'Hệ thống sẽ tự động cấu hình sơ đồ ghế (Standard, VIP, Couple) theo số hàng'}
-            </p>
-
-            <form onSubmit={handleSubmitRoom} className="space-y-4">
+      {/* Create / Edit Room Modal - Đưa ra document.body qua ModalPortal */}
+      <ModalPortal
+        isOpen={isCreateOpen}
+        onClose={() => setIsCreateOpen(false)}
+        title={editingRoom ? 'Chỉnh Sửa Phòng Chiếu' : 'Khởi Tạo Phòng Chiếu Mới'}
+        subtitle={
+          editingRoom
+            ? 'Cập nhật tên, loại phòng, vị trí và mô tả phòng chiếu'
+            : 'Hệ thống sẽ tự động cấu hình sơ đồ ghế (Standard, VIP, Couple) theo số hàng'
+        }
+        maxWidth="max-w-lg"
+      >
+        <form onSubmit={handleSubmitRoom} className="space-y-4 text-xs">
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1">Tên phòng chiếu</label>
                 <input
@@ -474,18 +458,23 @@ export function RoomsManager() {
                 />
               </div>
 
-              <div className="pt-2">
+              <div className="pt-2 flex justify-end gap-3 border-t border-cinema-700/60">
+                <button
+                  type="button"
+                  onClick={() => setIsCreateOpen(false)}
+                  className="px-4 py-2 rounded-xl bg-cinema-800 text-slate-300 hover:bg-cinema-700 font-semibold cursor-pointer"
+                >
+                  Hủy
+                </button>
                 <button
                   type="submit"
-                  className="w-full py-3 rounded-xl bg-ruby-600 hover:bg-ruby-500 text-white font-bold text-xs shadow-glow-red transition-all"
+                  className="px-6 py-2.5 rounded-xl bg-ruby-600 hover:bg-ruby-500 text-white font-bold text-xs shadow-glow-red transition-all cursor-pointer"
                 >
                   {editingRoom ? 'Lưu Thông Tin Phòng' : 'Tạo Phòng & Khởi Tạo Ghế'}
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+      </ModalPortal>
     </div>
   );
 }

@@ -142,7 +142,7 @@ export function MoviesPage({ onSelectMovie, onSelectSchedule }) {
               <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
                 <div onClick={() => setDetailMovie(movie)} className="cursor-pointer">
                   <div className="text-[10px] text-ruby-400 font-semibold truncate mb-1">
-                    {movie.genre}
+                    {Array.isArray(movie.genre) ? movie.genre.join(', ') : Array.isArray(movie.genres) ? movie.genres.join(', ') : movie.genre || movie.genres || 'Chưa phân loại'}
                   </div>
                   <h3 className="font-extrabold text-sm text-white line-clamp-1 group-hover:text-ruby-400 transition-colors">
                     {movie.name}

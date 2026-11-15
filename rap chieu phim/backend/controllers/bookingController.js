@@ -61,7 +61,7 @@ async function holdSeats(req, res, next) {
     const bookingResult = await db.withTransaction(async (conn) => {
       // Khóa và kiểm tra trạng thái của các ghế được chọn trong suất chiếu này
       const [conflicts] = await conn.query(
-        `SELECT bs.seat_id, bs.status, s.row_number, s.seat_number, bs.hold_expire
+        `SELECT bs.seat_id, bs.status, s.\`row_number\`, s.seat_number, bs.hold_expire
          FROM booking_seats bs
          JOIN bookings b ON bs.booking_id = b.id
          JOIN seats s ON bs.seat_id = s.id
@@ -82,7 +82,7 @@ async function holdSeats(req, res, next) {
 
       // Lấy thông tin giá từng loại ghế
       const [seatsInfo] = await conn.query(
-        `SELECT id, room_id, row_number, seat_number, seat_type, status FROM seats WHERE id IN (?)`,
+        `SELECT id, room_id, \`row_number\`, seat_number, seat_type, status FROM seats WHERE id IN (?)`,
         [uniqueSeatIds]
       );
 
@@ -107,7 +107,7 @@ async function holdSeats(req, res, next) {
       // RÀNG BUỘC NGHIỆP VỤ: KHÔNG ĐỂ LẠI GHẾ TRỐNG ĐƠN LẺ (SINGLE SEAT GAP RULE)
       // Áp dụng cho: Ghế thường (A, B, C) và Ghế VIP (D, E). Không áp dụng cho Couple (F).
       const [allRoomSeats] = await conn.query(
-        `SELECT id, room_id, row_number, seat_number, seat_type, status FROM seats WHERE room_id = ?`,
+        `SELECT id, room_id, \`row_number\`, seat_number, seat_type, status FROM seats WHERE room_id = ?`,
         [schedule.room_id]
       );
 
@@ -285,18 +285,18 @@ async function getBookingById(req, res, next) {
     if (
       req.user.role === 'customer' &&
       booking.customer_id &&
-      booking.customer_id !== customerId &&
-      booking.customer_id !== req.user.id
+      Number(booking.customer_id) !== Number(customerId) &&
+      Number(booking.customer_id) !== Number(req.user.id)
     ) {
       return res.status(403).json({
         success: false,
-        message: 'Bạn không có quyền xem đơn đặt vé này.',
+        message: 'Bạn không có quyền truy cập vào thông tin đơn đặt vé này.',
       });
     }
 
     // Lấy danh sách ghế
     const seats = await db.query(
-      `SELECT bs.*, s.row_number, s.seat_number, s.seat_type
+      `SELECT bs.*, s.\`row_number\`, s.seat_number, s.seat_type
        FROM booking_seats bs
        JOIN seats s ON bs.seat_id = s.id
        WHERE bs.booking_id = ?`,
@@ -308,7 +308,7 @@ async function getBookingById(req, res, next) {
 
     // Lấy vé điện tử nếu đã phát hành
     const tickets = await db.query(
-      `SELECT t.*, s.row_number, s.seat_number 
+      `SELECT t.*, s.\`row_number\`, s.seat_number 
        FROM tickets t
        JOIN seats s ON t.seat_id = s.id
        WHERE t.booking_id = ?`,
@@ -342,7 +342,7 @@ async function getMyBookings(req, res, next) {
               s.start_time, s.end_time,
               r.name AS room_name,
               COUNT(bs.id) AS seat_count,
-              GROUP_CONCAT(CONCAT(st.row_number, st.seat_number) SEPARATOR ', ') AS seat_labels
+              GROUP_CONCAT(CONCAT(st.\`row_number\`, st.seat_number) SEPARATOR ', ') AS seat_labels
        FROM bookings b
        JOIN screening_schedules s ON b.screening_id = s.id
        JOIN movies m ON s.movie_id = m.id

@@ -239,18 +239,20 @@ export function SchedulesPage({ onSelectSchedule, initialMovieId = 'all' }) {
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
                     {group.schedules.map((s) => {
-                      const startDate = new Date(s.start_time);
+                      const safeStartStr = typeof s.start_time === 'string' ? s.start_time.replace(' ', 'T') : s.start_time;
+                      const safeEndStr = typeof s.end_time === 'string' ? s.end_time.replace(' ', 'T') : s.end_time;
+                      const startDate = new Date(safeStartStr);
                       const hour = startDate.getHours();
                       const startTimeStr = startDate.toLocaleTimeString('vi-VN', {
                         hour: '2-digit',
                         minute: '2-digit',
                       });
-                      const endTimeStr = new Date(s.end_time).toLocaleTimeString('vi-VN', {
+                      const endTimeStr = new Date(safeEndStr).toLocaleTimeString('vi-VN', {
                         hour: '2-digit',
                         minute: '2-digit',
                       });
                       const isPast = startDate < new Date();
-                      const prediction = getHourPrediction(s.start_time, hour);
+                      const prediction = getHourPrediction(safeStartStr, hour);
 
                       return (
                         <button

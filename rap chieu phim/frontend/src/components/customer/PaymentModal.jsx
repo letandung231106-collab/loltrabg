@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useBooking } from '../../context/BookingContext';
 import { api } from '../../services/api';
 import { voucherWallet } from '../../services/voucherWallet';
@@ -71,6 +72,29 @@ export function PaymentModal({
     }
   }, [isOpen]);
 
+  // Cơ chế 1: Thoát Modal bằng phím tắt ESC
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' || e.key === 'Esc' || e.keyCode === 27) {
+        onClose?.();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
+  // Cơ chế 2: Khóa cuộn trang nền khi mở Modal và dọn dẹp sạch khi đóng / unmount
+  useEffect(() => {
+    if (isOpen) {
+      const prevOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = prevOverflow || 'unset';
+      };
+    }
+  }, [isOpen]);
+
   if (!isOpen || !activeBooking) return null;
 
   // Tính toán chi phí: vé + bắp nước - giảm giá voucher - trừ điểm loyalty
@@ -99,27 +123,28 @@ export function PaymentModal({
   const loyaltyDeduction = useLoyaltyPoints ? Math.min(amountAfterVoucher, availablePoints) : 0;
   const finalTotalAmount = Math.max(0, amountAfterVoucher - loyaltyDeduction);
 
-  const handleApplyVoucher = (codeToApply) => {
+  const handleApplyVoucher = async (codeToApply) => {
     const code = (codeToApply || voucherInput || '').trim().toUpperCase();
     setVoucherError('');
     if (!code) {
       setVoucherError('Vui lòng nhập mã giảm giá.');
       return;
     }
-    const walletVouchers = voucherWallet.getMyVouchers().filter((v) => !v.isUsed);
-    const found = walletVouchers.find((v) => v.code === code) || AVAILABLE_VOUCHERS.find((v) => v.code === code);
-    if (!found) {
-      setVoucherError('Mã giảm giá không tồn tại hoặc đã hết hạn.');
-      return;
+    try {
+      const res = await api.validateVoucher({ code, total_amount: subtotal });
+      if (res.success && res.data) {
+        setAppliedVoucher({
+          code: res.data.voucherCode,
+          discountAmount: res.data.discountAmount,
+          desc: res.data.desc,
+        });
+        setVoucherInput(res.data.voucherCode);
+      } else {
+        setVoucherError(res.message || 'Mã giảm giá không hợp lệ.');
+      }
+    } catch (err) {
+      setVoucherError(err.message || 'Mã giảm giá không tồn tại hoặc đã hết hạn.');
     }
-    if (found.minOrder && subtotal < found.minOrder) {
-      setVoucherError(
-        `Đơn hàng tối thiểu ${Number(found.minOrder).toLocaleString('vi-VN')}đ để áp dụng mã ${found.code}.`
-      );
-      return;
-    }
-    setAppliedVoucher(found);
-    setVoucherInput(found.code);
   };
 
   const handleRemoveVoucher = () => {
@@ -135,6 +160,7 @@ export function PaymentModal({
       const res = await api.createMomoPayment({
         booking_id: activeBooking.bookingId,
         request_type: reqType,
+        voucher_code: appliedVoucher?.code || undefined,
       });
       if (res.success && res.data) {
         setMomoSession(res.data);
@@ -238,6 +264,7 @@ export function PaymentModal({
         booking_id: activeBooking.bookingId,
         payment_method: method,
         simulate_failure: isFailure,
+        voucher_code: appliedVoucher?.code || undefined,
       });
 
       if (res.success && res.data?.paymentStatus === 'success') {
@@ -275,11 +302,58 @@ export function PaymentModal({
 
   const currentTier = loyaltyService.getTier(availablePoints);
 
-  return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[100] flex items-center justify-center p-3 sm:p-4 animate-fade-in">
-      <div className="bg-cinema-900 border border-cinema-700/80 rounded-3xl max-w-xl w-full max-h-[92vh] flex flex-col overflow-hidden shadow-2xl animate-scale-in relative">
+  const modalContent = (
+    <div
+      className="fixed inset-0 z-[99999] flex items-center justify-center p-4 sm:p-6 bg-black/85 backdrop-blur-md animate-fade-in"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        width: '100vw',
+        height: '100vh',
+        zIndex: 99999,
+        background: 'rgba(0, 0, 0, 0.82)',
+        backdropFilter: 'blur(8px)',
+        WebkitBackdropFilter: 'blur(8px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '24px',
+      }}
+      onClick={(e) => {
+        // Cơ chế 3: Click Outside (Bấm ra ngoài vùng nền tối để đóng Modal)
+        if (e.target === e.currentTarget) {
+          onClose?.();
+        }
+      }}
+    >
+      <div
+        className="relative w-full max-w-[650px] max-h-[88vh] flex flex-col overflow-hidden rounded-2xl bg-[#12151f] border border-white/10 shadow-2xl animate-scale-up"
+        style={{
+          position: 'relative',
+          width: '100%',
+          maxWidth: '650px',
+          maxHeight: '88vh',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          borderRadius: '16px',
+          background: '#12151f',
+          border: '1px solid rgba(255,255,255,0.12)',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Nút Đóng (X) cố định ở góc trên bên phải, kích thước 36x36px */}
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 z-50 w-9 h-9 rounded-full bg-black/75 hover:bg-ruby-600 text-white backdrop-blur-md transition-all flex items-center justify-center border border-white/20 shadow-lg cursor-pointer hover:scale-105 active:scale-95"
+          title="Đóng (phím ESC)"
+          aria-label="Đóng"
+        >
+          <X className="w-5 h-5" />
+        </button>
+
         {/* Header */}
-        <div className="px-6 py-4 bg-cinema-950/90 border-b border-cinema-800 flex items-center justify-between shrink-0">
+        <div className="px-6 py-4 bg-cinema-950/90 border-b border-cinema-800 flex items-center justify-between shrink-0 pr-16">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-ruby-600/20 border border-ruby-500/40 flex items-center justify-center text-ruby-400">
               <CreditCard className="w-5 h-5" />
@@ -291,12 +365,6 @@ export function PaymentModal({
               </p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full bg-cinema-800 hover:bg-cinema-700 text-slate-400 hover:text-white flex items-center justify-center transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
         </div>
 
         {/* Scrollable Content */}
@@ -729,4 +797,7 @@ export function PaymentModal({
       </div>
     </div>
   );
+
+  if (typeof document === 'undefined') return null;
+  return createPortal(modalContent, document.body);
 }

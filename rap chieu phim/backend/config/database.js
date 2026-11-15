@@ -15,6 +15,7 @@ const dbConfig = {
   queueLimit: 0,
   dateStrings: true,
   multipleStatements: true,
+  timezone: '+07:00',
 };
 
 let pool = null;
@@ -23,6 +24,10 @@ let isConnected = false;
 function getPool() {
   if (!pool) {
     pool = mysql.createPool(dbConfig);
+    // Đảm bảo mỗi kết nối trong pool luôn đặt múi giờ Việt Nam (+07:00) cho MySQL Server
+    pool.on('connection', (connection) => {
+      connection.query("SET time_zone = '+07:00'");
+    });
   }
   return pool;
 }
@@ -36,6 +41,11 @@ async function testConnection() {
     return true;
   } catch (error) {
     console.warn(`[MySQL Notice] Chưa thể kết nối MySQL trực tiếp (${error.message}).`);
+    if (process.env.NODE_ENV === 'production' && process.env.ENABLE_IN_MEMORY_DEMO !== 'true') {
+      console.error(`[CRITICAL DATABASE ERROR] Môi trường Production bắt buộc phải kết nối cơ sở dữ liệu MySQL thật.`);
+      console.error(`Hệ thống từ chối khởi động và không được phép âm thầm chuyển sang bộ nhớ RAM In-Memory trong Production.`);
+      throw new Error(`Production Database Connection Failed: Không thể kết nối tới MySQL host ${dbConfig.host}:${dbConfig.port} (${error.message}).`);
+    }
     console.warn(`[MySQL Auto-Fallback] Đã kích hoạt bộ nhớ đệm In-Memory Seed Data để Web App hoạt động ngay lập tức!`);
     console.warn(`[MySQL Guide] Bạn có thể mở MySQL Workbench và import 'cinema_management.sql' bất kỳ lúc nào.`);
     isConnected = false;
@@ -45,19 +55,17 @@ async function testConnection() {
 
 /**
  * Thực thi câu truy vấn SQL thông thường
+ * - Khi MySQL kết nối thành công: Thực thi trực tiếp trên MySQL, ném lỗi nghiệp vụ/cú pháp nếu có.
+ * - Khi chưa kết nối MySQL (!isConnected): Sử dụng bộ giả lập RAM (In-Memory Fallback).
  */
 async function query(sql, params = []) {
   if (isConnected) {
-    try {
-      const p = getPool();
-      const [results] = await p.query(sql, params);
-      return results;
-    } catch (err) {
-      console.warn(`[MySQL Query Error] ${err.message}. Chuyển sang xử lý dự phòng.`);
-    }
+    const p = getPool();
+    const [results] = await p.query(sql, params);
+    return results;
   }
 
-  // In-memory fallback query handler
+  // In-memory fallback query handler (chỉ kích hoạt khi !isConnected)
   const normalized = sql.toLowerCase().replace(/\s+/g, ' ').trim();
   const now = new Date();
   const todayStr = (d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'))(now);
@@ -158,21 +166,13 @@ async function query(sql, params = []) {
         }
         grouped[dStr].transaction_count += 1;
         grouped[dStr].total_transactions += 1;
-        grouped[dStr].tickets_count += 2;
+        const relatedTickets = (memory.tickets || []).filter(
+          (t) => t.booking_id === p.booking_id && ['active', 'used'].includes(t.status)
+        );
+        grouped[dStr].tickets_count += Math.max(1, relatedTickets.length);
         grouped[dStr].total_revenue += parseFloat(p.amount || 0);
       });
-    const result = Object.values(grouped);
-    if (result.length === 0) {
-      result.push({
-        date: todayStr,
-        sale_date: todayStr,
-        transaction_count: 1,
-        total_transactions: 1,
-        tickets_count: 2,
-        total_revenue: 220000,
-      });
-    }
-    return result;
+    return Object.values(grouped);
   }
 
   // Analytics: Top Movies by Revenue
@@ -1125,16 +1125,22 @@ async function query(sql, params = []) {
   // 16. NOTIFICATIONS & OTHER MODULES
   // =========================================================================
   if (normalized.includes('from notifications')) {
-    let list = memory.notifications || [];
+    let list = [...(memory.notifications || [])];
     if (normalized.includes('where user_id = ?')) {
-      const uId = parseInt(params[0], 10);
-      list = list.filter((n) => n.user_id === uId || !n.user_id);
+      const userId = parseInt(params[0], 10);
+      list = list.filter((n) => n.user_id === userId);
     }
     if (normalized.includes('is_read = false')) {
       list = list.filter((n) => !n.is_read);
     }
     if (normalized.includes('count(*) as count')) {
       return [{ count: list.length }];
+    }
+    list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    if (normalized.includes('limit')) {
+      const limitMatch = normalized.match(/limit\s+(\d+)/);
+      const limit = limitMatch ? parseInt(limitMatch[1], 10) : 30;
+      list = list.slice(0, limit);
     }
     return list;
   }
@@ -1951,6 +1957,8 @@ async function query(sql, params = []) {
       screening_id: parseInt(params[1], 10),
       booking_code: params[2],
       total_amount: parseFloat(params[3]),
+      voucher_code: null,
+      discount_amount: 0,
       status: params[4] || 'pending',
       booking_time: now.toISOString().replace('T', ' ').slice(0, 19),
     };
@@ -1959,6 +1967,17 @@ async function query(sql, params = []) {
   }
 
   if (normalized.startsWith('update bookings')) {
+    if (normalized.includes('voucher_code') && normalized.includes('discount_amount')) {
+      const vCode = params[0];
+      const dAmount = parseFloat(params[1]) || 0;
+      const id = parseInt(params[2], 10);
+      const b = memory.bookings.find((item) => item.id === id);
+      if (b) {
+        b.voucher_code = vCode;
+        b.discount_amount = dAmount;
+      }
+      return { affectedRows: b ? 1 : 0 };
+    }
     if (normalized.includes('where id in (?)')) {
       const ids = (Array.isArray(params[0]) ? params[0] : [params[0]]).map((x) => parseInt(x, 10));
       let count = 0;
@@ -2011,6 +2030,14 @@ async function query(sql, params = []) {
   }
 
   if (normalized.startsWith('update booking_seats')) {
+    if (normalized.includes('hold_expire = ? where booking_id = ?')) {
+      const exp = params[0];
+      const bookingId = parseInt(params[1], 10);
+      memory.booking_seats.forEach((bs) => {
+        if (bs.booking_id === bookingId) bs.hold_expire = exp;
+      });
+      return { affectedRows: 1 };
+    }
     if (normalized.includes('where id in (?)')) {
       const ids = (Array.isArray(params[0]) ? params[0] : [params[0]]).map((x) => parseInt(x, 10));
       let count = 0;
@@ -2093,18 +2120,41 @@ async function query(sql, params = []) {
   }
 
   if (normalized.startsWith('update tickets')) {
-    const idOrCode = params[params.length - 1];
+    const idOrCode = params[0] !== undefined && params.length === 1 ? params[0] : params[params.length - 1];
     const t = memory.tickets.find((item) => item.id === parseInt(idOrCode, 10) || item.ticket_code === idOrCode);
     if (t) {
+      if (normalized.includes("status = 'active'") && t.status !== 'active') {
+        return { affectedRows: 0 };
+      }
       if (normalized.includes("status = 'used'")) t.status = 'used';
       else if (normalized.includes("status = 'cancelled'")) t.status = 'cancelled';
       else if (params[0] !== undefined) t.status = params[0];
+      return { affectedRows: 1 };
     }
-    return { affectedRows: t ? 1 : 0 };
+    return { affectedRows: 0 };
   }
 
   // O. Notifications Mutations
   if (normalized.startsWith('insert into notifications')) {
+    if (normalized.includes('select u.id')) {
+      const title = params[0];
+      const msg = params[1];
+      const targetUsers = (memory.users || []).filter((u) => [1, 2].includes(u.role_id));
+      let lastId = memory.notifications.length > 0 ? Math.max(...memory.notifications.map((n) => n.id)) : 0;
+      targetUsers.forEach((u) => {
+        lastId++;
+        memory.notifications.unshift({
+          id: lastId,
+          user_id: u.id,
+          title,
+          message: msg,
+          type: 'incident',
+          is_read: false,
+          created_at: now.toISOString().replace('T', ' ').slice(0, 19),
+        });
+      });
+      return { insertId: lastId, affectedRows: targetUsers.length };
+    }
     const newId = memory.notifications.length > 0 ? Math.max(...memory.notifications.map((n) => n.id)) + 1 : 1;
     if (normalized.includes('select u.id')) {
       // INSERT INTO notifications (user_id, title, message, type) SELECT u.id, ?, ?, 'incident' FROM users u ...
@@ -2134,19 +2184,29 @@ async function query(sql, params = []) {
   }
 
   if (normalized.startsWith('update notifications')) {
-    if (normalized.includes('where user_id = ?') && !normalized.includes('where id = ?')) {
-      const uId = parseInt(params[0], 10);
+    if (normalized.includes('where id = ? and user_id = ?')) {
+      const notifId = parseInt(params[0], 10);
+      const userId = parseInt(params[1], 10);
+      const notif = (memory.notifications || []).find((n) => n.id === notifId && n.user_id === userId);
+      if (notif) {
+        notif.is_read = true;
+        return { affectedRows: 1 };
+      }
+      return { affectedRows: 0 };
+    }
+    if (normalized.includes('where user_id = ?')) {
+      const userId = parseInt(params[0], 10);
       let count = 0;
-      memory.notifications.forEach((n) => {
-        if (n.user_id === uId || !n.user_id) {
+      (memory.notifications || []).forEach((n) => {
+        if ((n.user_id === userId || !n.user_id) && !n.is_read) {
           n.is_read = true;
           count++;
         }
       });
       return { affectedRows: count };
     }
-    const id = parseInt(params[0], 10);
-    const notif = memory.notifications.find((n) => n.id === id);
+    const notifId = parseInt(params[0], 10);
+    const notif = (memory.notifications || []).find((n) => n.id === notifId);
     if (notif) notif.is_read = true;
     return { affectedRows: notif ? 1 : 0 };
   }
@@ -2167,6 +2227,9 @@ async function query(sql, params = []) {
 
 /**
  * Thực thi Transaction hỗ trợ Locking (SELECT FOR UPDATE)
+ * - Khi MySQL kết nối: Thực hiện transaction thật trên MySQL với beginTransaction, commit, rollback.
+ *   Nếu có lỗi nghiệp vụ hoặc DB, ném lỗi ra ngoài, TUYỆT ĐỐI KHÔNG rơi xuống fallback RAM.
+ * - Khi chưa kết nối MySQL (!isConnected): Sử dụng snapshot rollback trên bộ nhớ RAM.
  */
 async function withTransaction(callback) {
   if (isConnected) {
@@ -2193,7 +2256,7 @@ async function withTransaction(callback) {
     }
   }
 
-  // Fallback in-memory transaction with snapshot & rollback capability
+  // Fallback in-memory transaction with snapshot & rollback capability (chỉ khi !isConnected)
   const snapshot = {
     inventory_ingredients: JSON.parse(JSON.stringify(memory.inventory_ingredients || [])),
     inventory_logs: JSON.parse(JSON.stringify(memory.inventory_logs || [])),

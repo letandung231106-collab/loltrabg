@@ -9,15 +9,19 @@ const roles = [
   { id: 5, name: 'customer', description: 'Khách hàng đặt vé xem phim' },
 ];
 
+const SEED_BCRYPT_PASSWORD = '$2a$10$40y5qsZxBNRDCnF9ucv3W.CJ7H9ND61dPPmfBlgjebG9jWAVFB/ke'; // 'password123'
+
 const users = [
-  { id: 1, username: 'admin', password: 'password123', role_id: 1, status: 'active', created_at: '2026-09-14 08:00:00' },
-  { id: 2, username: 'manager1', password: 'password123', role_id: 2, status: 'active', created_at: '2026-09-14 08:00:00' },
-  { id: 3, username: 'staff1', password: 'password123', role_id: 3, status: 'active', created_at: '2026-09-14 08:00:00' },
-  { id: 4, username: 'staff2', password: 'password123', role_id: 3, status: 'active', created_at: '2026-09-14 08:00:00' },
-  { id: 5, username: 'tech1', password: 'password123', role_id: 4, status: 'active', created_at: '2026-09-14 08:00:00' },
-  { id: 6, username: 'tech2', password: 'password123', role_id: 4, status: 'active', created_at: '2026-09-14 08:00:00' },
-  { id: 7, username: 'customer1', password: 'password123', role_id: 5, status: 'active', created_at: '2026-09-14 08:00:00' },
-  { id: 8, username: 'customer2', password: 'password123', role_id: 5, status: 'active', created_at: '2026-09-14 08:00:00' },
+  { id: 1, username: 'admin', password: SEED_BCRYPT_PASSWORD, role_id: 1, status: 'active', created_at: '2026-09-14 08:00:00' },
+  { id: 2, username: 'manager1', password: SEED_BCRYPT_PASSWORD, role_id: 2, status: 'active', created_at: '2026-09-14 08:00:00' },
+  { id: 3, username: 'staff1', password: SEED_BCRYPT_PASSWORD, role_id: 3, status: 'active', created_at: '2026-09-14 08:00:00' },
+  { id: 4, username: 'staff2', password: SEED_BCRYPT_PASSWORD, role_id: 3, status: 'active', created_at: '2026-09-14 08:00:00' },
+  { id: 5, username: 'tech1', password: SEED_BCRYPT_PASSWORD, role_id: 4, status: 'active', created_at: '2026-09-14 08:00:00' },
+  { id: 6, username: 'tech2', password: SEED_BCRYPT_PASSWORD, role_id: 4, status: 'active', created_at: '2026-09-14 08:00:00' },
+  { id: 7, username: 'customer1', password: SEED_BCRYPT_PASSWORD, role_id: 5, status: 'active', created_at: '2026-09-14 08:00:00' },
+  { id: 8, username: 'customer2', password: SEED_BCRYPT_PASSWORD, role_id: 5, status: 'active', created_at: '2026-09-14 08:00:00' },
+  { id: 9, username: 'customer3', password: SEED_BCRYPT_PASSWORD, role_id: 5, status: 'active', created_at: '2026-09-14 08:00:00' },
+  { id: 10, username: 'manager2', password: SEED_BCRYPT_PASSWORD, role_id: 2, status: 'active', created_at: '2026-09-14 08:00:00' },
 ];
 
 const customers = [
@@ -43,7 +47,7 @@ const movies = [
     actors: 'Timothée Chalamet, Zendaya, Rebecca Ferguson, Javier Bardem',
     duration: 166,
     release_date: '2026-03-01',
-    end_date: '2026-05-30',
+    end_date: '2027-03-31',
     age_rating: 'T16',
     language: 'Tiếng Anh - Phụ đề Tiếng Việt',
     format: 'IMAX 2D, 2D Digital',
@@ -60,7 +64,7 @@ const movies = [
     actors: 'Cillian Murphy, Emily Blunt, Matt Damon, Robert Downey Jr.',
     duration: 180,
     release_date: '2026-02-15',
-    end_date: '2026-05-15',
+    end_date: '2027-03-31',
     age_rating: 'T18',
     language: 'Tiếng Anh - Phụ đề Tiếng Việt',
     format: 'IMAX 2D, 2D Digital',
@@ -77,7 +81,7 @@ const movies = [
     actors: 'Thanh Hiền, Trương Minh Cường, Đinh Y Nhung',
     duration: 138,
     release_date: '2026-04-26',
-    end_date: '2026-06-30',
+    end_date: '2027-03-31',
     age_rating: 'K',
     language: 'Tiếng Việt',
     format: '2D Digital',
@@ -94,7 +98,7 @@ const movies = [
     actors: 'Ryan Reynolds, Hugh Jackman',
     duration: 127,
     release_date: '2026-07-26',
-    end_date: '2026-09-30',
+    end_date: '2027-03-31',
     age_rating: 'T18',
     language: 'Tiếng Anh - Phụ đề',
     format: '3D, 4DX, 2D Digital',
@@ -111,7 +115,7 @@ const movies = [
     actors: 'Rebecca Hall, Brian Tyree Henry',
     duration: 115,
     release_date: '2026-03-29',
-    end_date: '2026-05-20',
+    end_date: '2027-03-31',
     age_rating: 'T13',
     language: 'Tiếng Anh - Phụ đề',
     format: '3D, 4DX, IMAX 2D',
@@ -128,7 +132,7 @@ const movies = [
     actors: 'Amy Poehler, Maya Hawke',
     duration: 96,
     release_date: '2026-06-14',
-    end_date: '2026-08-30',
+    end_date: '2027-03-31',
     age_rating: 'P',
     language: 'Lồng tiếng Tiếng Việt',
     format: '2D Digital, 3D',
@@ -145,7 +149,7 @@ const movies = [
     actors: 'Jack Black, Awkwafina, Viola Davis',
     duration: 94,
     release_date: '2026-03-08',
-    end_date: '2026-05-15',
+    end_date: '2027-03-31',
     age_rating: 'P',
     language: 'Lồng tiếng Tiếng Việt',
     format: '2D Digital, 3D',
@@ -162,7 +166,7 @@ const movies = [
     actors: 'Choi Min-sik, Kim Go-eun, Yoo Hae-jin, Lee Do-hyun',
     duration: 134,
     release_date: '2026-03-15',
-    end_date: '2026-05-10',
+    end_date: '2027-03-31',
     age_rating: 'T18',
     language: 'Tiếng Hàn - Phụ đề Tiếng Việt',
     format: '2D Digital',
@@ -179,7 +183,7 @@ const movies = [
     actors: 'Minami Takayama, Wakana Yamazaki, Kappei Yamaguchi',
     duration: 110,
     release_date: '2026-08-02',
-    end_date: '2026-10-15',
+    end_date: '2027-03-31',
     age_rating: 'K',
     language: 'Lồng tiếng & Phụ đề Tiếng Việt',
     format: '2D Digital, IMAX 2D',
@@ -196,7 +200,7 @@ const movies = [
     actors: 'Steve Carell, Kristen Wiig, Will Ferrell',
     duration: 95,
     release_date: '2026-07-05',
-    end_date: '2026-09-10',
+    end_date: '2027-03-31',
     age_rating: 'P',
     language: 'Lồng tiếng Tiếng Việt',
     format: '2D Digital, 3D',
@@ -281,7 +285,7 @@ const movies = [
     actors: 'Matthew McConaughey, Anne Hathaway, Jessica Chastain',
     duration: 169,
     release_date: '2026-09-27',
-    end_date: '2026-10-30',
+    end_date: '2027-03-31',
     age_rating: 'T13',
     language: 'Tiếng Anh - Phụ đề Tiếng Việt',
     format: 'IMAX 2D 70mm',
@@ -295,18 +299,18 @@ const movies = [
 const rooms = [
   { id: 1, name: 'Cinema Hall 1 (Standard Dolby)', room_type: 'standard', capacity: 84, location: 'Tầng 3 - Cánh Trái', status: 'active', description: 'Phòng chiếu Dolby Atmos 7.1' },
   { id: 2, name: 'Cinema Hall 2 (Standard Dolby)', room_type: 'standard', capacity: 84, location: 'Tầng 3 - Cánh Trái', status: 'active', description: 'Phòng chiếu Laser 4K' },
-  { id: 3, name: 'Cinema Hall 3 (VIP Prime Lounge)', room_type: 'vip', capacity: 48, location: 'Tầng 3 - Khu Trung Tâm', status: 'active', description: 'Phòng chiếu ghế da chỉnh điện' },
-  { id: 4, name: 'Cinema Hall 4 (IMAX Laser Theater)', room_type: 'imax', capacity: 96, location: 'Tầng 4 - Đại Sảnh IMAX', status: 'active', description: 'Màn hình 22m x 16m chuẩn IMAX Laser' },
-  { id: 5, name: 'Cinema Hall 5 (4DX Motion World)', room_type: '4dx', capacity: 60, location: 'Tầng 4 - Cánh Phải', status: 'active', description: 'Hiệu ứng rung lắc, gió, mưa, mùi hương' },
-  { id: 6, name: 'Cinema Hall 6 (Gold Class Luxury)', room_type: 'vip', capacity: 36, location: 'Tầng 4 - Cánh Phải', status: 'maintenance', description: 'Phòng hạng sang - Đang bảo dưỡng' },
+  { id: 3, name: 'Cinema Hall 3 (VIP Prime Lounge)', room_type: 'vip', capacity: 84, location: 'Tầng 3 - Khu Trung Tâm', status: 'active', description: 'Phòng chiếu ghế da chỉnh điện' },
+  { id: 4, name: 'Cinema Hall 4 (IMAX Laser Theater)', room_type: 'imax', capacity: 84, location: 'Tầng 4 - Đại Sảnh IMAX', status: 'active', description: 'Màn hình 22m x 16m chuẩn IMAX Laser' },
+  { id: 5, name: 'Cinema Hall 5 (4DX Motion World)', room_type: '4dx', capacity: 84, location: 'Tầng 4 - Cánh Phải', status: 'active', description: 'Hiệu ứng rung lắc, gió, mưa, mùi hương' },
+  { id: 6, name: 'Cinema Hall 6 (Gold Class Luxury)', room_type: 'vip', capacity: 84, location: 'Tầng 4 - Cánh Phải', status: 'maintenance', description: 'Phòng hạng sang - Đang bảo dưỡng' },
   { id: 7, name: 'Cinema Hall 7 (Standard Dolby)', room_type: 'standard', capacity: 84, location: 'Tầng 5 - Cánh Trái', status: 'active', description: 'Phòng chiếu gia đình' },
   { id: 8, name: 'Cinema Hall 8 (Studio Premiere)', room_type: 'standard', capacity: 84, location: 'Tầng 5 - Cánh Phải', status: 'incident', description: 'Đang xử lý sự cố điều hòa' },
 ];
 
-// Generate seats for Rooms 1, 2, 3, 4, 5, 7
+// Generate seats for all 8 rooms (A-F x 12 = 72 seats each, capacity = 84)
 const seats = [];
 let seatIdCounter = 1;
-[1, 2, 3, 4, 5, 7].forEach((roomId) => {
+[1, 2, 3, 4, 5, 6, 7, 8].forEach((roomId) => {
   ['A', 'B', 'C', 'D', 'E', 'F'].forEach((row, rIdx) => {
     const maxNum = 12; // Chuẩn 12 ghế mỗi hàng (A1-F12)
     for (let num = 1; num <= maxNum; num++) {
@@ -377,11 +381,11 @@ const schedules = [
 })();
 
 const bookings = [
-  { id: 1, customer_id: 1, screening_id: 5, booking_code: 'BK-20260914-001', booking_time: `${todayStr} 10:15:00`, total_amount: 220000, status: 'paid' },
-  { id: 2, customer_id: 1, screening_id: 1, booking_code: 'BK-20260914-002', booking_time: `${todayStr} 11:00:00`, total_amount: 150000, status: 'paid' },
-  { id: 3, customer_id: 1, screening_id: 7, booking_code: 'BK-20260914-003', booking_time: `${todayStr} 11:30:00`, total_amount: 140000, status: 'pending' },
-  { id: 4, customer_id: 1, screening_id: 3, booking_code: 'BK-20260914-004', booking_time: `${todayStr} 12:00:00`, total_amount: 180000, status: 'paid' },
-  { id: 5, customer_id: 2, screening_id: 1, booking_code: 'BK-20260914-005', booking_time: `${todayStr} 12:30:00`, total_amount: 150000, status: 'paid' },
+  { id: 1, customer_id: 1, screening_id: 5, booking_code: 'BK-20260914-001', booking_time: `${todayStr} 10:15:00`, total_amount: 220000, voucher_code: null, discount_amount: 0, status: 'paid' },
+  { id: 2, customer_id: 1, screening_id: 1, booking_code: 'BK-20260914-002', booking_time: `${todayStr} 11:00:00`, total_amount: 150000, voucher_code: null, discount_amount: 0, status: 'paid' },
+  { id: 3, customer_id: 1, screening_id: 7, booking_code: 'BK-20260914-003', booking_time: `${todayStr} 11:30:00`, total_amount: 140000, voucher_code: null, discount_amount: 0, status: 'pending' },
+  { id: 4, customer_id: 1, screening_id: 3, booking_code: 'BK-20260914-004', booking_time: `${todayStr} 12:00:00`, total_amount: 180000, voucher_code: null, discount_amount: 0, status: 'paid' },
+  { id: 5, customer_id: 2, screening_id: 1, booking_code: 'BK-20260914-005', booking_time: `${todayStr} 12:30:00`, total_amount: 150000, voucher_code: null, discount_amount: 0, status: 'paid' },
 ];
 
 const booking_seats = [
@@ -389,7 +393,7 @@ const booking_seats = [
   { id: 2, booking_id: 1, seat_id: 42, price: 110000, status: 'booked', hold_start: `${todayStr} 10:15:00`, hold_expire: `${todayStr} 10:25:00` },
   { id: 3, booking_id: 2, seat_id: 217, price: 150000, status: 'booked', hold_start: `${todayStr} 11:00:00`, hold_expire: `${todayStr} 11:10:00` },
   { id: 4, booking_id: 3, seat_id: 145, price: 140000, status: 'holding', hold_start: `${todayStr} 11:30:00`, hold_expire: `${todayStr} 11:40:00` },
-  { id: 5, booking_id: 4, seat_id: 301, price: 180000, status: 'cancelled', hold_start: `${todayStr} 12:00:00`, hold_expire: `${todayStr} 12:10:00` },
+  { id: 5, booking_id: 4, seat_id: 301, price: 180000, status: 'booked', hold_start: `${todayStr} 12:00:00`, hold_expire: `${todayStr} 12:10:00` },
   { id: 6, booking_id: 5, seat_id: 218, price: 150000, status: 'booked', hold_start: `${todayStr} 12:30:00`, hold_expire: `${todayStr} 12:40:00` },
 ];
 
@@ -397,7 +401,6 @@ const tickets = [
   { id: 1, booking_id: 1, customer_id: 1, screening_id: 5, seat_id: 41, ticket_code: 'TCK-20260914-5-D5', status: 'active', created_at: `${todayStr} 10:18:22` },
   { id: 2, booking_id: 1, customer_id: 1, screening_id: 5, seat_id: 42, ticket_code: 'TCK-20260914-5-D6', status: 'active', created_at: `${todayStr} 10:18:22` },
   { id: 3, booking_id: 2, customer_id: 1, screening_id: 1, seat_id: 217, ticket_code: 'TCK-20260914-1-A1', status: 'used', created_at: `${todayStr} 11:02:15` },
-  { id: 4, booking_id: 3, customer_id: 1, screening_id: 7, seat_id: 145, ticket_code: 'TCK-20260914-7-B2', status: 'active', created_at: `${todayStr} 11:32:00` },
   { id: 5, booking_id: 4, customer_id: 1, screening_id: 3, seat_id: 301, ticket_code: 'TCK-20260914-3-C3', status: 'cancelled', created_at: `${todayStr} 12:02:00` },
   { id: 6, booking_id: 5, customer_id: 2, screening_id: 1, seat_id: 218, ticket_code: 'TCK-20260914-1-A2', status: 'used', created_at: `${todayStr} 12:32:00` },
 ];
@@ -468,9 +471,10 @@ const inspection_details = [
 ];
 
 const notifications = [
-  { id: 1, user_id: 2, title: 'Sự cố mới tại Phòng 8', message: 'Nhân viên Đỗ Tuấn Kiệt vừa báo cáo sự cố điều hòa phòng 8. Vui lòng phân công kỹ thuật viên.', type: 'incident', is_read: false, created_at: `${todayStr} 09:30:00` },
+  { id: 1, user_id: 2, title: 'Sự cố mới tại Phòng 8', message: 'Nhân viên Đỗ Tuấn Kiệt vừa báo cáo sự cố điều hòa phòng 8 (Mức độ: Cao). Vui lòng phân công kỹ thuật viên.', type: 'incident', is_read: false, created_at: `${todayStr} 09:30:00` },
   { id: 2, user_id: 5, title: 'Phân công xử lý sự cố', message: 'Quản lý Mark Zuckerberg đã phân công bạn xử lý sự cố INC-20260914-001 (Điều hòa Phòng 8).', type: 'incident', is_read: false, created_at: `${todayStr} 09:40:00` },
-  { id: 3, user_id: 7, title: 'Đặt vé thành công', message: 'Bạn đã đặt thành công 2 vé xem phim Lật Mặt 7 suất 18:30 hôm nay.', type: 'booking', is_read: true, created_at: `${todayStr} 10:18:25` },
+  { id: 3, user_id: 2, title: 'Cảnh báo hạn bảo trì', message: 'Hệ thống máy chiếu IMAX Laser Phòng 4 sắp đến kỳ bảo dưỡng chất lỏng (20/09/2026).', type: 'maintenance', is_read: false, created_at: `${todayStr} 08:00:00` },
+  { id: 4, user_id: 7, title: 'Đặt vé thành công', message: 'Bạn đã đặt thành công 2 vé xem phim Lật Mặt 7: Một Điều Ước (Ghế D5, D6) suất 18:00 hôm nay.', type: 'booking', is_read: true, created_at: `${todayStr} 10:18:25` },
 ];
 
 // --- 17. F&B Concession Menu Items ---
@@ -544,36 +548,40 @@ const shift_handovers = [
 
 // --- 22. Quản Lý Khóa Bản Quyền KDM (KDM Licenses) ---
 const kdm_licenses = [
-  { id: 1, movie_id: 1, movie_name: 'Dune: Hành Tinh Cát 2', room_id: 1, room_name: 'Phòng 1 - IMAX Laser', server_serial: 'DCI-IMAX-98821', valid_from: '2026-03-01 00:00:00', valid_until: '2026-05-30 23:59:59', status: 'active', key_file: 'KDM_DUNE2_IMAX_98821.xml' },
-  { id: 2, movie_id: 1, movie_name: 'Dune: Hành Tinh Cát 2', room_id: 2, room_name: 'Phòng 2 - Dolby Atmos', server_serial: 'DCI-SRV-20419', valid_from: '2026-03-01 00:00:00', valid_until: '2026-05-30 23:59:59', status: 'active', key_file: 'KDM_DUNE2_ROOM2_20419.xml' },
-  { id: 3, movie_id: 2, movie_name: 'Oppenheimer', room_id: 3, room_name: 'Phòng 3 - Gold VIP', server_serial: 'DCI-SRV-33910', valid_from: '2026-02-15 00:00:00', valid_until: '2026-04-15 23:59:59', status: 'expiring_soon', key_file: 'KDM_OPPENHEIMER_R3.xml' },
-  { id: 4, movie_id: 4, movie_name: 'Godzilla x Kong', room_id: 4, room_name: 'Phòng 4 - 4DX Dynamic', server_serial: 'DCI-4DX-44102', valid_from: '2026-01-01 00:00:00', valid_until: '2026-03-10 23:59:59', status: 'expired', key_file: 'KDM_GXK_4DX_44102.xml' },
+  { id: 1, movie_id: 1, movie_name: 'Dune: Hành Tinh Cát - Phần 2', room_id: 4, room_name: 'Cinema Hall 4 (IMAX Laser Theater)', server_serial: 'DCI-IMAX-98821', valid_from: '2026-03-01 00:00:00', valid_until: '2027-03-31 23:59:59', status: 'active', key_file: 'KDM_DUNE2_IMAX_98821.xml' },
+  { id: 2, movie_id: 1, movie_name: 'Dune: Hành Tinh Cát - Phần 2', room_id: 1, room_name: 'Cinema Hall 1 (Standard Dolby)', server_serial: 'DCI-SRV-20419', valid_from: '2026-03-01 00:00:00', valid_until: '2027-03-31 23:59:59', status: 'active', key_file: 'KDM_DUNE2_ROOM1_20419.xml' },
+  { id: 3, movie_id: 2, movie_name: 'Oppenheimer', room_id: 3, room_name: 'Cinema Hall 3 (VIP Prime Lounge)', server_serial: 'DCI-SRV-33910', valid_from: '2026-02-15 00:00:00', valid_until: '2026-04-15 23:59:59', status: 'expiring_soon', key_file: 'KDM_OPPENHEIMER_R3.xml' },
+  { id: 4, movie_id: 6, movie_name: 'Godzilla x Kong: Đế Chế Mới', room_id: 5, room_name: 'Cinema Hall 5 (4DX Motion World)', server_serial: 'DCI-4DX-44102', valid_from: '2026-01-01 00:00:00', valid_until: '2026-03-10 23:59:59', status: 'expired', key_file: 'KDM_GXK_4DX_44102.xml' },
+  { id: 5, movie_id: 5, movie_name: 'Deadpool & Wolverine', room_id: 5, room_name: 'Cinema Hall 5 (4DX Motion World)', server_serial: 'DCI-4DX-55201', valid_from: '2026-07-26 00:00:00', valid_until: '2027-03-31 23:59:59', status: 'active', key_file: 'KDM_DPW_4DX_55201.xml' },
 ];
 
 // --- 23. Theo Dõi Tuổi Thọ Bóng Đèn Máy Chiếu (Projector Lamp Logs) ---
 const projector_lamp_logs = [
-  { id: 1, room_id: 1, room_name: 'Phòng 1 - IMAX Laser', projector_model: 'Barco DP4K-60L Laser', lamp_type: 'RGB Laser Module', hours_used: 1240, max_hours_recommended: 30000, health_percentage: 95.8, temperature_celsius: 21.5, status: 'good' },
-  { id: 2, room_id: 2, room_name: 'Phòng 2 - Dolby Atmos', projector_model: 'Christie CP4325-RGB', lamp_type: 'Xenon Lamp 4.5kW', hours_used: 1890, max_hours_recommended: 2000, health_percentage: 18.5, temperature_celsius: 25.0, status: 'warning' },
-  { id: 3, room_id: 3, room_name: 'Phòng 3 - Gold VIP', projector_model: 'NEC NC3541L Laser', lamp_type: 'Laser Phosphor', hours_used: 4320, max_hours_recommended: 20000, health_percentage: 78.4, temperature_celsius: 22.0, status: 'good' },
-  { id: 4, room_id: 4, room_name: 'Phòng 4 - 4DX Dynamic', projector_model: 'Barco DP2K-20C', lamp_type: 'Xenon Lamp 3.0kW', hours_used: 2150, max_hours_recommended: 2000, health_percentage: 5.0, temperature_celsius: 28.5, status: 'critical' },
+  { id: 1, room_id: 1, room_name: 'Cinema Hall 1 (Standard Dolby)', projector_model: 'Barco DP4K-60L Laser', lamp_type: 'RGB Laser Module', hours_used: 1240, max_hours_recommended: 30000, health_percentage: 95.8, temperature_celsius: 21.5, status: 'good' },
+  { id: 2, room_id: 2, room_name: 'Cinema Hall 2 (Standard Dolby)', projector_model: 'Christie CP4325-RGB', lamp_type: 'Xenon Lamp 4.5kW', hours_used: 1890, max_hours_recommended: 2000, health_percentage: 18.5, temperature_celsius: 25.0, status: 'warning' },
+  { id: 3, room_id: 3, room_name: 'Cinema Hall 3 (VIP Prime Lounge)', projector_model: 'NEC NC3541L Laser', lamp_type: 'Laser Phosphor', hours_used: 4320, max_hours_recommended: 20000, health_percentage: 78.4, temperature_celsius: 22.0, status: 'good' },
+  { id: 4, room_id: 4, room_name: 'Cinema Hall 4 (IMAX Laser Theater)', projector_model: 'Barco DP2K-20C', lamp_type: 'Xenon Lamp 3.0kW', hours_used: 2150, max_hours_recommended: 2000, health_percentage: 5.0, temperature_celsius: 28.5, status: 'critical' },
 ];
 
 // --- 24. Checklist Dọn Rạp Giữa Suất Chiếu (Turnaround Checklists) ---
 const turnaround_checklists = [
-  { id: 1, schedule_id: 1, room_id: 1, room_name: 'Phòng 1 - IMAX Laser', cleaned_by_name: 'Steve Jobs', target_minutes: 15, actual_minutes: 11, seats_checked: true, trash_cleared: true, spilled_liquid_cleaned: true, screen_undamaged: true, aircon_normal: true, status: 'ready', verified_at: `${todayStr} 12:45:00` },
-  { id: 2, schedule_id: 4, room_id: 2, room_name: 'Phòng 2 - Dolby Atmos', cleaned_by_name: 'Đỗ Tuấn Kiệt', target_minutes: 12, actual_minutes: 10, seats_checked: true, trash_cleared: true, spilled_liquid_cleaned: true, screen_undamaged: true, aircon_normal: true, status: 'ready', verified_at: `${todayStr} 15:30:00` },
+  { id: 1, schedule_id: 1, room_id: 1, room_name: 'Cinema Hall 1 (Standard Dolby)', cleaned_by_name: 'Steve Jobs', target_minutes: 15, actual_minutes: 11, seats_checked: true, trash_cleared: true, spilled_liquid_cleaned: true, screen_undamaged: true, aircon_normal: true, status: 'ready', verified_at: `${todayStr} 12:45:00` },
+  { id: 2, schedule_id: 4, room_id: 2, room_name: 'Cinema Hall 2 (Standard Dolby)', cleaned_by_name: 'Đỗ Tuấn Kiệt', target_minutes: 12, actual_minutes: 10, seats_checked: true, trash_cleared: true, spilled_liquid_cleaned: true, screen_undamaged: true, aircon_normal: true, status: 'ready', verified_at: `${todayStr} 15:30:00` },
 ];
 
 // --- 25. Đánh Giá & Bình Luận Phim (Movie Reviews & Ratings) ---
 const movie_reviews = [
-  { id: 1, movie_id: 1, user_id: 7, user_name: 'Nguyễn Văn An (Diamond VIP)', rating: 5, comment: 'Phim cực đỉnh, âm thanh Dolby Atmos tại rạp đánh thức mọi giác quan! Hình ảnh sa mạc cát choáng ngợp.', is_verified_buyer: 1, created_at: `${todayStr} 10:30:00` },
-  { id: 2, movie_id: 1, user_id: 8, user_name: 'Trần Thị Mai', rating: 5, comment: 'Diễn xuất của Timothée và Zendaya quá tuyệt vời. Rạp chiếu ghế ngồi êm ái, bắp phô mai rất ngon.', is_verified_buyer: 0, created_at: `${todayStr} 11:15:00` },
-  { id: 3, movie_id: 2, user_id: 7, user_name: 'Nguyễn Văn An (Diamond VIP)', rating: 5, comment: 'Kiệt tác của Christopher Nolan! Phân cảnh thử bom Trinity khiến cả rạp nín thở. Trải nghiệm điện ảnh đỉnh cao.', is_verified_buyer: 0, created_at: `${todayStr} 09:00:00` },
-  { id: 4, movie_id: 3, user_id: 8, user_name: 'Trần Thị Mai', rating: 4, comment: 'Kỹ xảo IMAX 3D cực kỳ mãn nhãn. Hành tinh Pandora đẹp lung linh. Rất đáng xem lại!', is_verified_buyer: 0, created_at: `${todayStr} 08:45:00` },
+  { id: 1, movie_id: 1, user_id: 7, user_name: 'Nguyễn Văn An (Diamond VIP)', rating: 5, comment: 'Phim cực đỉnh, âm thanh Dolby Atmos tại rạp đánh thức mọi giác quan! Hình ảnh sa mạc cát choáng ngợp.', is_verified_buyer: 1, created_at: '2026-09-14 10:30:00' },
+  { id: 2, movie_id: 1, user_id: 8, user_name: 'Trần Thị Mai', rating: 5, comment: 'Diễn xuất của Timothée và Zendaya quá tuyệt vời. Rạp chiếu ghế ngồi êm ái, bắp phô mai rất ngon.', is_verified_buyer: 0, created_at: '2026-09-14 11:15:00' },
+  { id: 3, movie_id: 2, user_id: 7, user_name: 'Nguyễn Văn An (Diamond VIP)', rating: 5, comment: 'Kiệt tác của Christopher Nolan! Phân cảnh thử bom Trinity khiến cả rạp nín thở. Trải nghiệm điện ảnh đỉnh cao.', is_verified_buyer: 0, created_at: '2026-09-14 09:00:00' },
+  { id: 4, movie_id: 4, user_id: 8, user_name: 'Trần Thị Mai', rating: 4, comment: 'Phim gia đình rất xúc động và ý nghĩa!', is_verified_buyer: 0, created_at: '2026-09-14 08:45:00' },
 ];
 
 const payments = [
-  { id: 1, booking_id: 1, payment_method: 'banking', amount: 220000, transaction_code: 'TXN-BANKING-001', status: 'success', payment_time: `${todayStr} 10:16:30` },
+  { id: 1, booking_id: 1, payment_method: 'vnpay', amount: 220000, transaction_code: 'VNPAY-TX-9847291', status: 'success', payment_time: `${todayStr} 10:16:30` },
+  { id: 2, booking_id: 2, payment_method: 'momo', amount: 150000, transaction_code: 'MOMO-TX-1182739', status: 'success', payment_time: `${todayStr} 11:02:15` },
+  { id: 3, booking_id: 4, payment_method: 'vnpay', amount: 180000, transaction_code: 'VNPAY-TX-9847292', status: 'success', payment_time: `${todayStr} 12:01:00` },
+  { id: 4, booking_id: 5, payment_method: 'momo', amount: 150000, transaction_code: 'MOMO-TX-1182740', status: 'success', payment_time: `${todayStr} 12:32:00` },
 ];
 
 module.exports = {

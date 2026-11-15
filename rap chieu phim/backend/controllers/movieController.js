@@ -321,7 +321,8 @@ async function addMovieReview(req, res, next) {
     );
     if (recentReviews && recentReviews.length > 0) {
       const lastCreated = new Date(recentReviews[0].created_at).getTime();
-      if (!isNaN(lastCreated) && Date.now() - lastCreated < 60000) {
+      const elapsed = Date.now() - lastCreated;
+      if (!isNaN(lastCreated) && elapsed >= 0 && elapsed < 60000) {
         return res.status(429).json({
           success: false,
           message: 'Bạn vừa gửi đánh giá cho phim này. Vui lòng chờ 1 phút trước khi gửi lại.',

@@ -213,12 +213,12 @@ export function BookingFlowPage({
             <span>•</span>
             <div className="flex items-center gap-1.5 font-bold text-white">
               <Calendar className="w-3.5 h-3.5 text-ruby-400" />
-              {new Date(schedule.start_time).toLocaleDateString('vi-VN')}
+              {new Date(typeof schedule.start_time === 'string' ? schedule.start_time.replace(' ', 'T') : schedule.start_time).toLocaleDateString('vi-VN')}
             </div>
             <span>•</span>
             <div className="flex items-center gap-1.5 font-bold text-white">
               <Clock className="w-3.5 h-3.5 text-ruby-400" />
-              {new Date(schedule.start_time).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+              {new Date(typeof schedule.start_time === 'string' ? schedule.start_time.replace(' ', 'T') : schedule.start_time).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
             </div>
           </div>
         )}
