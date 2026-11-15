@@ -1,4 +1,9 @@
-const mysql = require('mysql2/promise');
+let mysql = null;
+try {
+  mysql = require('mysql2/promise');
+} catch (err) {
+  // mysql2 driver không có sẵn trong môi trường serverless thuần
+}
 const dotenv = require('dotenv');
 const memory = require('./memoryStore');
 
@@ -22,6 +27,7 @@ let pool = null;
 let isConnected = false;
 
 function getPool() {
+  if (!mysql) return null;
   if (!pool) {
     pool = mysql.createPool(dbConfig);
     // Đảm bảo mỗi kết nối trong pool luôn đặt múi giờ Việt Nam (+07:00) cho MySQL Server
@@ -33,8 +39,15 @@ function getPool() {
 }
 
 async function testConnection() {
+  if (!mysql) {
+    console.warn(`[MySQL Auto-Fallback] Không có driver mysql2, kích hoạt bộ nhớ đệm In-Memory Seed Data!`);
+    isConnected = false;
+    return false;
+  }
   try {
-    const conn = await getPool().getConnection();
+    const p = getPool();
+    if (!p) throw new Error('MySQL driver not initialized');
+    const conn = await p.getConnection();
     console.log(`[MySQL] Kết nối thành công đến database: ${dbConfig.database} trên ${dbConfig.host}:${dbConfig.port}`);
     isConnected = true;
     conn.release();

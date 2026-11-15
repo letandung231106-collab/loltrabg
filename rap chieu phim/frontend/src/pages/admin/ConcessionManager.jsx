@@ -144,7 +144,6 @@ export function ConcessionManager() {
   // SePay Real-Time Auto-Recognition State
   const [sepayStatus, setSepayStatus] = useState('waiting'); // 'waiting' | 'paid'
   const [isSimulatingSepay, setIsSimulatingSepay] = useState(false);
-  const [qrViewMode, setQrViewMode] = useState('sepay'); // 'sepay' (dynamic amount & code) | 'official' (BIDV card image)
 
   // Tự động kết nối SePay Webhook và Polling trạng thái chuyển khoản khi mở VietQR Modal
   useEffect(() => {
@@ -833,33 +832,7 @@ export function ConcessionManager() {
 
               {/* Modal Body */}
               <div className="p-5 space-y-4">
-                {/* Mode Selector: Dynamic SePay QR vs Official BIDV Card */}
-                <div className="flex items-center justify-center gap-2 p-1 bg-cinema-950 rounded-xl border border-cinema-800">
-                  <button
-                    type="button"
-                    onClick={() => setQrViewMode('sepay')}
-                    className={`flex-1 py-1.5 px-2.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
-                      qrViewMode === 'sepay'
-                        ? 'bg-emerald-600 text-white shadow-glow-emerald'
-                        : 'text-slate-400 hover:text-slate-200'
-                    }`}
-                  >
-                    Mã QR Động SePay (Tự điền số tiền)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setQrViewMode('official')}
-                    className={`flex-1 py-1.5 px-2.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
-                      qrViewMode === 'official'
-                        ? 'bg-emerald-600 text-white shadow-glow-emerald'
-                        : 'text-slate-400 hover:text-slate-200'
-                    }`}
-                  >
-                    Thẻ VietQR Gốc BIDV
-                  </button>
-                </div>
-
-                {/* VietQR Image Container */}
+                {/* VietQR Image Container - SePay Dynamic QR Code */}
                 <div
                   style={{
                     maxWidth: '280px',
@@ -874,16 +847,12 @@ export function ConcessionManager() {
                 >
                   <img
                     src={
-                      qrViewMode === 'sepay' && totalAmount > 0
+                      totalAmount > 0
                         ? `https://qr.sepay.vn/img?acc=8813341949&bank=BIDV&amount=${totalAmount}&des=${encodeURIComponent(qrOrderCode)}`
-                        : '/images/bidv-qr.jpg'
+                        : `https://qr.sepay.vn/img?acc=8813341949&bank=BIDV&des=${encodeURIComponent(qrOrderCode)}`
                     }
-                    alt="Mã QR BIDV - LE TAN DUNG 8813341949"
+                    alt="Mã QR SePay BIDV - LE TAN DUNG 8813341949"
                     className="w-full h-auto object-contain rounded-xl"
-                    onError={(e) => {
-                      e.target.onerror = null;
-                      e.target.src = '/images/bidv-qr.jpg';
-                    }}
                   />
                 </div>
 
@@ -970,31 +939,14 @@ export function ConcessionManager() {
                   </div>
                 </div>
 
-                {/* Footer Buttons */}
-                <div className="grid grid-cols-2 gap-3 pt-2">
+                {/* Footer Button */}
+                <div className="pt-2">
                   <button
                     type="button"
                     onClick={() => setShowQrModal(false)}
-                    className="py-3 rounded-xl bg-cinema-800 hover:bg-cinema-700 text-slate-300 hover:text-white font-bold text-xs transition-colors cursor-pointer text-center"
+                    className="w-full py-3 rounded-xl bg-cinema-800 hover:bg-cinema-700 text-slate-300 hover:text-white font-bold text-xs transition-colors cursor-pointer text-center"
                   >
                     Đóng / Đổi phương thức
-                  </button>
-                  <button
-                    type="button"
-                    disabled={isProcessingSale || cart.length === 0}
-                    onClick={async () => {
-                      if (cart.length === 0) return;
-                      await handleCheckout();
-                    }}
-                    style={{ background: cart.length === 0 ? '#334155' : '#E50914' }}
-                    className="py-3 rounded-xl hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed text-white font-extrabold text-xs transition-all shadow-glow-red cursor-pointer flex items-center justify-center gap-1.5"
-                  >
-                    <CheckCircle className="w-4 h-4" />
-                    {isProcessingSale
-                      ? 'Đang xử lý...'
-                      : cart.length === 0
-                      ? 'Chưa có món để thanh toán'
-                      : 'Đã Nhận Tiền & Hoàn Tất Đơn'}
                   </button>
                 </div>
               </div>

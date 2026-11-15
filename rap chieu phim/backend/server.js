@@ -33,8 +33,10 @@ const PORT = process.env.PORT || 5000;
 const allowedOrigins = [
   'http://localhost:5173',
   'http://127.0.0.1:5173',
+  'https://night-movie-ok-b1a7.vercel.app',
   process.env.FRONTEND_URL,
   process.env.DEPLOY_DOMAIN,
+  process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null,
 ].filter(Boolean);
 
 app.use(
@@ -42,7 +44,11 @@ app.use(
     origin: (origin, callback) => {
       // Cho phép requests không có origin (mobile apps, server-to-server, curl, tests)
       if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin) || allowedOrigins.includes('*')) {
+      if (
+        allowedOrigins.includes(origin) ||
+        allowedOrigins.includes('*') ||
+        origin.endsWith('.vercel.app')
+      ) {
         return callback(null, true);
       }
       return callback(new Error(`CORS policy: Nguồn truy cập ${origin} không được phép.`));
@@ -51,9 +57,19 @@ app.use(
   })
 );
 
-// STT 25: Hạ body payload limit xuống 5mb
-app.use(express.json({ limit: '5mb' }));
-app.use(express.urlencoded({ extended: true, limit: '5mb' }));
+// STT 25: Hỗ trợ cả Standalone và Vercel Serverless (tránh treo stream khi Vercel đã pre-parse body)
+app.use((req, res, next) => {
+  if (req.body !== undefined && typeof req.body === 'object') {
+    return next();
+  }
+  express.json({ limit: '5mb' })(req, res, next);
+});
+app.use((req, res, next) => {
+  if (req.body !== undefined && typeof req.body === 'object') {
+    return next();
+  }
+  express.urlencoded({ extended: true, limit: '5mb' })(req, res, next);
+});
 
 // Request Logger (Development)
 if (process.env.NODE_ENV !== 'production') {
