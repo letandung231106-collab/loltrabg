@@ -42,18 +42,14 @@ async function getDashboardSummary(req, res, next) {
        FROM incidents`
     );
 
-    // 4. Thống kê Suất chiếu & Vé & Doanh thu Hôm Nay (So với tổng)
+    // 4. Thống kê Suất chiếu & Vé & Doanh thu Hôm Nay (So với tổng) - Tách biệt độc lập tránh lỗi nhân đôi doanh thu do JOIN
     const todaySales = await db.query(
       `SELECT 
-        COUNT(DISTINCT s.id) AS screenings_today,
-        COUNT(DISTINCT CASE WHEN b.status = 'paid' AND DATE(b.booking_time) = CURDATE() THEN t.id END) AS tickets_sold_today,
-        COALESCE(SUM(CASE WHEN b.status = 'paid' AND DATE(b.booking_time) = CURDATE() THEN b.total_amount END), 0) AS revenue_today,
-        COALESCE(SUM(CASE WHEN b.status = 'paid' THEN b.total_amount END), 0) AS total_revenue_all_time,
-        COUNT(DISTINCT CASE WHEN b.status = 'paid' THEN t.id END) AS total_tickets_all_time
-       FROM screening_schedules s
-       LEFT JOIN bookings b ON b.screening_id = s.id
-       LEFT JOIN tickets t ON t.booking_id = b.id
-       WHERE DATE(s.start_time) = CURDATE() OR 1=1`
+        (SELECT COUNT(*) FROM screening_schedules WHERE DATE(start_time) = CURDATE() AND status != 'cancelled') AS screenings_today,
+        (SELECT COUNT(*) FROM tickets t JOIN bookings b ON t.booking_id = b.id WHERE b.status = 'paid' AND DATE(b.booking_time) = CURDATE() AND t.status IN ('active', 'used')) AS tickets_sold_today,
+        (SELECT COALESCE(SUM(total_amount), 0) FROM bookings WHERE status = 'paid' AND DATE(booking_time) = CURDATE()) AS revenue_today,
+        (SELECT COALESCE(SUM(total_amount), 0) FROM bookings WHERE status = 'paid') AS total_revenue_all_time,
+        (SELECT COUNT(*) FROM tickets WHERE status IN ('active', 'used')) AS total_tickets_all_time`
     );
 
     // 5. Thống kê Bảo trì & Chi phí

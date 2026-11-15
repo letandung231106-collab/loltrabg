@@ -305,6 +305,15 @@ async function cancelTicket(req, res, next) {
         `UPDATE booking_seats SET status = 'released' WHERE booking_id = ? AND seat_id = ?`,
         [ticket.booking_id, ticket.seat_id]
       );
+
+      // Nếu toàn bộ vé của booking này đã bị hủy, đồng bộ trạng thái đơn booking sang 'cancelled'
+      const [remainingActiveTickets] = await conn.query(
+        `SELECT id FROM tickets WHERE booking_id = ? AND status = 'active'`,
+        [ticket.booking_id]
+      );
+      if (!remainingActiveTickets || remainingActiveTickets.length === 0) {
+        await conn.query(`UPDATE bookings SET status = 'cancelled' WHERE id = ?`, [ticket.booking_id]);
+      }
     });
 
     return res.status(200).json({

@@ -1232,6 +1232,17 @@ CREATE TABLE IF NOT EXISTS `inventory_logs` (
   `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Trigger tự động đồng bộ tồn kho nguyên vật liệu khi có nhật ký nhập/xuất kho
+DELIMITER $$
+CREATE TRIGGER IF NOT EXISTS `trg_inventory_logs_ai` AFTER INSERT ON `inventory_logs`
+FOR EACH ROW
+BEGIN
+  UPDATE `inventory_ingredients`
+  SET `stock_quantity` = GREATEST(0, `stock_quantity` + NEW.quantity)
+  WHERE `id` = NEW.ingredient_id;
+END$$
+DELIMITER ;
+
 -- --------------------------------------------------------------------
 -- 23. BẢNG shift_handovers (Bàn Giao Ca & Quỹ Tiền Mặt)
 -- --------------------------------------------------------------------

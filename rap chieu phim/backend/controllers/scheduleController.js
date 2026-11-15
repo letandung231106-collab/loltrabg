@@ -345,6 +345,27 @@ async function updateSchedule(req, res, next) {
     const targetRoomId = room_id || current.room_id;
     const targetStartTime = start_time || current.start_time;
 
+    // Kiểm tra tính toàn vẹn vé đã bán: Nếu đã có vé được bán hoặc giữ chỗ, cấm đổi Phim, Phòng chiếu, hoặc Giờ bắt đầu
+    const bookedSeats = await db.query(
+      `SELECT bs.id FROM booking_seats bs
+       JOIN bookings b ON bs.booking_id = b.id
+       WHERE b.screening_id = ?
+         AND (bs.status = 'booked' OR (bs.status = 'holding' AND bs.hold_expire > NOW()))`,
+      [id]
+    );
+
+    const hasBookedSeats = bookedSeats && bookedSeats.length > 0;
+    const isMovieChanged = Number(targetMovieId) !== Number(current.movie_id);
+    const isRoomChanged = Number(targetRoomId) !== Number(current.room_id);
+    const isTimeChanged = new Date(targetStartTime).getTime() !== new Date(current.start_time).getTime();
+
+    if (hasBookedSeats && (isMovieChanged || isRoomChanged || isTimeChanged)) {
+      return res.status(400).json({
+        success: false,
+        message: `Không thể thay đổi phim, phòng chiếu hoặc giờ chiếu của suất đã có khách đặt chỗ (${bookedSeats.length} ghế đã bán/giữ). Chỉ được phép điều chỉnh giá vé hoặc định dạng chiếu.`,
+      });
+    }
+
     // Tính end_time
     const movies = await db.query(`SELECT id, name, duration FROM movies WHERE id = ?`, [targetMovieId]);
     if (!movies || movies.length === 0) {
