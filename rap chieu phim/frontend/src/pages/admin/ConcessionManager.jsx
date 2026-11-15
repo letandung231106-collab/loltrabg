@@ -561,39 +561,7 @@ export function ConcessionManager() {
                 ))}
               </div>
 
-              {/* VietQR Preview Box when in QR mode */}
-              {paymentMethod === 'qr' && (
-                <div
-                  onClick={() => setShowQrModal(true)}
-                  className="p-3 rounded-2xl bg-cinema-950/90 border border-ruby-500/40 hover:border-ruby-500 transition-all cursor-pointer flex items-center justify-between gap-3 group shadow-md"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-11 h-11 rounded-xl bg-white p-0.5 flex items-center justify-center shrink-0 overflow-hidden shadow-sm">
-                      <img
-                        src="/images/bidv-qr.jpg"
-                        alt="QR Mini"
-                        className="w-full h-full object-contain rounded-lg"
-                        onError={(e) => {
-                          e.target.onerror = null;
-                          e.target.src = `https://img.vietqr.io/image/BIDV-8813341949-compact2.png?amount=${totalAmount}&addInfo=${encodeURIComponent(qrOrderCode)}`;
-                        }}
-                      />
-                    </div>
-                    <div>
-                      <div className="text-[11px] font-bold text-white group-hover:text-ruby-400 transition-colors flex items-center gap-1.5">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                        BIDV • LE TAN DUNG
-                      </div>
-                      <div className="text-[10px] text-slate-400 font-mono">
-                        STK: 8813341949
-                      </div>
-                    </div>
-                  </div>
-                  <span className="text-[11px] font-bold text-ruby-400 group-hover:underline flex items-center gap-0.5">
-                    Mở mã QR →
-                  </span>
-                </div>
-              )}
+
             </div>
 
             {/* Total & Checkout Button */}
