@@ -176,13 +176,17 @@ async function runVerification() {
   }
 
   // Scenario C: Couple seat (Row F) -> EXEMPT from gap rule
-  // Chọn 2 ghế đôi F7 và F9 để lại ghế F8 trống kẹp giữa (được miễn trừ quy tắc single gap)
-  const f7 = allS1Seats.find((s) => s.row_number === 'F' && s.seat_number === 7);
-  const f9 = allS1Seats.find((s) => s.row_number === 'F' && s.seat_number === 9);
-  if (f7 && f9) {
+  // Lấy danh sách ghế đôi hàng F còn trống để chọn 2 ghế cách nhau 1 khoảng trống
+  const freshSeatsRes = await request(`/schedules/${targetTestScreeningId}/seats`, 'GET', null, customer1Token);
+  const freshSeats = freshSeatsRes.body.data?.seats || [];
+  const availF = freshSeats.filter((s) => s.row_number === 'F' && s.state === 'available');
+  const fFirst = availF[0];
+  const fSecond = availF.find((s) => Math.abs(s.seat_number - fFirst?.seat_number) >= 2) || availF[1];
+
+  if (fFirst && fSecond) {
     const coupleGapHold = await request('/bookings/hold', 'POST', {
       screening_id: targetTestScreeningId,
-      seat_ids: [f7.id, f9.id],
+      seat_ids: [fFirst.id, fSecond.id],
     }, customer1Token);
     assert(
       coupleGapHold.status === 200,

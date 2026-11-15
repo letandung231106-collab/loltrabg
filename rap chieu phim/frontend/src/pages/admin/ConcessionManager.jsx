@@ -141,19 +141,19 @@ export function ConcessionManager() {
 
   const handleSelectPaymentMethod = (method) => {
     setPaymentMethod(method);
-    if (method === 'qr' && cart.length > 0) {
+    if (method === 'qr') {
       setQrOrderCode(`NIGHTMOVIE POS ${Math.floor(100000 + Math.random() * 900000)}`);
       setShowQrModal(true);
     }
   };
 
   const handleInitiateCheckout = () => {
-    if (cart.length === 0) return;
     if (paymentMethod === 'qr') {
       setQrOrderCode(`NIGHTMOVIE POS ${Math.floor(100000 + Math.random() * 900000)}`);
       setShowQrModal(true);
       return;
     }
+    if (cart.length === 0) return;
     handleCheckout();
   };
 
@@ -490,27 +490,36 @@ export function ConcessionManager() {
                 ))}
               </div>
 
-              {/* VietQR Preview Box when in QR mode and cart has items */}
-              {paymentMethod === 'qr' && totalAmount > 0 && (
+              {/* VietQR Preview Box when in QR mode */}
+              {paymentMethod === 'qr' && (
                 <div
                   onClick={() => setShowQrModal(true)}
                   className="p-3 rounded-2xl bg-cinema-950/90 border border-ruby-500/40 hover:border-ruby-500 transition-all cursor-pointer flex items-center justify-between gap-3 group shadow-md"
                 >
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-lg bg-white p-1 flex items-center justify-center shrink-0">
-                      <QrCode className="w-6 h-6 text-cinema-950" />
+                  <div className="flex items-center gap-3">
+                    <div className="w-11 h-11 rounded-xl bg-white p-0.5 flex items-center justify-center shrink-0 overflow-hidden shadow-sm">
+                      <img
+                        src="/images/bidv-qr.jpg"
+                        alt="QR Mini"
+                        className="w-full h-full object-contain rounded-lg"
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          e.target.src = `https://img.vietqr.io/image/BIDV-8813341949-compact2.png?amount=${totalAmount}&addInfo=${encodeURIComponent(qrOrderCode)}`;
+                        }}
+                      />
                     </div>
                     <div>
-                      <div className="text-[11px] font-bold text-white group-hover:text-ruby-400 transition-colors">
-                        VietQR • BIDV 8813341949
+                      <div className="text-[11px] font-bold text-white group-hover:text-ruby-400 transition-colors flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                        BIDV • LE TAN DUNG
                       </div>
-                      <div className="text-[10px] text-gold-400 font-mono">
-                        {totalAmount.toLocaleString('vi-VN')} đ
+                      <div className="text-[10px] text-slate-400 font-mono">
+                        STK: 8813341949
                       </div>
                     </div>
                   </div>
-                  <span className="text-[10px] font-bold text-ruby-400 group-hover:underline flex items-center gap-0.5">
-                    Phóng to →
+                  <span className="text-[11px] font-bold text-ruby-400 group-hover:underline flex items-center gap-0.5">
+                    Mở mã QR →
                   </span>
                 </div>
               )}
@@ -526,7 +535,7 @@ export function ConcessionManager() {
               </div>
 
               <button
-                disabled={cart.length === 0 || isProcessingSale}
+                disabled={isProcessingSale || (paymentMethod === 'cash' && cart.length === 0)}
                 onClick={handleInitiateCheckout}
                 className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-ruby-600 via-ruby-700 to-rose-700 hover:from-ruby-500 hover:to-rose-600 disabled:opacity-50 text-white font-extrabold text-sm shadow-glow-red transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
@@ -534,7 +543,7 @@ export function ConcessionManager() {
                 {isProcessingSale
                   ? 'Đang xử lý...'
                   : paymentMethod === 'qr'
-                  ? `Quét Mã QR (${totalAmount.toLocaleString('vi-VN')} đ)`
+                  ? `Quét Mã QR BIDV (${totalAmount.toLocaleString('vi-VN')} đ)`
                   : `Thanh Toán (${totalAmount.toLocaleString('vi-VN')} đ)`}
               </button>
             </div>
@@ -744,33 +753,40 @@ export function ConcessionManager() {
 
               {/* Modal Body */}
               <div className="p-5 space-y-4">
-                {/* VietQR Image Container */}
+                {/* VietQR Image Container with User's Official Card */}
                 <div
                   style={{
-                    width: '260px',
+                    maxWidth: '300px',
+                    width: '100%',
                     margin: '0 auto',
-                    borderRadius: '12px',
-                    padding: '12px',
+                    borderRadius: '16px',
+                    padding: '8px',
                     background: '#ffffff',
-                    boxShadow: '0 10px 25px rgba(0, 0, 0, 0.4)',
+                    boxShadow: '0 10px 30px rgba(0, 0, 0, 0.5)',
                   }}
-                  className="flex flex-col items-center justify-center"
+                  className="flex flex-col items-center justify-center overflow-hidden"
                 >
                   <img
-                    src={`https://img.vietqr.io/image/BIDV-8813341949-compact2.png?amount=${totalAmount}&addInfo=${encodeURIComponent(qrOrderCode)}`}
-                    alt="VietQR BIDV 8813341949"
-                    className="w-full h-auto object-contain rounded-lg"
+                    src="/images/bidv-qr.jpg"
+                    alt="Mã QR BIDV - LE TAN DUNG 8813341949"
+                    className="w-full h-auto object-contain rounded-xl"
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = `https://img.vietqr.io/image/BIDV-8813341949-compact2.png?amount=${totalAmount}&addInfo=${encodeURIComponent(qrOrderCode)}`;
+                    }}
                   />
-                  <div className="text-[11px] font-bold text-slate-700 mt-1 flex items-center gap-1 font-mono">
-                    BIDV • 8813341949
-                  </div>
                 </div>
 
                 {/* Transfer Info Details */}
                 <div className="rounded-xl bg-cinema-950/90 border border-cinema-800 p-3.5 space-y-2.5 text-xs">
                   <div className="flex items-center justify-between">
+                    <span className="text-slate-400">Chủ tài khoản:</span>
+                    <span className="font-bold text-white uppercase tracking-wide">LE TAN DUNG</span>
+                  </div>
+
+                  <div className="flex items-center justify-between">
                     <span className="text-slate-400">Ngân hàng:</span>
-                    <span className="font-bold text-white">BIDV (TMCP Đầu tư và Phát triển VN)</span>
+                    <span className="font-bold text-white">BIDV (Đầu tư & Phát triển VN)</span>
                   </div>
 
                   <div className="flex items-center justify-between">
@@ -795,7 +811,7 @@ export function ConcessionManager() {
                   <div className="flex items-center justify-between">
                     <span className="text-slate-400">Số tiền thanh toán:</span>
                     <span className="font-mono font-black text-gold-400 text-base">
-                      {totalAmount.toLocaleString('vi-VN')} đ
+                      {totalAmount > 0 ? `${totalAmount.toLocaleString('vi-VN')} đ` : 'Nhập theo hóa đơn (0 đ)'}
                     </span>
                   </div>
 
@@ -830,15 +846,20 @@ export function ConcessionManager() {
                   </button>
                   <button
                     type="button"
-                    disabled={isProcessingSale}
+                    disabled={isProcessingSale || cart.length === 0}
                     onClick={async () => {
+                      if (cart.length === 0) return;
                       await handleCheckout();
                     }}
-                    style={{ background: '#E50914' }}
-                    className="py-3 rounded-xl hover:brightness-110 disabled:opacity-50 text-white font-extrabold text-xs transition-all shadow-glow-red cursor-pointer flex items-center justify-center gap-1.5"
+                    style={{ background: cart.length === 0 ? '#334155' : '#E50914' }}
+                    className="py-3 rounded-xl hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed text-white font-extrabold text-xs transition-all shadow-glow-red cursor-pointer flex items-center justify-center gap-1.5"
                   >
                     <CheckCircle className="w-4 h-4" />
-                    {isProcessingSale ? 'Đang xử lý...' : 'Đã Nhận Tiền & Hoàn Tất Đơn'}
+                    {isProcessingSale
+                      ? 'Đang xử lý...'
+                      : cart.length === 0
+                      ? 'Chưa có món để thanh toán'
+                      : 'Đã Nhận Tiền & Hoàn Tất Đơn'}
                   </button>
                 </div>
               </div>
