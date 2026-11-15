@@ -153,9 +153,12 @@ async function runVerification() {
       seat_ids: [b2.id, b4.id],
     }, customer1Token);
     assert(
-      trappedGapHold.status === 400 && trappedGapHold.body.message.includes('chỗ trống đơn lẻ'),
-      'Chặn 400 khi chọn B2 và B4 để lại ghế trống đơn lẻ B3 bị kẹp ở giữa'
+      trappedGapHold.status === 200,
+      'Cho phép chọn B2 và B4 chừa ghế trống B3 ở giữa (Đã bỏ ràng buộc ghế trống đơn lẻ theo yêu cầu)'
     );
+    if (trappedGapHold.body.data?.bookingId) {
+      await request('/bookings/release', 'POST', { booking_id: trappedGapHold.body.data.bookingId }, customer1Token);
+    }
   }
 
   // Scenario B: Selecting edge seat leaving single seat at the boundary -> MUST BE ALLOWED
