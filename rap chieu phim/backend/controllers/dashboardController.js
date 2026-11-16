@@ -42,18 +42,21 @@ async function getDashboardSummary(req, res, next) {
        FROM incidents`
     );
 
-    // 4. Thống kê Suất chiếu & Vé & Doanh thu Hôm Nay (So với tổng)
+    // 4. Thống kê Suất chiếu & Vé & Doanh thu Hôm Nay (Doanh thu gộp, Tiền hoàn, Doanh thu thuần)
+    // Tách biệt độc lập tránh lỗi nhân đôi doanh thu do Cartesian JOIN
     const todaySales = await db.query(
       `SELECT 
-        COUNT(DISTINCT s.id) AS screenings_today,
-        COUNT(DISTINCT CASE WHEN b.status = 'paid' AND DATE(b.booking_time) = CURDATE() THEN t.id END) AS tickets_sold_today,
-        COALESCE(SUM(CASE WHEN b.status = 'paid' AND DATE(b.booking_time) = CURDATE() THEN b.total_amount END), 0) AS revenue_today,
-        COALESCE(SUM(CASE WHEN b.status = 'paid' THEN b.total_amount END), 0) AS total_revenue_all_time,
-        COUNT(DISTINCT CASE WHEN b.status = 'paid' THEN t.id END) AS total_tickets_all_time
-       FROM screening_schedules s
-       LEFT JOIN bookings b ON b.screening_id = s.id
-       LEFT JOIN tickets t ON t.booking_id = b.id
-       WHERE DATE(s.start_time) = CURDATE() OR 1=1`
+        (SELECT COUNT(*) FROM screening_schedules WHERE DATE(start_time) = CURDATE() AND status != 'cancelled') AS screenings_today,
+        (SELECT COUNT(*) FROM tickets t JOIN bookings b ON t.booking_id = b.id WHERE b.status = 'paid' AND DATE(b.booking_time) = CURDATE() AND t.status IN ('active', 'used')) AS tickets_sold_today,
+        (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE status = 'success' AND DATE(payment_time) = CURDATE()) AS net_revenue_today,
+        (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE status IN ('success', 'refunded') AND DATE(payment_time) = CURDATE()) AS gross_revenue_today,
+        (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE status = 'refunded' AND DATE(payment_time) = CURDATE()) AS refunded_amount_today,
+        (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE status = 'success') AS net_revenue_all_time,
+        (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE status IN ('success', 'refunded')) AS gross_revenue_all_time,
+        (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE status = 'refunded') AS refunded_amount_all_time,
+        (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE status = 'success' AND DATE(payment_time) = CURDATE()) AS revenue_today,
+        (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE status = 'success') AS total_revenue_all_time,
+        (SELECT COUNT(*) FROM tickets WHERE status IN ('active', 'used')) AS total_tickets_all_time`
     );
 
     // 5. Thống kê Bảo trì & Chi phí
@@ -86,32 +89,45 @@ async function getDashboardSummary(req, res, next) {
  */
 async function getRevenueAnalytics(req, res, next) {
   try {
-    // Doanh thu theo 7 ngày gần nhất
+    // Doanh thu theo 7 ngày gần nhất (Tách biệt payments và tickets để tránh nhân đôi)
     const dailyRevenue = await db.query(
       `SELECT 
         DATE(p.payment_time) AS date,
         COUNT(DISTINCT p.id) AS transaction_count,
-        COUNT(DISTINCT t.id) AS tickets_count,
+        COALESCE((
+          SELECT COUNT(DISTINCT t.id)
+          FROM tickets t
+          JOIN bookings b ON t.booking_id = b.id
+          JOIN payments p2 ON p2.booking_id = b.id
+          WHERE DATE(p2.payment_time) = DATE(p.payment_time)
+            AND p2.status = 'success'
+            AND t.status IN ('active', 'used')
+        ), 0) AS tickets_count,
         COALESCE(SUM(p.amount), 0) AS total_revenue
        FROM payments p
-       JOIN bookings b ON p.booking_id = b.id
-       LEFT JOIN tickets t ON t.booking_id = b.id
        WHERE p.status = 'success' AND p.payment_time >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
        GROUP BY DATE(p.payment_time)
        ORDER BY DATE(p.payment_time) ASC`
     );
 
-    // Top phim có doanh thu cao nhất
+    // Top phim có doanh thu cao nhất (Tách biệt tính doanh thu và đếm vé để tránh Cartesian join)
     const topMovies = await db.query(
       `SELECT 
         m.id, m.name, m.poster,
-        COUNT(DISTINCT t.id) AS total_tickets,
-        COALESCE(SUM(b.total_amount), 0) AS total_revenue
+        COALESCE((
+          SELECT COUNT(DISTINCT t.id)
+          FROM tickets t
+          JOIN screening_schedules s ON t.screening_id = s.id
+          WHERE s.movie_id = m.id AND t.status IN ('active', 'used')
+        ), 0) AS total_tickets,
+        COALESCE((
+          SELECT SUM(p.amount)
+          FROM payments p
+          JOIN bookings b ON p.booking_id = b.id
+          JOIN screening_schedules s ON b.screening_id = s.id
+          WHERE s.movie_id = m.id AND p.status = 'success'
+        ), 0) AS total_revenue
        FROM movies m
-       JOIN screening_schedules s ON s.movie_id = m.id
-       JOIN bookings b ON b.screening_id = s.id AND b.status = 'paid'
-       LEFT JOIN tickets t ON t.booking_id = b.id
-       GROUP BY m.id
        ORDER BY total_revenue DESC
        LIMIT 6`
     );

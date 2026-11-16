@@ -1,4 +1,9 @@
-const mysql = require('mysql2/promise');
+let mysql = null;
+try {
+  mysql = require('mysql2/promise');
+} catch (err) {
+  // mysql2 driver không có sẵn trong môi trường serverless thuần
+}
 const dotenv = require('dotenv');
 const memory = require('./memoryStore');
 
@@ -22,6 +27,7 @@ let pool = null;
 let isConnected = false;
 
 function getPool() {
+  if (!mysql) return null;
   if (!pool) {
     pool = mysql.createPool(dbConfig);
     // Đảm bảo mỗi kết nối trong pool luôn đặt múi giờ Việt Nam (+07:00) cho MySQL Server
@@ -33,8 +39,15 @@ function getPool() {
 }
 
 async function testConnection() {
+  if (!mysql) {
+    console.warn(`[MySQL Auto-Fallback] Không có driver mysql2, kích hoạt bộ nhớ đệm In-Memory Seed Data!`);
+    isConnected = false;
+    return false;
+  }
   try {
-    const conn = await getPool().getConnection();
+    const p = getPool();
+    if (!p) throw new Error('MySQL driver not initialized');
+    const conn = await p.getConnection();
     console.log(`[MySQL] Kết nối thành công đến database: ${dbConfig.database} trên ${dbConfig.host}:${dbConfig.port}`);
     isConnected = true;
     conn.release();
@@ -119,20 +132,44 @@ async function query(sql, params = []) {
     }];
   }
 
-  // Dashboard: Today's Sales & Revenue
-  if (normalized.includes('screenings_today') || normalized.includes('revenue_today')) {
-    const paidBookings = memory.bookings.filter((b) => b.status === 'paid');
-    const revenueToday = paidBookings.reduce((sum, b) => sum + parseFloat(b.total_amount || 0), 0);
-    const activeTickets = memory.tickets.filter((t) => ['active', 'used'].includes(t.status)).length;
-    const screeningsToday = memory.schedules.filter(
+  // Dashboard: Today's Sales & Revenue (Phân biệt Gross, Refunded, Net)
+  if (normalized.includes('screenings_today') || normalized.includes('revenue_today') || normalized.includes('net_revenue_today')) {
+    const allPayments = memory.payments || [];
+    const successPayments = allPayments.filter((p) => p.status === 'success');
+    const refundedPayments = allPayments.filter((p) => p.status === 'refunded');
+    const grossPayments = allPayments.filter((p) => ['success', 'refunded'].includes(p.status));
+
+    const netRevenueToday = successPayments
+      .filter((p) => String(p.payment_time || todayStr).slice(0, 10) === todayStr)
+      .reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
+    const grossRevenueToday = grossPayments
+      .filter((p) => String(p.payment_time || todayStr).slice(0, 10) === todayStr)
+      .reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
+    const refundedToday = refundedPayments
+      .filter((p) => String(p.payment_time || todayStr).slice(0, 10) === todayStr)
+      .reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
+
+    const netRevenueAllTime = successPayments.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
+    const grossRevenueAllTime = grossPayments.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
+    const refundedAllTime = refundedPayments.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
+
+    const activeTickets = (memory.tickets || []).filter((t) => ['active', 'used'].includes(t.status)).length;
+    const screeningsToday = (memory.schedules || []).filter(
       (s) => String(s.start_time).slice(0, 10) === todayStr && s.status !== 'cancelled'
     ).length;
+
     return [{
       screenings_today: screeningsToday,
-      bookings_today: paidBookings.length,
+      bookings_today: successPayments.length,
       tickets_sold_today: activeTickets,
-      revenue_today: revenueToday,
-      total_revenue_all_time: revenueToday,
+      gross_revenue_today: grossRevenueToday,
+      refunded_amount_today: refundedToday,
+      net_revenue_today: netRevenueToday,
+      gross_revenue_all_time: grossRevenueAllTime,
+      refunded_amount_all_time: refundedAllTime,
+      net_revenue_all_time: netRevenueAllTime,
+      revenue_today: netRevenueToday,
+      total_revenue_all_time: netRevenueAllTime,
       total_tickets_all_time: activeTickets,
     }];
   }
@@ -718,7 +755,13 @@ async function query(sql, params = []) {
     }
     if (normalized.includes('where t.booking_id = ?') || normalized.includes('where booking_id = ?')) {
       const bId = parseInt(params[0], 10);
-      return list.filter((t) => t.booking_id === bId);
+      let res = list.filter((t) => t.booking_id === bId);
+      if (normalized.includes("status = 'active'")) {
+        res = res.filter((t) => t.status === 'active');
+      } else if (normalized.includes('and status = ?') || normalized.includes('and t.status = ?')) {
+        res = res.filter((t) => t.status === params[1]);
+      }
+      return res;
     }
 
     let pIdx = 0;
@@ -754,10 +797,22 @@ async function query(sql, params = []) {
 
   // 8.1 Payments
   if (normalized.includes('from payments')) {
-    const allPayments = memory.payments || [];
+    const allPayments = (memory.payments || []).map((p) => {
+      const b = (memory.bookings || []).find((item) => item.id === p.booking_id);
+      return {
+        ...p,
+        booking_code: b?.booking_code || `BK-${p.booking_id}`,
+        customer_id: b?.customer_id || 1,
+        total_amount: b?.total_amount || p.amount,
+      };
+    });
     if (normalized.includes('where booking_id = ?') || normalized.includes('where p.booking_id = ?')) {
       const bId = parseInt(params[0], 10);
       return allPayments.filter((p) => p.booking_id === bId);
+    }
+    if (normalized.includes('where id = ?') || normalized.includes('where p.id = ?')) {
+      const pId = parseInt(params[0], 10);
+      return allPayments.filter((p) => p.id === pId);
     }
     return allPayments;
   }
@@ -1152,6 +1207,15 @@ async function query(sql, params = []) {
     return memory.concession_items;
   }
   if (normalized.includes('from concession_orders')) {
+    if (normalized.includes('where order_code = ? or idempotency_key = ?')) {
+      const code = params[0];
+      const key = params[1];
+      return (memory.concession_orders || []).filter((o) => o.order_code === code || o.idempotency_key === key);
+    }
+    if (normalized.includes('where order_code = ?')) {
+      const code = params[0];
+      return (memory.concession_orders || []).filter((o) => o.order_code === code);
+    }
     if (normalized.includes('where idempotency_key = ?')) {
       const key = params[0];
       return (memory.concession_orders || []).filter((o) => o.idempotency_key === key);
@@ -1844,10 +1908,15 @@ async function query(sql, params = []) {
     };
     memory.inventory_logs.unshift(newLog);
 
-    // Auto-update ingredient stock level
+    // Auto-update ingredient stock level (Nghiệp vụ chuẩn: Chặn tồn kho âm, không che giấu lỗi bằng GREATEST/Math.max)
     const ing = memory.inventory_ingredients.find((i) => i.id === newLog.ingredient_id);
     if (ing) {
-      ing.stock_quantity = Math.max(0, parseFloat((ing.stock_quantity + newLog.quantity).toFixed(2)));
+      if (newLog.quantity < 0 && (ing.stock_quantity + newLog.quantity) < 0) {
+        throw new Error(
+          `Lỗi nghiệp vụ kho: Số lượng xuất/hao hụt (${Math.abs(newLog.quantity)}) vượt quá tồn kho hiện có (${ing.stock_quantity} ${ing.unit}) của nguyên liệu '${ing.name}'.`
+        );
+      }
+      ing.stock_quantity = parseFloat((ing.stock_quantity + newLog.quantity).toFixed(2));
     }
     return { insertId: newId, affectedRows: 1 };
   }
@@ -2101,6 +2170,21 @@ async function query(sql, params = []) {
     return { insertId: newId, affectedRows: 1 };
   }
 
+  if (normalized.startsWith('update payments set status =') || normalized.startsWith('update payments set status=')) {
+    const isRefunded = normalized.includes("'refunded'");
+    const status = isRefunded ? 'refunded' : params[0];
+    const id = parseInt(params[params.length - 1], 10);
+    const isWhereBookingId = normalized.includes('where booking_id') || normalized.includes('where p.booking_id');
+    const payment = isWhereBookingId
+      ? (memory.payments || []).find((p) => p.booking_id === id)
+      : (memory.payments || []).find((p) => p.id === id);
+    if (payment) {
+      payment.status = status;
+      return { affectedRows: 1 };
+    }
+    return { affectedRows: 0 };
+  }
+
   // N. Tickets Mutations
   if (normalized.startsWith('insert into tickets')) {
     const newId = memory.tickets.length > 0 ? Math.max(...memory.tickets.map((t) => t.id)) + 1 : 1;
@@ -2265,6 +2349,7 @@ async function withTransaction(callback) {
     bookings: JSON.parse(JSON.stringify(memory.bookings || [])),
     booking_seats: JSON.parse(JSON.stringify(memory.booking_seats || [])),
     tickets: JSON.parse(JSON.stringify(memory.tickets || [])),
+    payments: JSON.parse(JSON.stringify(memory.payments || [])),
   };
 
   const fakeConnection = {
@@ -2285,6 +2370,7 @@ async function withTransaction(callback) {
     if (memory.bookings) memory.bookings = snapshot.bookings;
     if (memory.booking_seats) memory.booking_seats = snapshot.booking_seats;
     if (memory.tickets) memory.tickets = snapshot.tickets;
+    if (memory.payments) memory.payments = snapshot.payments;
     throw error;
   }
 }

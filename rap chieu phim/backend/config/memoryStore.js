@@ -347,6 +347,7 @@ const schedules = [
   { id: 12, movie_id: 10, room_id: 5, start_time: `${todayStr} 16:00:00`, end_time: `${todayStr} 17:50:00`, format: '2D Lồng tiếng', ticket_price: 100000, status: 'scheduled' },
   { id: 13, movie_id: 11, room_id: 1, start_time: `${todayStr} 13:00:00`, end_time: `${todayStr} 14:40:00`, format: '2D Lồng tiếng', ticket_price: 90000, status: 'scheduled' },
   { id: 14, movie_id: 16, room_id: 4, start_time: `${todayStr} 10:00:00`, end_time: `${todayStr} 12:50:00`, format: 'IMAX 2D 70mm', ticket_price: 160000, status: 'scheduled' },
+  { id: 99, movie_id: 1, room_id: 1, start_time: '2026-11-10 10:00:00', end_time: '2026-11-10 12:46:00', format: '2D Digital', ticket_price: 90000, status: 'completed' },
 ];
 
 // Tự động sinh suất chiếu cho 7 ngày tới (mọi phim đang chiếu) để luôn có lịch chọn khi chạy demo

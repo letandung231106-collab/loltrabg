@@ -940,6 +940,130 @@ async function verifyMomoReturn(req, res, next) {
   }
 }
 
+/**
+ * Hoàn tiền giao dịch (Admin / Manager)
+ * Đảm bảo:
+ * - Trạng thái thanh toán phản ánh đúng kết quả hoàn tiền (status: 'refunded').
+ * - Chống hoàn tiền lặp lại (Idempotency: nếu đã refunded thì trả về alreadyRefunded).
+ * - Xử lý mô phỏng lỗi hoàn tiền thất bại (simulate_failure = true).
+ * - Không xóa lịch sử giao dịch (toàn vẹn dữ liệu kế toán).
+ * - Đồng bộ hủy vé và giải phóng ghế còn lại của đơn.
+ */
+async function refundPayment(req, res, next) {
+  try {
+    const { booking_id, reason = '', simulate_failure = false } = req.body;
+    const userRole = req.user?.role;
+
+    if (!['admin', 'manager'].includes(userRole)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Chỉ Quản lý (Manager) hoặc Quản trị viên (Admin) mới có quyền xử lý hoàn tiền.',
+      });
+    }
+
+    if (!booking_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng cung cấp mã đơn đặt vé (booking_id).',
+      });
+    }
+
+    const payments = await db.query(
+      `SELECT p.*, b.booking_code, b.customer_id, b.total_amount
+       FROM payments p
+       JOIN bookings b ON p.booking_id = b.id
+       WHERE p.booking_id = ?`,
+      [booking_id]
+    );
+
+    if (!payments || payments.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy giao dịch thanh toán cho đơn hàng này.',
+      });
+    }
+
+    const payment = payments[0];
+
+    // Idempotency: Kiểm tra nếu giao dịch đã được hoàn tiền trước đó
+    if (payment.status === 'refunded') {
+      return res.status(200).json({
+        success: true,
+        alreadyRefunded: true,
+        message: 'Giao dịch này đã được hoàn tiền trước đó. Không xử lý hoàn tiền lặp lại.',
+        data: {
+          paymentId: payment.id,
+          bookingId: payment.booking_id,
+          amount: payment.amount,
+          status: 'refunded',
+        },
+      });
+    }
+
+    if (payment.status !== 'success') {
+      return res.status(400).json({
+        success: false,
+        message: `Không thể hoàn tiền cho giao dịch đang ở trạng thái: ${payment.status}. Chỉ hoàn tiền cho giao dịch đã thanh toán thành công.`,
+      });
+    }
+
+    // Mô phỏng trường hợp cổng thanh toán từ chối hoàn tiền (Gateway Refund Failed)
+    if (simulate_failure) {
+      return res.status(400).json({
+        success: false,
+        refundStatus: 'failed',
+        message: 'Cổng thanh toán từ chối yêu cầu hoàn tiền (Mã lỗi GATEWAY_REFUND_REJECTED). Số tiền và vé được giữ nguyên.',
+      });
+    }
+
+    // Xử lý hoàn tiền thành công trong Transaction
+    await db.withTransaction(async (conn) => {
+      // 1. Cập nhật trạng thái payment -> refunded
+      await conn.query(`UPDATE payments SET status = ? WHERE id = ?`, ['refunded', payment.id]);
+
+      // 2. Đồng bộ trạng thái booking -> cancelled
+      await conn.query(`UPDATE bookings SET status = 'cancelled' WHERE id = ?`, [booking_id]);
+
+      // 3. Hủy toàn bộ vé liên quan nếu còn active
+      await conn.query(`UPDATE tickets SET status = 'cancelled' WHERE booking_id = ? AND status = 'active'`, [booking_id]);
+
+      // 4. Giải phóng ghế
+      await conn.query(`UPDATE booking_seats SET status = 'released' WHERE booking_id = ?`, [booking_id]);
+
+      // 5. Gửi thông báo đến khách hàng
+      if (payment.customer_id) {
+        const userRows = await conn.query(`SELECT user_id FROM customers WHERE id = ?`, [payment.customer_id]);
+        const targetUserId = userRows?.[0]?.user_id || payment.customer_id;
+        await conn.query(
+          `INSERT INTO notifications (user_id, title, message, type)
+           VALUES (?, ?, ?, 'system')`,
+          [
+            targetUserId,
+            'Hoàn tiền đơn đặt vé thành công',
+            `Đơn vé #${payment.booking_code} đã được hoàn tiền ${Number(payment.amount).toLocaleString('vi-VN')} đ. Lý do: ${reason || 'Hoàn vé theo yêu cầu'}.`,
+          ]
+        );
+      }
+    });
+
+    return res.status(200).json({
+      success: true,
+      refundStatus: 'success',
+      message: `Đã hoàn tiền thành công số tiền ${Number(payment.amount).toLocaleString('vi-VN')} đ cho đơn hàng #${payment.booking_code}.`,
+      data: {
+        paymentId: payment.id,
+        bookingId: payment.booking_id,
+        bookingCode: payment.booking_code,
+        refundAmount: payment.amount,
+        status: 'refunded',
+        refundedAt: new Date().toISOString(),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   finalizeBookingTransaction,
   processPayment,
@@ -947,4 +1071,5 @@ module.exports = {
   renderMomoSandboxGateway,
   handleMomoIpn,
   verifyMomoReturn,
+  refundPayment,
 };

@@ -137,9 +137,9 @@ async function runVerification() {
 
   // --- Test 4: Single Seat Gap Rule Empirical Tests ---
   console.log('\n[4. Kiểm Thử Thực Tế Quy Tắc Ghế Trống Đơn Lẻ (Single Seat Gap)]');
-  // Scenario A: Customer selects B2 & B4 leaving B3 trapped empty -> MUST BE REJECTED 400
-  // Seats in Room 1 (Schedule 1): Row B has seats 1 to 12.
-  const sched1Seats = await request('/schedules/1/seats', 'GET', null, customer1Token);
+  // Suất chiếu 2 (trong tương lai, phòng 4 có đủ các hàng A->F)
+  const targetTestScreeningId = 2;
+  const sched1Seats = await request(`/schedules/${targetTestScreeningId}/seats`, 'GET', null, customer1Token);
   const allS1Seats = sched1Seats.body.data?.seats || [];
   const b1 = allS1Seats.find((s) => s.row_number === 'B' && s.seat_number === 1);
   const b2 = allS1Seats.find((s) => s.row_number === 'B' && s.seat_number === 2);
@@ -149,20 +149,23 @@ async function runVerification() {
 
   if (b2 && b4) {
     const trappedGapHold = await request('/bookings/hold', 'POST', {
-      screening_id: 1,
+      screening_id: targetTestScreeningId,
       seat_ids: [b2.id, b4.id],
     }, customer1Token);
     assert(
-      trappedGapHold.status === 400 && trappedGapHold.body.message.includes('chỗ trống đơn lẻ'),
-      'Chặn 400 khi chọn B2 và B4 để lại ghế trống đơn lẻ B3 bị kẹp ở giữa'
+      trappedGapHold.status === 200,
+      'Cho phép chọn B2 và B4 chừa ghế trống B3 ở giữa (Đã bỏ ràng buộc ghế trống đơn lẻ theo yêu cầu)'
     );
+    if (trappedGapHold.body.data?.bookingId) {
+      await request('/bookings/release', 'POST', { booking_id: trappedGapHold.body.data.bookingId }, customer1Token);
+    }
   }
 
   // Scenario B: Selecting edge seat leaving single seat at the boundary -> MUST BE ALLOWED
   // E.g., selecting B2 leaving B1 empty at the edge (allowed by rule: ghế ngoài cùng được phép trống)
   if (b2) {
     const edgeHold = await request('/bookings/hold', 'POST', {
-      screening_id: 1,
+      screening_id: targetTestScreeningId,
       seat_ids: [b2.id],
     }, customer1Token);
     assert(
@@ -176,12 +179,17 @@ async function runVerification() {
   }
 
   // Scenario C: Couple seat (Row F) -> EXEMPT from gap rule
-  const f1 = allS1Seats.find((s) => s.row_number === 'F' && s.seat_number === 1);
-  const f3 = allS1Seats.find((s) => s.row_number === 'F' && s.seat_number === 3);
-  if (f1 && f3) {
+  // Lấy danh sách ghế đôi hàng F còn trống để chọn 2 ghế cách nhau 1 khoảng trống
+  const freshSeatsRes = await request(`/schedules/${targetTestScreeningId}/seats`, 'GET', null, customer1Token);
+  const freshSeats = freshSeatsRes.body.data?.seats || [];
+  const availF = freshSeats.filter((s) => s.row_number === 'F' && s.state === 'available');
+  const fFirst = availF[0];
+  const fSecond = availF.find((s) => Math.abs(s.seat_number - fFirst?.seat_number) >= 2) || availF[1];
+
+  if (fFirst && fSecond) {
     const coupleGapHold = await request('/bookings/hold', 'POST', {
-      screening_id: 1,
-      seat_ids: [f1.id, f3.id],
+      screening_id: targetTestScreeningId,
+      seat_ids: [fFirst.id, fSecond.id],
     }, customer1Token);
     assert(
       coupleGapHold.status === 200,
@@ -197,8 +205,8 @@ async function runVerification() {
   // Customer 1 and Customer 2 attempt to hold the EXACT SAME seat simultaneously
   const targetRaceSeat = allS1Seats.find((s) => s.row_number === 'D' && s.seat_number === 5) || allS1Seats[10];
   const [resA, resB] = await Promise.all([
-    request('/bookings/hold', 'POST', { screening_id: 1, seat_ids: [targetRaceSeat.id] }, customer1Token),
-    request('/bookings/hold', 'POST', { screening_id: 1, seat_ids: [targetRaceSeat.id] }, customer2Token),
+    request('/bookings/hold', 'POST', { screening_id: targetTestScreeningId, seat_ids: [targetRaceSeat.id] }, customer1Token),
+    request('/bookings/hold', 'POST', { screening_id: targetTestScreeningId, seat_ids: [targetRaceSeat.id] }, customer2Token),
   ]);
 
   const oneSuccess = (resA.status === 200 && resB.status === 409) || (resA.status === 409 && resB.status === 200);
@@ -212,7 +220,7 @@ async function runVerification() {
   const releaseRes = await request('/bookings/release', 'POST', { booking_id: winnerBookingId }, winnerToken);
   assert(releaseRes.status === 200, 'Hủy giữ ghế thành công');
 
-  const reholdRes = await request('/bookings/hold', 'POST', { screening_id: 1, seat_ids: [targetRaceSeat.id] }, customer2Token);
+  const reholdRes = await request('/bookings/hold', 'POST', { screening_id: targetTestScreeningId, seat_ids: [targetRaceSeat.id] }, customer2Token);
   assert(reholdRes.status === 200, 'Khách hàng khác giữ lại ngay chính ghế vừa giải phóng thành công (Không bị kẹt status)');
   if (reholdRes.body.data?.bookingId) {
     await request('/bookings/release', 'POST', { booking_id: reholdRes.body.data.bookingId }, customer2Token);

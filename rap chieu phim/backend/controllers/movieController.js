@@ -214,21 +214,46 @@ async function updateMovie(req, res, next) {
 
 /**
  * Xóa phim (Admin)
+ * Nghiệp vụ rạp chiếu phim:
+ * - Nếu phim đang có lịch chiếu hoạt động (scheduled, screening): Từ chối xóa.
+ * - Nếu phim đã có lịch sử suất chiếu hoặc vé bán: Tự động chuyển sang 'ended' (Ngừng chiếu) để bảo toàn dữ liệu lịch sử và tránh lỗi ràng buộc khóa ngoại MySQL.
+ * - Nếu phim mới tạo chưa có lịch chiếu hoặc vé nào: Xóa cứng khỏi database.
  */
 async function deleteMovie(req, res, next) {
   try {
     const { id } = req.params;
 
-    // Kiểm tra xem phim có lịch chiếu đang active không
-    const schedules = await db.query(
+    // 1. Kiểm tra xem phim có lịch chiếu đang active không
+    const activeSchedules = await db.query(
       `SELECT id FROM screening_schedules WHERE movie_id = ? AND status IN ('scheduled', 'screening')`,
       [id]
     );
 
-    if (schedules.length > 0) {
+    if (activeSchedules && activeSchedules.length > 0) {
       return res.status(400).json({
         success: false,
         message: 'Không thể xóa phim đang có lịch chiếu hoạt động. Vui lòng hủy các lịch chiếu trước.',
+      });
+    }
+
+    // 2. Kiểm tra xem phim có lịch chiếu quá khứ hoặc vé đã bán không
+    const pastSchedules = await db.query(
+      `SELECT id FROM screening_schedules WHERE movie_id = ? LIMIT 1`,
+      [id]
+    );
+    const tickets = await db.query(
+      `SELECT t.id FROM tickets t 
+       JOIN screening_schedules s ON t.screening_id = s.id 
+       WHERE s.movie_id = ? LIMIT 1`,
+      [id]
+    );
+
+    if ((pastSchedules && pastSchedules.length > 0) || (tickets && tickets.length > 0)) {
+      // Soft-delete: Chuyển trạng thái sang 'ended' để bảo toàn toàn vẹn dữ liệu
+      await db.query(`UPDATE movies SET status = 'ended' WHERE id = ?`, [id]);
+      return res.status(200).json({
+        success: true,
+        message: 'Phim đã có lịch sử suất chiếu và vé bán nên đã được chuyển sang trạng thái "Ngừng chiếu" để bảo toàn dữ liệu lịch sử.',
       });
     }
 

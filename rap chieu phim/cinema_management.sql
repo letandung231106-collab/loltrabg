@@ -1232,6 +1232,33 @@ CREATE TABLE IF NOT EXISTS `inventory_logs` (
   `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Trigger tự động đồng bộ tồn kho nguyên vật liệu khi có nhật ký nhập/xuất kho
+-- Nghiệp vụ chuẩn: Không dùng GREATEST(0, ...) để che giấu thiếu hàng.
+-- Nếu số lượng xuất/sử dụng vượt quá tồn kho khả dụng -> Chặn giao dịch an toàn bằng SIGNAL SQLSTATE.
+DELIMITER $$
+CREATE TRIGGER IF NOT EXISTS `trg_inventory_logs_ai` BEFORE INSERT ON `inventory_logs`
+FOR EACH ROW
+BEGIN
+  DECLARE current_stock DECIMAL(10,2);
+  
+  -- Lấy số lượng tồn kho hiện tại
+  SELECT `stock_quantity` INTO current_stock
+  FROM `inventory_ingredients`
+  WHERE `id` = NEW.ingredient_id;
+  
+  -- Nếu là xuất kho hoặc sử dụng (NEW.quantity < 0) và vượt quá tồn kho khả dụng -> Báo lỗi
+  IF NEW.quantity < 0 AND (current_stock + NEW.quantity) < 0 THEN
+    SIGNAL SQLSTATE '45000'
+      SET MESSAGE_TEXT = 'Lỗi nghiệp vụ kho: Số lượng xuất/hao hụt vượt quá tồn kho hiện có.';
+  END IF;
+  
+  -- Cập nhật tồn kho chính xác theo số lượng biến động (dương: nhập, âm: xuất)
+  UPDATE `inventory_ingredients`
+  SET `stock_quantity` = `stock_quantity` + NEW.quantity
+  WHERE `id` = NEW.ingredient_id;
+END$$
+DELIMITER ;
+
 -- --------------------------------------------------------------------
 -- 23. BẢNG shift_handovers (Bàn Giao Ca & Quỹ Tiền Mặt)
 -- --------------------------------------------------------------------

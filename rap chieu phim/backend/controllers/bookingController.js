@@ -123,16 +123,7 @@ async function holdSeats(req, res, next) {
         [screening_id]
       );
 
-      const activeUnavailableSet = new Set((activeScreeningSeats || []).map((b) => Number(b.seat_id)));
-      const isSeatUnavailableBefore = (s) => {
-        if (s.status === 'broken' || s.status === 'inactive') return true;
-        return activeUnavailableSet.has(Number(s.id));
-      };
-
-      const gapCheck = validateAllSeatsGap(allRoomSeats, uniqueSeatIds, isSeatUnavailableBefore);
-      if (!gapCheck.isValid) {
-        throw badRequest(gapCheck.message || 'Không thể chọn ghế này vì sẽ để lại một chỗ trống đơn lẻ. Vui lòng chọn vị trí khác.');
-      }
+      // Đã bỏ ràng buộc ghế trống đơn lẻ theo yêu cầu (cho phép chừa 1 ghế ở giữa)
 
       let totalAmount = 0;
       let totalPeopleCount = 0;

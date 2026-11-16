@@ -51,55 +51,19 @@ export function SeatMap({ scheduleData, onProceedToPayment, onCancelHold }) {
     totalPeople ||
     selectedSeats.reduce((sum, s) => sum + (s.seat_type === 'couple' ? 2 : 1), 0);
 
-  // Xử lý chọn/bỏ chọn ghế có kiểm tra quy tắc không để lại ghế trống đơn lẻ
+  // Xử lý chọn/bỏ chọn ghế (Đã bỏ ràng buộc ghế trống đơn lẻ)
   const handleSeatClick = (seat) => {
     if (seat.state !== 'available' && !selectedSeats.some((s) => s.id === seat.id)) {
       return;
     }
 
-    const isCurrentlySelected = selectedSeats.some((s) => s.id === seat.id);
-    const proposed = isCurrentlySelected
-      ? selectedSeats.filter((s) => s.id !== seat.id)
-      : [...selectedSeats, seat];
-
-    // Kiểm tra quy tắc Single Seat Gap Rule cho toàn bộ hàng bị ảnh hưởng
-    const isUnavailableBefore = (s) => s.state !== 'available';
-    const validation = validateAllSeatsGap(
-      seats,
-      proposed.map((s) => s.id),
-      isUnavailableBefore
-    );
-
-    if (!validation.isValid) {
-      setGapError(
-        validation.message ||
-          'Không thể chọn ghế này vì sẽ để lại một chỗ trống đơn lẻ. Vui lòng chọn vị trí khác.'
-      );
-      return;
-    }
-
-    setGapError('');
+    if (gapError) setGapError('');
     toggleSeatSelection(seat);
   };
 
-  // Xác thực lại trước khi chuyển sang bước thanh toán/giữ chỗ
+  // Xác thực trước khi chuyển sang bước thanh toán/giữ chỗ
   const handleProceed = () => {
-    const isUnavailableBefore = (s) => s.state !== 'available';
-    const validation = validateAllSeatsGap(
-      seats,
-      selectedSeats.map((s) => s.id),
-      isUnavailableBefore
-    );
-
-    if (!validation.isValid) {
-      setGapError(
-        validation.message ||
-          'Không thể chọn ghế này vì sẽ để lại một chỗ trống đơn lẻ. Vui lòng chọn vị trí khác.'
-      );
-      return;
-    }
-
-    setGapError('');
+    if (gapError) setGapError('');
     onProceedToPayment();
   };
 
