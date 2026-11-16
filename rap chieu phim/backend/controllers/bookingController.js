@@ -50,6 +50,13 @@ async function holdSeats(req, res, next) {
     }
 
     const schedule = schedules[0];
+    if (schedule.status === 'cancelled') {
+      return res.status(400).json({
+        success: false,
+        message: 'Suất chiếu này đã bị hủy. Không thể đặt chỗ.',
+      });
+    }
+
     if (new Date(schedule.start_time) < new Date()) {
       return res.status(400).json({
         success: false,

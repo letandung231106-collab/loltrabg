@@ -325,6 +325,19 @@ async function cancelSchedule(req, res, next) {
     }
     const schedule = existing[0];
 
+    // Idempotency: Kiểm tra nếu lịch chiếu đã bị hủy trước đó
+    if (schedule.status === 'cancelled') {
+      return res.status(200).json({
+        success: true,
+        alreadyCancelled: true,
+        message: 'Lịch chiếu này đã được hủy trước đó.',
+        data: {
+          scheduleId: Number(id),
+          status: 'cancelled',
+        },
+      });
+    }
+
     // Kiểm tra vé đã bán hoặc ghế đang giữ
     const bookedSeats = await db.query(
       `SELECT bs.id, b.customer_id, b.id AS booking_id, b.booking_code
@@ -367,7 +380,8 @@ async function cancelSchedule(req, res, next) {
         const customerIds = [...new Set(bookedSeats.map((b) => b.customer_id).filter(Boolean))];
         for (const custId of customerIds) {
           const userRows = await conn.query(`SELECT user_id FROM customers WHERE id = ?`, [custId]);
-          const targetUserId = userRows?.[0]?.user_id || custId;
+          const userObj = Array.isArray(userRows?.[0]) ? userRows[0][0] : userRows?.[0];
+          const targetUserId = userObj?.user_id || custId;
           await conn.query(
             `INSERT INTO notifications (user_id, title, message, type)
              VALUES (?, ?, ?, 'system')`,
@@ -386,6 +400,13 @@ async function cancelSchedule(req, res, next) {
       message: emergency && bookedSeats.length > 0
         ? `Đã hủy lịch chiếu khẩn cấp! Đã giải phóng ${bookedSeats.length} ghế, bảo toàn lịch sử giao dịch và gửi thông báo hoàn vé đến khách hàng.`
         : 'Đã hủy lịch chiếu thành công.',
+      data: {
+        scheduleId: Number(id),
+        cancelledBy: req.user?.id || 1,
+        cancelledAt: new Date().toISOString(),
+        reason: reason || 'Sự cố vận hành kỹ thuật rạp',
+        affectedSeats: bookedSeats.length,
+      },
     });
   } catch (error) {
     next(error);

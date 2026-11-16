@@ -1219,6 +1219,19 @@ CREATE TABLE IF NOT EXISTS `concession_recipes` (
   CONSTRAINT `fk_recipe_ing` FOREIGN KEY (`ingredient_id`) REFERENCES `inventory_ingredients` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+INSERT IGNORE INTO `concession_recipes` (`id`, `item_id`, `ingredient_id`, `quantity_used`, `note`) VALUES
+(1, 1, 1, 0.080, '80g hạt ngô bắp nổ'),
+(2, 1, 2, 0.020, '20g bơ bắp'),
+(3, 1, 3, 0.025, '25g bột phô mai'),
+(4, 1, 8, 1.000, '1 hộp bắp L'),
+(5, 2, 1, 0.080, '80g hạt ngô bắp nổ'),
+(6, 2, 2, 0.020, '20g bơ bắp'),
+(7, 2, 4, 0.030, '30g đường caramen'),
+(8, 2, 8, 1.000, '1 hộp bắp L'),
+(9, 3, 5, 0.050, '50ml siro Coca'),
+(10, 3, 7, 1.000, '1 ly 32oz'),
+(11, 3, 9, 1.000, '1 nắp + ống hút');
+
 -- --------------------------------------------------------------------
 -- 22. BẢNG inventory_logs (Nhật Ký Biến Động Kho)
 -- --------------------------------------------------------------------

@@ -50,7 +50,7 @@ async function finalizeBookingTransaction({
   return await db.withTransaction(async (conn) => {
     // 1. Kiểm tra thông tin đơn đặt vé
     const [bookings] = await conn.query(
-      `SELECT b.*, s.movie_id, s.room_id, s.start_time, m.name AS movie_name, r.name AS room_name
+      `SELECT b.*, s.movie_id, s.room_id, s.start_time, s.status AS schedule_status, m.name AS movie_name, r.name AS room_name
        FROM bookings b
        JOIN screening_schedules s ON b.screening_id = s.id
        JOIN movies m ON s.movie_id = m.id
@@ -109,6 +109,10 @@ async function finalizeBookingTransaction({
       throw badRequest('Đơn đặt vé này đã bị hủy hoặc hết hạn thời gian giữ 10 phút. Vui lòng chọn ghế lại.');
     }
 
+    if (booking.schedule_status === 'cancelled') {
+      throw badRequest('Suất chiếu này đã bị hủy do sự cố kỹ thuật. Không thể tiếp tục thanh toán.');
+    }
+
     // 2. STT 20: Kiểm tra các ghế đang giữ của đơn đặt này KÈM điều kiện hold_expire > NOW()
     const [heldSeats] = await conn.query(
       `SELECT bs.*, s.\`row_number\`, s.seat_number, s.seat_type 
@@ -164,7 +168,8 @@ async function finalizeBookingTransaction({
     for (const seat of heldSeats) {
       const isCouple = seat.seat_type === 'couple' || seat.row_number === 'F';
       const capacity = isCouple ? 2 : 1;
-      const ticketCode = `TCK-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${booking.screening_id}-${seat.row_number}${seat.seat_number}`;
+      const randSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
+      const ticketCode = `TCK-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${booking.screening_id}-${seat.row_number}${seat.seat_number}-${randSuffix}`;
       const qrCodePayload = JSON.stringify({
         ticketCode,
         movie: booking.movie_name,
@@ -1017,9 +1022,13 @@ async function refundPayment(req, res, next) {
     }
 
     // Xử lý hoàn tiền thành công trong Transaction
-    await db.withTransaction(async (conn) => {
-      // 1. Cập nhật trạng thái payment -> refunded
-      await conn.query(`UPDATE payments SET status = ? WHERE id = ?`, ['refunded', payment.id]);
+    const refundTxResult = await db.withTransaction(async (conn) => {
+      // 1. Cập nhật trạng thái payment -> refunded (Nguyên tử chống Race Condition)
+      const updRes = await conn.query(`UPDATE payments SET status = 'refunded' WHERE id = ? AND status = 'success'`, [payment.id]);
+      const affected = updRes?.affectedRows ?? updRes?.[0]?.affectedRows ?? 1;
+      if (affected === 0) {
+        return { alreadyRefunded: true };
+      }
 
       // 2. Đồng bộ trạng thái booking -> cancelled
       await conn.query(`UPDATE bookings SET status = 'cancelled' WHERE id = ?`, [booking_id]);
@@ -1033,7 +1042,8 @@ async function refundPayment(req, res, next) {
       // 5. Gửi thông báo đến khách hàng
       if (payment.customer_id) {
         const userRows = await conn.query(`SELECT user_id FROM customers WHERE id = ?`, [payment.customer_id]);
-        const targetUserId = userRows?.[0]?.user_id || payment.customer_id;
+        const userObj = Array.isArray(userRows?.[0]) ? userRows[0][0] : userRows?.[0];
+        const targetUserId = userObj?.user_id || payment.customer_id;
         await conn.query(
           `INSERT INTO notifications (user_id, title, message, type)
            VALUES (?, ?, ?, 'system')`,
@@ -1044,7 +1054,22 @@ async function refundPayment(req, res, next) {
           ]
         );
       }
+      return { success: true };
     });
+
+    if (refundTxResult?.alreadyRefunded) {
+      return res.status(200).json({
+        success: true,
+        alreadyRefunded: true,
+        message: 'Giao dịch này đã được hoàn tiền trước đó. Không xử lý hoàn tiền lặp lại.',
+        data: {
+          paymentId: payment.id,
+          bookingId: payment.booking_id,
+          amount: payment.amount,
+          status: 'refunded',
+        },
+      });
+    }
 
     return res.status(200).json({
       success: true,
