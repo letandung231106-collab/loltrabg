@@ -15,31 +15,43 @@ function buildQueryString(params = {}) {
 }
 
 /**
- * Fetch wrapper có tự động đính kèm JWT Bearer Token
+ * Fetch wrapper có tự động đính kèm JWT Bearer Token & phân tích JSON an toàn tuyệt đối cho Safari macOS
  */
 async function request(endpoint, options = {}) {
   const token = localStorage.getItem('token');
+  const isValidToken = token && typeof token === 'string' && token !== 'null' && token !== 'undefined' && token.trim() !== '';
+
   const headers = {
     'Content-Type': 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(isValidToken ? { Authorization: `Bearer ${token.trim()}` } : {}),
     ...options.headers,
   };
 
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  const url = `${API_BASE_URL}${cleanEndpoint}`;
+
   try {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    const response = await fetch(url, {
       ...options,
       headers,
     });
 
-    const data = await response.json();
+    const rawText = await response.text();
+    let data = {};
+    try {
+      data = rawText ? JSON.parse(rawText) : {};
+    } catch (parseErr) {
+      console.warn(`[API JSON Parse Warning] ${cleanEndpoint}:`, parseErr.message);
+      throw new Error(`Server phản hồi không hợp lệ (HTTP ${response.status}). Vui lòng kiểm tra kết nối API.`);
+    }
 
     if (!response.ok) {
-      throw new Error(data.message || `Lỗi yêu cầu (${response.status})`);
+      throw new Error(data.message || data.error || `Lỗi yêu cầu máy chủ (${response.status})`);
     }
 
     return data;
   } catch (error) {
-    console.error(`[API Error] ${endpoint}:`, error.message);
+    console.error(`[API Error] ${cleanEndpoint}:`, error.message);
     throw error;
   }
 }

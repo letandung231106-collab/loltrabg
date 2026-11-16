@@ -330,7 +330,7 @@ export function SeatMap({ scheduleData, onProceedToPayment, onCancelHold }) {
               <div className="font-bold text-pink-300 text-[11px] flex items-center gap-1">
                 Ghế Couple
               </div>
-              <div className="text-[10px] text-slate-400">F1–F12 (2 chỗ)</div>
+              <div className="text-[10px] text-slate-400">F1-F12 (2 chỗ)</div>
             </div>
           </div>
 

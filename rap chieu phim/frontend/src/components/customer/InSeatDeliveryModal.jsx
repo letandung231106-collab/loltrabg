@@ -13,6 +13,7 @@ import {
   Send,
   AlertTriangle,
   Loader2,
+  Coffee,
 } from 'lucide-react';
 
 /**
@@ -47,10 +48,9 @@ export function InSeatDeliveryModal({ isOpen, onClose }) {
   const [note, setNote] = useState('');
 
   // Giỏ hàng món bắp nước
-  const [cart, setCart] = useState([
-    { id: 1, name: 'Bắp Rang Bơ Phô Mai (L)', price: 69000, quantity: 1 },
-    { id: 3, name: 'Coca-Cola Zero Sugar (L)', price: 39000, quantity: 1 },
-  ]);
+  const [cart, setCart] = useState([]);
+  const [menuItems, setMenuItems] = useState([]);
+  const [isLoadingMenu, setIsLoadingMenu] = useState(false);
 
   // Trạng thái xử lý và gửi đơn
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -260,6 +260,30 @@ export function InSeatDeliveryModal({ isOpen, onClose }) {
             setSeatCode('');
           }
         }
+
+        // 3. Tải danh sách món bắp nước F&B từ API
+        setIsLoadingMenu(true);
+        try {
+          const resMenu = await api.getConcessions();
+          const rawList = Array.isArray(resMenu) ? resMenu : (resMenu?.data || resMenu?.concessions || resMenu?.items || []);
+          const available = rawList.filter((item) => {
+            if (!item) return false;
+            if (item.is_active === false || item.is_active === 0 || item.is_active === '0') return false;
+            if (item.status === 'unavailable' || item.status === 'Tạm ngưng') return false;
+            if (item.is_available === 0 || item.is_available === false) return false;
+            if (typeof item.name === 'string' && item.name.includes('Tạm ngưng')) return false;
+            return true;
+          });
+          if (isMounted) {
+            setMenuItems(available);
+          }
+        } catch (menuErr) {
+          console.warn('Lỗi tải menu bắp nước InSeatDelivery:', menuErr);
+        } finally {
+          if (isMounted) {
+            setIsLoadingMenu(false);
+          }
+        }
       } catch (err) {
         console.warn('Lỗi tải dữ liệu phòng/vé InSeatDelivery:', err);
         if (isMounted) {
@@ -286,15 +310,32 @@ export function InSeatDeliveryModal({ isOpen, onClose }) {
     0
   );
 
-  const handleUpdateQty = (idx, delta) => {
+  const getItemQty = (itemId) => {
+    const found = cart.find((c) => c.id === itemId);
+    return found ? found.quantity : 0;
+  };
+
+  const handleItemQtyChange = (item, delta) => {
     setCart((prev) => {
-      const updated = [...prev];
-      const newQty = updated[idx].quantity + delta;
+      const existing = prev.find((c) => c.id === item.id);
+      const currentQty = existing ? existing.quantity : 0;
+      const newQty = currentQty + delta;
       if (newQty <= 0) {
-        return updated.filter((_, i) => i !== idx);
+        return prev.filter((c) => c.id !== item.id);
       }
-      updated[idx].quantity = newQty;
-      return updated;
+      if (existing) {
+        return prev.map((c) => (c.id === item.id ? { ...c, quantity: newQty } : c));
+      }
+      return [
+        ...prev,
+        {
+          id: item.id,
+          name: item.name,
+          price: Number(item.price) || 0,
+          quantity: newQty,
+          image: item.image,
+        },
+      ];
     });
   };
 
@@ -322,7 +363,7 @@ export function InSeatDeliveryModal({ isOpen, onClose }) {
 
   // Xử lý gửi đơn hàng giao tận ghế
   const handleOrder = async () => {
-    if (cart.length === 0 || !seatCode) return;
+    if (cart.length === 0 || !seatCode || totalAmount === 0) return;
     setIsSubmitting(true);
     setSubmitError('');
 
@@ -626,46 +667,149 @@ export function InSeatDeliveryModal({ isOpen, onClose }) {
                 </div>
               </div>
 
-              {/* Cart Items */}
+              {/* Menu bắp nước F&B (Lưới 2 cột) */}
               <div className="space-y-2">
-                <div className="text-xs font-bold text-slate-300 uppercase tracking-wider">
-                  Món Đang Chọn:
+                <div className="flex items-center justify-between text-xs font-bold text-amber-400 uppercase tracking-wider">
+                  <span className="flex items-center gap-1.5">
+                    <Coffee className="w-4 h-4" /> Thực Đơn Bắp Nước Rạp Chiếu
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-normal normal-case">
+                    {menuItems.length} món sẵn sàng phục vụ
+                  </span>
                 </div>
-                {cart.map((item, idx) => (
-                  <div
-                    key={item.id}
-                    className="p-3 rounded-2xl bg-cinema-850/80 border border-cinema-700/60 flex items-center justify-between text-xs"
-                  >
-                    <div>
-                      <div className="font-bold text-white">{item.name}</div>
-                      <div className="text-slate-400 font-mono">
-                        {(Number(item.price) || 0).toLocaleString('vi-VN')} đ
-                      </div>
-                    </div>
 
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handleUpdateQty(idx, -1)}
-                        className="w-6 h-6 rounded-lg bg-cinema-800 hover:bg-cinema-700 text-white flex items-center justify-center font-bold cursor-pointer"
-                        title="Giảm 1 món"
-                      >
-                        <Minus className="w-3 h-3" />
-                      </button>
-                      <span className="w-5 text-center font-mono font-bold text-amber-400">
-                        {item.quantity}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => handleUpdateQty(idx, 1)}
-                        className="w-6 h-6 rounded-lg bg-amber-500 hover:bg-amber-400 text-cinema-950 flex items-center justify-center font-bold cursor-pointer"
-                        title="Thêm 1 món"
-                      >
-                        <Plus className="w-3 h-3" />
-                      </button>
-                    </div>
+                {isLoadingMenu ? (
+                  <div className="py-6 text-center text-slate-400 flex items-center justify-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
+                    <span>Đang tải thực đơn bắp nước...</span>
                   </div>
-                ))}
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[280px] overflow-y-auto pr-1">
+                    {menuItems.map((item) => {
+                      const qty = getItemQty(item.id);
+                      return (
+                        <div
+                          key={item.id}
+                          className={`p-2.5 rounded-2xl border transition-all flex items-center justify-between gap-2.5 ${
+                            qty > 0
+                              ? 'bg-amber-500/10 border-amber-500/50 shadow-sm'
+                              : 'bg-cinema-900/80 border-cinema-800 hover:border-cinema-700'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            {item.image ? (
+                              <img
+                                src={item.image}
+                                alt={item.name}
+                                className="w-12 h-12 rounded-xl object-cover shrink-0 border border-cinema-700"
+                                onError={(e) => {
+                                  e.target.style.display = 'none';
+                                }}
+                              />
+                            ) : (
+                              <div className="w-12 h-12 rounded-xl bg-cinema-800 border border-cinema-700 flex items-center justify-center text-amber-400 shrink-0">
+                                <Utensils className="w-5 h-5" />
+                              </div>
+                            )}
+                            <div className="min-w-0">
+                              <div className="font-bold text-white text-xs truncate" title={item.name}>
+                                {item.name}
+                              </div>
+                              <div className="text-amber-400 font-mono font-bold text-xs">
+                                {(Number(item.price) || 0).toLocaleString('vi-VN')} đ
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {qty > 0 && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => handleItemQtyChange(item, -1)}
+                                  className="w-6 h-6 rounded-lg bg-cinema-800 hover:bg-cinema-700 text-white flex items-center justify-center font-bold text-xs transition-colors cursor-pointer"
+                                  title="Giảm 1"
+                                >
+                                  <Minus className="w-3 h-3" />
+                                </button>
+                                <span className="w-4 text-center font-mono font-bold text-amber-400 text-xs">
+                                  {qty}
+                                </span>
+                              </>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => handleItemQtyChange(item, 1)}
+                              className="w-6 h-6 rounded-lg bg-amber-500 hover:bg-amber-400 text-cinema-950 flex items-center justify-center font-bold text-xs transition-colors shadow cursor-pointer"
+                              title="Thêm món"
+                            >
+                              <Plus className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Cart Items (Món Đang Chọn) */}
+              <div className="space-y-2 pt-2 border-t border-cinema-800/80">
+                <div className="flex items-center justify-between text-xs font-bold text-slate-300 uppercase tracking-wider">
+                  <span>Món Đang Chọn:</span>
+                  {cart.length > 0 && (
+                    <span className="text-[11px] font-mono text-amber-400 normal-case">
+                      {cart.reduce((s, c) => s + c.quantity, 0)} phần
+                    </span>
+                  )}
+                </div>
+
+                {cart.length === 0 ? (
+                  <div className="p-3 rounded-xl bg-cinema-900/60 border border-dashed border-cinema-800 text-center text-xs text-slate-400">
+                    Chưa chọn món nào. Hãy bấm dấu <strong className="text-amber-400 font-bold">+</strong> ở thực đơn phía trên để thêm món.
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+                    {cart.map((item) => (
+                      <div
+                        key={item.id}
+                        className="p-2.5 rounded-xl bg-cinema-850/80 border border-cinema-700/60 flex items-center justify-between text-xs"
+                      >
+                        <div className="min-w-0 pr-2">
+                          <div className="font-bold text-white truncate">{item.name}</div>
+                          <div className="text-slate-400 font-mono text-[11px]">
+                            {(Number(item.price) || 0).toLocaleString('vi-VN')} đ × {item.quantity} ={' '}
+                            <span className="text-amber-400 font-bold">
+                              {(Number(item.price || 0) * item.quantity).toLocaleString('vi-VN')} đ
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => handleItemQtyChange(item, -1)}
+                            className="w-6 h-6 rounded-lg bg-cinema-800 hover:bg-cinema-700 text-white flex items-center justify-center font-bold cursor-pointer"
+                            title="Giảm 1 món"
+                          >
+                            <Minus className="w-3 h-3" />
+                          </button>
+                          <span className="w-5 text-center font-mono font-bold text-amber-400">
+                            {item.quantity}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleItemQtyChange(item, 1)}
+                            className="w-6 h-6 rounded-lg bg-amber-500 hover:bg-amber-400 text-cinema-950 flex items-center justify-center font-bold cursor-pointer"
+                            title="Thêm 1 món"
+                          >
+                            <Plus className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Total & Submit */}
@@ -679,14 +823,16 @@ export function InSeatDeliveryModal({ isOpen, onClose }) {
 
                 <button
                   type="button"
-                  disabled={isSubmitting || cart.length === 0 || !seatCode}
+                  disabled={isSubmitting || totalAmount === 0 || !seatCode}
                   onClick={handleOrder}
-                  className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 via-rose-500 to-ruby-600 hover:from-amber-400 hover:to-ruby-500 text-white font-extrabold text-xs shadow-glow-red transition-all flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                  className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-ruby-600 via-rose-600 to-ruby-700 hover:from-ruby-500 hover:to-rose-500 text-white font-extrabold text-xs shadow-glow-red transition-all flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                 >
                   <Send className="w-3.5 h-3.5" />
                   <span>
                     {!seatCode
                       ? 'Vui lòng chọn ghế'
+                      : totalAmount === 0
+                      ? 'Chưa chọn món'
                       : isSubmitting
                       ? 'Đang gửi...'
                       : 'Gửi Đơn Phục Vụ Tận Ghế'}

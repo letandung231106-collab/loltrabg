@@ -58,6 +58,9 @@ export function Header({
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const notifRef = useRef(null);
 
+  const userRole = (user?.role || '').toLowerCase();
+  const isInternalUser = ['admin', 'manager', 'staff', 'technician'].includes(userRole);
+
   // Đóng bảng thông báo khi bấm ra ngoài
   useEffect(() => {
     if (!showNotifMenu) return;
@@ -150,15 +153,17 @@ export function Header({
           {/* Right Action Icons & User */}
           <div className="flex items-center gap-2 sm:gap-3">
             {/* Quick Action Badges */}
-            <div className="hidden xl:flex items-center gap-2">
-              <button
-                onClick={onOpenInSeatDelivery}
-                className="px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500/20 to-teal-500/20 hover:from-emerald-500/30 hover:to-teal-500/30 text-emerald-300 border border-emerald-500/40 text-xs font-black transition-all flex items-center gap-1.5 shadow-sm whitespace-nowrap shrink-0"
-                title="Gọi bắp nước giao tận ghế trong phòng chiếu"
-              >
-                <span className="whitespace-nowrap">🍿 Gọi Món Tận Ghế</span>
-              </button>
-            </div>
+            {!isInternalUser && (
+              <div className="hidden xl:flex items-center gap-2">
+                <button
+                  onClick={onOpenInSeatDelivery}
+                  className="px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500/20 to-teal-500/20 hover:from-emerald-500/30 hover:to-teal-500/30 text-emerald-300 border border-emerald-500/40 text-xs font-black transition-all flex items-center gap-1.5 shadow-sm whitespace-nowrap shrink-0"
+                  title="Gọi bắp nước giao tận ghế trong phòng chiếu"
+                >
+                  <span className="whitespace-nowrap">🍿 Gọi Món Tận Ghế</span>
+                </button>
+              </div>
+            )}
             {/* Theme Toggle Button (Light / Dark Mode) */}
             <button
               onClick={toggleTheme}
@@ -310,19 +315,23 @@ export function Header({
       {/* Mobile Drawer Navigation */}
       {isMobileMenuOpen && (
         <div className="lg:hidden bg-cinema-950/95 border-b border-cinema-700/80 px-4 py-4 space-y-3 animate-fade-in backdrop-blur-xl">
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={() => {
-                setIsMobileMenuOpen(false);
-                onOpenInSeatDelivery();
-              }}
-              className="p-2.5 rounded-xl bg-gradient-to-r from-emerald-500/20 to-teal-500/20 border border-emerald-500/40 text-emerald-300 font-bold text-xs flex items-center justify-center gap-1.5"
-            >
-              <Utensils className="w-4 h-4 text-emerald-400" /> Gọi Bắp Nước
-            </button>
+          <div className={!isInternalUser ? "grid grid-cols-2 gap-2" : "flex justify-center"}>
+            {!isInternalUser && (
+              <button
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  onOpenInSeatDelivery();
+                }}
+                className="p-2.5 rounded-xl bg-gradient-to-r from-emerald-500/20 to-teal-500/20 border border-emerald-500/40 text-emerald-300 font-bold text-xs flex items-center justify-center gap-1.5"
+              >
+                <Utensils className="w-4 h-4 text-emerald-400" /> Gọi Bắp Nước
+              </button>
+            )}
             <button
               onClick={toggleTheme}
-              className="p-2.5 rounded-xl bg-cinema-850 hover:bg-cinema-800 border border-cinema-700/60 text-slate-300 font-bold text-xs flex items-center justify-center gap-1.5 transition-colors"
+              className={`p-2.5 rounded-xl bg-cinema-850 hover:bg-cinema-800 border border-cinema-700/60 text-slate-300 font-bold text-xs flex items-center justify-center gap-1.5 transition-colors ${
+                isInternalUser ? 'w-full' : ''
+              }`}
               title={isDark ? 'Chuyển sang giao diện Sáng' : 'Chuyển sang giao diện Tối'}
             >
               {isDark ? (

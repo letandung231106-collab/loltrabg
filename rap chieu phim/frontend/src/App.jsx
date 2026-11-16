@@ -5,6 +5,7 @@ import { BookingProvider, useBooking } from './context/BookingContext';
 import { api } from './services/api';
 import confetti from 'canvas-confetti';
 import { Header } from './components/common/Header';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { LoginModal } from './components/common/LoginModal';
 import { UserProfileModal } from './components/customer/UserProfileModal';
 import { InSeatDeliveryModal } from './components/customer/InSeatDeliveryModal';
@@ -287,12 +288,14 @@ function MainApp() {
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <BookingProvider>
-          <MainApp />
-        </BookingProvider>
-      </AuthProvider>
-    </ThemeProvider>
+    <ErrorBoundary>
+      <ThemeProvider>
+        <AuthProvider>
+          <BookingProvider>
+            <MainApp />
+          </BookingProvider>
+        </AuthProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   );
 }

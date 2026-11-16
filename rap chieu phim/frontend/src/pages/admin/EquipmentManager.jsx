@@ -2,6 +2,38 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import { Wrench, Plus, Search, AlertTriangle, ShieldCheck, CheckCircle2, Clock } from 'lucide-react';
 
+const STATUS_CONFIG = {
+  good: {
+    label: 'Hoạt động tốt',
+    badgeClass: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
+    dotClass: 'bg-emerald-400',
+  },
+  check_needed: {
+    label: 'Cần kiểm tra',
+    badgeClass: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
+    dotClass: 'bg-amber-400',
+  },
+  repairing: {
+    label: 'Đang sửa chữa',
+    badgeClass: 'bg-sky-500/15 text-sky-300 border-sky-500/30',
+    dotClass: 'bg-sky-400 animate-pulse',
+  },
+  broken: {
+    label: 'Hỏng',
+    badgeClass: 'bg-rose-500/15 text-rose-300 border-rose-500/30',
+    dotClass: 'bg-rose-400 animate-pulse',
+  },
+};
+
+const getStatusInfo = (status) => {
+  const key = String(status || '').toLowerCase();
+  return STATUS_CONFIG[key] || {
+    label: status || 'Không rõ',
+    badgeClass: 'bg-slate-500/15 text-slate-300 border-slate-500/30',
+    dotClass: 'bg-slate-400',
+  };
+};
+
 export function EquipmentManager() {
   const [equipment, setEquipment] = useState([]);
   const [types, setTypes] = useState([]);
@@ -81,17 +113,20 @@ export function EquipmentManager() {
             <AlertTriangle className="w-4 h-4" /> CẢNH BÁO BẢO TRÌ & THIẾT BỊ HỎNG ({alerts.length} thiết bị):
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-xs">
-            {alerts.slice(0, 3).map((a) => (
-              <div key={a.id} className="p-2.5 rounded-xl bg-cinema-900 border border-cinema-700 flex items-center justify-between">
-                <div>
-                  <div className="font-bold text-white truncate max-w-[180px]">{a.name}</div>
-                  <div className="text-[10px] text-slate-400">{a.room_name || 'Khu vực chung'} • Hạn: {a.next_maintenance}</div>
+            {alerts.slice(0, 3).map((a) => {
+              const info = getStatusInfo(a.status);
+              return (
+                <div key={a.id} className="p-2.5 rounded-xl bg-cinema-900 border border-cinema-700 flex items-center justify-between">
+                  <div>
+                    <div className="font-bold text-white truncate max-w-[180px]">{a.name}</div>
+                    <div className="text-[10px] text-slate-400">{a.room_name || 'Khu vực chung'} • Hạn: {a.next_maintenance}</div>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${info.badgeClass}`}>
+                    {info.label}
+                  </span>
                 </div>
-                <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-rose-950 text-rose-400 border border-rose-600">
-                  {a.status}
-                </span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
@@ -132,10 +167,10 @@ export function EquipmentManager() {
               className="px-3 py-1.5 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
             >
               <option value="all">Tất cả ({equipment.length})</option>
-              <option value="good">Hoạt động tốt (Good)</option>
-              <option value="check_needed">Cần kiểm tra (Check Needed)</option>
-              <option value="repairing">Đang sửa chữa (Repairing)</option>
-              <option value="broken">Hỏng (Broken)</option>
+              <option value="good">Hoạt động tốt</option>
+              <option value="check_needed">Cần kiểm tra</option>
+              <option value="repairing">Đang sửa chữa</option>
+              <option value="broken">Hỏng</option>
             </select>
           </div>
         </div>
@@ -172,27 +207,15 @@ export function EquipmentManager() {
                   <td className="p-4 text-slate-300 font-mono">{eq.last_maintenance || 'Chưa thực hiện'}</td>
                   <td className="p-4 text-amber-400 font-mono font-bold">{eq.next_maintenance}</td>
                   <td className="p-4 whitespace-nowrap">
-                    {eq.status === 'good' ? (
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 whitespace-nowrap">
-                        <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
-                        Hoạt động tốt
-                      </span>
-                    ) : eq.status === 'check_needed' ? (
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30 whitespace-nowrap">
-                        <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
-                        Cần kiểm tra
-                      </span>
-                    ) : eq.status === 'repairing' ? (
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-sky-500/15 text-sky-300 border border-sky-500/30 whitespace-nowrap">
-                        <span className="w-2 h-2 rounded-full bg-sky-400 shrink-0 animate-pulse" />
-                        Đang sửa chữa
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-rose-500/15 text-rose-300 border border-rose-500/30 whitespace-nowrap">
-                        <span className="w-2 h-2 rounded-full bg-rose-400 shrink-0 animate-pulse" />
-                        Hỏng hóc
-                      </span>
-                    )}
+                    {(() => {
+                      const info = getStatusInfo(eq.status);
+                      return (
+                        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border whitespace-nowrap ${info.badgeClass}`}>
+                          <span className={`w-2 h-2 rounded-full shrink-0 ${info.dotClass}`} />
+                          {info.label}
+                        </span>
+                      );
+                    })()}
                   </td>
                   <td className="p-4 text-right">
                     <select
@@ -200,10 +223,10 @@ export function EquipmentManager() {
                       onChange={(e) => handleStatusUpdate(eq.id, e.target.value)}
                       className="px-2 py-1 rounded-lg bg-cinema-900 border border-cinema-700 text-white text-[11px] focus:outline-none"
                     >
-                      <option value="good">Good</option>
-                      <option value="check_needed">Check Needed</option>
-                      <option value="repairing">Repairing</option>
-                      <option value="broken">Broken</option>
+                      <option value="good">Hoạt động tốt</option>
+                      <option value="check_needed">Cần kiểm tra</option>
+                      <option value="repairing">Đang sửa chữa</option>
+                      <option value="broken">Hỏng</option>
                     </select>
                   </td>
                 </tr>

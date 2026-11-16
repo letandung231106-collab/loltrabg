@@ -38,7 +38,7 @@ export function PaymentModal({
   onSuccess,
   selectedConcessions = [],
 }) {
-  const { activeBooking, formattedHoldTime, holdRemainingSeconds, resetBookingState } = useBooking();
+  const { activeBooking, selectedSeats, formattedHoldTime, holdRemainingSeconds, resetBookingState } = useBooking();
   const [paymentMethod, setPaymentMethod] = useState('momo');
   const [momoRequestType, setMomoRequestType] = useState('captureWallet');
   const [momoSession, setMomoSession] = useState(null);
@@ -101,10 +101,11 @@ export function PaymentModal({
 
   if (!isOpen || !activeBooking) return null;
 
-  // Tính toán chi phí: vé + bắp nước - giảm giá voucher - trừ điểm loyalty
+  // Tính toán chi phí an toàn: vé + bắp nước - giảm giá voucher - trừ điểm loyalty
   const ticketAmount = Number(activeBooking.totalAmount || 0);
-  const concessionAmount = selectedConcessions.reduce(
-    (sum, item) => sum + Number(item.price || 0) * (item.quantity || 1),
+  const safeConcessions = Array.isArray(selectedConcessions) ? selectedConcessions : [];
+  const concessionAmount = safeConcessions.reduce(
+    (sum, item) => sum + Number(item?.price || 0) * Number(item?.quantity || 1),
     0
   );
   const subtotal = ticketAmount + concessionAmount;
@@ -198,14 +199,14 @@ export function PaymentModal({
     loyaltyService.addPoints(finalTotalAmount, `Tích điểm đơn vé ${activeBooking.bookingCode}`);
 
     // 4. Bán bắp nước vào kho BOM
-    if (selectedConcessions.length > 0) {
+    if (safeConcessions.length > 0) {
       try {
         await api.sellConcessions({
-          items: selectedConcessions.map((c) => ({
+          items: safeConcessions.map((c) => ({
             id: c.id,
             name: c.name,
-            price: c.price,
-            quantity: c.quantity,
+            price: Number(c.price) || 0,
+            quantity: Number(c.quantity) || 1,
           })),
           payment_method: method,
         });
@@ -357,11 +358,12 @@ export function PaymentModal({
     setTimeout(() => setCopied(''), 2000);
   };
 
+  const bookingCodeStr = activeBooking?.bookingCode || activeBooking?.booking_code || 'NIGHTMOVIE';
   const vietQrUrl = finalTotalAmount > 0
-    ? `https://qr.sepay.vn/img?acc=8813341949&bank=BIDV&amount=${finalTotalAmount}&des=${encodeURIComponent(activeBooking.bookingCode)}`
-    : `https://img.vietqr.io/image/BIDV-8813341949-compact2.png?amount=${finalTotalAmount}&addInfo=${encodeURIComponent(activeBooking.bookingCode)}&accountName=${encodeURIComponent('LE TAN DUNG')}`;
+    ? `https://qr.sepay.vn/img?acc=8813341949&bank=BIDV&amount=${finalTotalAmount}&des=${encodeURIComponent(bookingCodeStr)}`
+    : `https://img.vietqr.io/image/BIDV-8813341949-compact2.png?amount=${finalTotalAmount}&addInfo=${encodeURIComponent(bookingCodeStr)}&accountName=${encodeURIComponent('LE TAN DUNG')}`;
 
-  const currentTier = loyaltyService.getTier(availablePoints);
+  const currentTier = loyaltyService.getTier(availablePoints) || { name: 'Đồng (Member)', color: '#cd7f32' };
 
   const modalContent = (
     <div
@@ -682,30 +684,35 @@ export function PaymentModal({
 
             {/* Vouchers trong ví của bạn & Gợi ý nhanh */}
             <div className="space-y-1.5 pt-1">
-              {voucherWallet.getMyVouchers().filter((v) => !v.isUsed).length > 0 && (
-                <div>
-                  <div className="text-[10px] text-amber-400 font-bold mb-1 flex items-center gap-1">
-                    <Tag className="w-3 h-3 text-gold-400" /> Voucher trong Ví của bạn (Bấm để dùng):
+              {(() => {
+                const myWallet = Array.isArray(voucherWallet.getMyVouchers()) ? voucherWallet.getMyVouchers() : [];
+                const unusedList = myWallet.filter((v) => !v.isUsed);
+                if (unusedList.length === 0) return null;
+                return (
+                  <div>
+                    <div className="text-[10px] text-amber-400 font-bold mb-1 flex items-center gap-1">
+                      <Tag className="w-3 h-3 text-gold-400" /> Voucher trong Ví của bạn (Bấm để dùng):
+                    </div>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {unusedList.map((v) => (
+                        <button
+                          key={v.id || v.code}
+                          type="button"
+                          onClick={() => handleApplyVoucher(v.code)}
+                          className={`text-[10px] px-2.5 py-1 rounded-lg border font-mono font-bold transition-all flex items-center gap-1 ${
+                            appliedVoucher?.code === v.code
+                              ? 'bg-emerald-500/30 border-emerald-400 text-emerald-300 shadow-glow-emerald'
+                              : 'bg-amber-950/40 border-amber-500/50 text-amber-300 hover:bg-amber-900/60'
+                          }`}
+                        >
+                          <span>{v.code}</span>
+                          <span className="text-[9px] opacity-80">({v.title || v.desc})</span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {voucherWallet.getMyVouchers().filter((v) => !v.isUsed).map((v) => (
-                      <button
-                        key={v.id || v.code}
-                        type="button"
-                        onClick={() => handleApplyVoucher(v.code)}
-                        className={`text-[10px] px-2.5 py-1 rounded-lg border font-mono font-bold transition-all flex items-center gap-1 ${
-                          appliedVoucher?.code === v.code
-                            ? 'bg-emerald-500/30 border-emerald-400 text-emerald-300 shadow-glow-emerald'
-                            : 'bg-amber-950/40 border-amber-500/50 text-amber-300 hover:bg-amber-900/60'
-                        }`}
-                      >
-                        <span>{v.code}</span>
-                        <span className="text-[9px] opacity-80">({v.title || v.desc})</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
+                );
+              })()}
             </div>
 
             {/* Voucher Chips gợi ý */}
@@ -782,53 +789,76 @@ export function PaymentModal({
           </div>
 
           {/* Order Summary */}
-          <div className="p-3.5 rounded-2xl bg-cinema-900/90 border border-cinema-700/60 space-y-1.5 text-xs">
-            <div className="flex justify-between text-slate-300">
-              <span>Danh sách ghế:</span>
-              <span className="font-bold text-white font-mono">
-                {activeBooking.seats?.map((s) => `${s.row_number}${s.seat_number}${s.seat_type === 'couple' ? ' (Đôi - 2 người)' : s.seat_type === 'vip' ? ' (VIP)' : ''}`).join(', ')}
-              </span>
-            </div>
-            <div className="flex justify-between text-slate-300">
-              <span>Tiền vé ({activeBooking.seats?.length || 1} mã ghế • {activeBooking.seats?.reduce((sum, s) => sum + (s.seat_type === 'couple' ? 2 : 1), 0) || 1} chỗ ngồi):</span>
-              <span className="font-bold text-white">{ticketAmount.toLocaleString('vi-VN')} VNĐ</span>
-            </div>
+          {(() => {
+            const seatsList = Array.isArray(activeBooking?.seats) && activeBooking.seats.length > 0
+              ? activeBooking.seats
+              : Array.isArray(selectedSeats) && selectedSeats.length > 0
+              ? selectedSeats
+              : [];
 
-            {selectedConcessions.length > 0 && (
-              <div className="flex justify-between text-amber-300 pt-1 border-t border-cinema-800">
-                <span className="flex items-center gap-1">
-                  <Utensils className="w-3 h-3" /> Bắp nước & combo ({selectedConcessions.reduce((sum, c) => sum + c.quantity, 0)} món):
-                </span>
-                <span className="font-bold">+{concessionAmount.toLocaleString('vi-VN')} VNĐ</span>
+            const seatsDisplayStr = seatsList.map((s) => {
+              if (typeof s === 'string') return s;
+              const code = s?.row_number && s?.seat_number ? `${s.row_number}${s.seat_number}` : s?.seat_code || s?.seatCode || s?.name || 'Ghế';
+              const isCouple = s?.seat_type === 'couple';
+              const isVip = s?.seat_type === 'vip';
+              return `${code}${isCouple ? ' (Đôi - 2 người)' : isVip ? ' (VIP)' : ''}`;
+            }).join(', ') || 'Chưa chọn';
+
+            const totalSeatsCount = seatsList.length || 1;
+            const totalPeopleCount = seatsList.reduce((sum, s) => {
+              return sum + (typeof s === 'object' && s?.seat_type === 'couple' ? 2 : 1);
+            }, 0) || 1;
+
+            return (
+              <div className="p-3.5 rounded-2xl bg-cinema-900/90 border border-cinema-700/60 space-y-1.5 text-xs">
+                <div className="flex justify-between text-slate-300">
+                  <span>Danh sách ghế:</span>
+                  <span className="font-bold text-white font-mono">
+                    {seatsDisplayStr}
+                  </span>
+                </div>
+                <div className="flex justify-between text-slate-300">
+                  <span>Tiền vé ({totalSeatsCount} mã ghế • {totalPeopleCount} chỗ ngồi):</span>
+                  <span className="font-bold text-white">{ticketAmount.toLocaleString('vi-VN')} VNĐ</span>
+                </div>
+
+                {safeConcessions.length > 0 && (
+                  <div className="flex justify-between text-amber-300 pt-1 border-t border-cinema-800">
+                    <span className="flex items-center gap-1">
+                      <Utensils className="w-3 h-3" /> Bắp nước & combo ({safeConcessions.reduce((sum, c) => sum + Number(c?.quantity || 1), 0)} món):
+                    </span>
+                    <span className="font-bold">+{concessionAmount.toLocaleString('vi-VN')} VNĐ</span>
+                  </div>
+                )}
+
+                {appliedVoucher && (
+                  <div className="flex justify-between text-emerald-400 pt-1 border-t border-cinema-800">
+                    <span>Khuyến mãi ({appliedVoucher.code}):</span>
+                    <span className="font-bold">-{discountAmount.toLocaleString('vi-VN')} VNĐ</span>
+                  </div>
+                )}
+
+                {useLoyaltyPoints && loyaltyDeduction > 0 && (
+                  <div className="flex justify-between text-amber-400 pt-1 border-t border-cinema-800">
+                    <span>Điểm thưởng loyalty:</span>
+                    <span className="font-bold">-{loyaltyDeduction.toLocaleString('vi-VN')} VNĐ</span>
+                  </div>
+                )}
+
+                <div className="flex justify-between text-slate-400 text-[11px] pt-1">
+                  <span>Tích lũy điểm đơn này (+5%):</span>
+                  <span className="text-amber-400 font-bold">+{Math.round(finalTotalAmount * 0.05).toLocaleString('vi-VN')} pts</span>
+                </div>
+
+                <div className="pt-2 border-t border-cinema-700 flex justify-between items-center text-sm font-black text-white">
+                  <span>Tổng thanh toán:</span>
+                  <span className="text-xl text-amber-400 font-mono">
+                    {finalTotalAmount.toLocaleString('vi-VN')} VNĐ
+                  </span>
+                </div>
               </div>
-            )}
-
-            {appliedVoucher && (
-              <div className="flex justify-between text-emerald-400 pt-1 border-t border-cinema-800">
-                <span>Khuyến mãi ({appliedVoucher.code}):</span>
-                <span className="font-bold">-{discountAmount.toLocaleString('vi-VN')} VNĐ</span>
-              </div>
-            )}
-
-            {useLoyaltyPoints && loyaltyDeduction > 0 && (
-              <div className="flex justify-between text-amber-400 pt-1 border-t border-cinema-800">
-                <span>Điểm thưởng loyalty:</span>
-                <span className="font-bold">-{loyaltyDeduction.toLocaleString('vi-VN')} VNĐ</span>
-              </div>
-            )}
-
-            <div className="flex justify-between text-slate-400 text-[11px] pt-1">
-              <span>Tích lũy điểm đơn này (+5%):</span>
-              <span className="text-amber-400 font-bold">+{Math.round(finalTotalAmount * 0.05).toLocaleString('vi-VN')} pts</span>
-            </div>
-
-            <div className="pt-2 border-t border-cinema-700 flex justify-between items-center text-sm font-black text-white">
-              <span>Tổng thanh toán:</span>
-              <span className="text-xl text-amber-400 font-mono">
-                {finalTotalAmount.toLocaleString('vi-VN')} VNĐ
-              </span>
-            </div>
-          </div>
+            );
+          })()}
         </div>
 
         {/* Footer Actions */}
