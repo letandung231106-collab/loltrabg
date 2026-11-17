@@ -162,14 +162,20 @@ export function Header({
             {/* Theme Toggle Button (Light / Dark Mode) */}
             <button
               onClick={toggleTheme}
-              className="p-2 rounded-xl bg-cinema-850 hover:bg-cinema-800 text-slate-300 hover:text-white border border-cinema-700/50 relative transition-all duration-300 group shadow-sm flex items-center justify-center shrink-0"
+              className="px-2.5 py-1.5 rounded-xl bg-cinema-850 hover:bg-cinema-800 text-slate-300 hover:text-white border border-cinema-700/50 relative transition-all duration-300 group shadow-sm flex items-center gap-1.5 shrink-0 cursor-pointer"
               title={isDark ? 'Chuyển sang giao diện Sáng (Light Mode)' : 'Chuyển sang giao diện Tối (Dark Mode)'}
               aria-label="Chuyển đổi giao diện Sáng / Tối"
             >
               {isDark ? (
-                <Sun className="w-4 h-4 text-amber-400 group-hover:rotate-45 transition-transform duration-300" />
+                <>
+                  <Sun className="w-4 h-4 text-amber-400 group-hover:rotate-45 transition-transform duration-300" />
+                  <span className="hidden sm:inline text-xs font-bold text-amber-300">Nền Sáng</span>
+                </>
               ) : (
-                <Moon className="w-4 h-4 text-indigo-600 group-hover:-rotate-12 transition-transform duration-300" />
+                <>
+                  <Moon className="w-4 h-4 text-indigo-600 group-hover:-rotate-12 transition-transform duration-300" />
+                  <span className="hidden sm:inline text-xs font-bold text-indigo-600">Nền Tối</span>
+                </>
               )}
             </button>
 

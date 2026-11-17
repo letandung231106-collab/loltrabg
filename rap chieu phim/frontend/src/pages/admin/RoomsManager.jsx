@@ -16,6 +16,27 @@ import {
 } from 'lucide-react';
 import { ModalPortal } from '../../components/common/ModalPortal';
 
+const ROOM_EQUIPMENT_OPTIONS = [
+  { key: 'projector', label: 'Máy chiếu Laser 4K Christie RGB', type: 'Máy chiếu (Projector)' },
+  { key: 'sound', label: 'Hệ thống âm thanh vòm Dolby Atmos CP950', type: 'Âm thanh (Sound System)' },
+  { key: 'hvac', label: 'Điều hòa trung tâm Daikin VRV X 18HP', type: 'Điều hòa (HVAC & AC)' },
+  { key: 'lighting', label: 'Hệ thống đèn LED dẫn đường & chiếu sáng rạp', type: 'Chiếu sáng (Lighting)' },
+  { key: 'screen', label: 'Màn chiếu tráng bạc Harkness Clarus XC', type: 'Màn hình chiếu (Screen)' },
+  { key: 'motion_4dx', label: 'Hệ thống ghế chuyển động & hiệu ứng 4DX', type: 'Hiệu ứng 4DX' },
+  { key: 'camera', label: 'Camera hồng ngoại giám sát khán phòng', type: 'Camera an ninh' },
+  { key: 'server', label: 'Máy chủ giải mã phim DCI & KDM Dolby IMS3000', type: 'Server chiếu phim' },
+];
+
+const getDefaultEquipmentByRoomType = (roomType) => {
+  if (roomType === '4dx') {
+    return ['projector', 'sound', 'hvac', 'lighting', 'screen', 'motion_4dx', 'server'];
+  }
+  if (roomType === 'imax') {
+    return ['projector', 'sound', 'hvac', 'lighting', 'screen', 'camera', 'server'];
+  }
+  return ['projector', 'sound', 'hvac', 'lighting', 'screen', 'server'];
+};
+
 export function RoomsManager() {
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -36,6 +57,7 @@ export function RoomsManager() {
     rows: 6,
     seatsPerRow: 12,
     status: 'active',
+    selected_equipment: getDefaultEquipmentByRoomType('standard'),
   });
 
   useEffect(() => {
@@ -90,8 +112,20 @@ export function RoomsManager() {
       rows: 6,
       seatsPerRow: 12,
       status: 'active',
+      selected_equipment: getDefaultEquipmentByRoomType('standard'),
     });
     setIsCreateOpen(true);
+  };
+
+  const handleToggleEquipmentOption = (eqKey) => {
+    setFormData((prev) => {
+      const current = prev.selected_equipment || [];
+      const exists = current.includes(eqKey);
+      return {
+        ...prev,
+        selected_equipment: exists ? current.filter((k) => k !== eqKey) : [...current, eqKey],
+      };
+    });
   };
 
   const handleOpenEdit = (room) => {
@@ -374,7 +408,16 @@ export function RoomsManager() {
                   <label className="block text-xs font-semibold text-slate-300 mb-1">Loại phòng</label>
                   <select
                     value={formData.room_type}
-                    onChange={(e) => setFormData({ ...formData, room_type: e.target.value })}
+                    onChange={(e) => {
+                      const newType = e.target.value;
+                      setFormData((prev) => ({
+                        ...prev,
+                        room_type: newType,
+                        selected_equipment: !editingRoom
+                          ? getDefaultEquipmentByRoomType(newType)
+                          : prev.selected_equipment,
+                      }));
+                    }}
                     className="w-full px-3 py-2.5 rounded-xl bg-cinema-850 border border-cinema-700 text-white text-xs focus:outline-none"
                   >
                     <option value="standard">Standard (Tiêu chuẩn)</option>
@@ -431,6 +474,62 @@ export function RoomsManager() {
                   </div>
                   <div className="col-span-2 text-[10px] text-gold-400 font-mono">
                     👉 Tổng sức chứa dự kiến: {formData.rows * formData.seatsPerRow} ghế (Bao gồm Standard, VIP, Couple)
+                  </div>
+                </div>
+              )}
+
+              {!editingRoom && (
+                <div className="p-3.5 rounded-2xl bg-cinema-900 border border-cinema-700/60 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[11px] font-bold text-amber-400 flex items-center gap-1.5">
+                      <Wrench className="w-3.5 h-3.5" /> Chọn trang thiết bị lắp đặt tự động cho phòng ({(formData.selected_equipment || []).length} thiết bị):
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          selected_equipment:
+                            (prev.selected_equipment || []).length === ROOM_EQUIPMENT_OPTIONS.length
+                              ? []
+                              : ROOM_EQUIPMENT_OPTIONS.map((o) => o.key),
+                        }))
+                      }
+                      className="text-[10px] font-bold text-ruby-400 hover:text-ruby-300 underline"
+                    >
+                      {(formData.selected_equipment || []).length === ROOM_EQUIPMENT_OPTIONS.length
+                        ? 'Bỏ chọn tất cả'
+                        : 'Chọn tất cả'}
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto pr-1">
+                    {ROOM_EQUIPMENT_OPTIONS.map((opt) => {
+                      const isChecked = (formData.selected_equipment || []).includes(opt.key);
+                      return (
+                        <label
+                          key={opt.key}
+                          className={`p-2 rounded-xl border text-[11px] flex items-start gap-2 cursor-pointer transition-all ${
+                            isChecked
+                              ? 'bg-emerald-950/30 border-emerald-500/50 text-emerald-200'
+                              : 'bg-cinema-850 border-cinema-700/60 text-slate-400 hover:text-slate-200'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => handleToggleEquipmentOption(opt.key)}
+                            className="mt-0.5 rounded text-emerald-500 focus:ring-0"
+                          />
+                          <div className="leading-tight">
+                            <div className="font-bold text-white text-[11px]">{opt.label}</div>
+                            <div className="text-[10px] text-slate-400">{opt.type}</div>
+                          </div>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <div className="text-[10px] text-slate-400">
+                    ✓ Các thiết bị được chọn sẽ tự động khởi tạo mã định danh và gắn trực tiếp vào phòng chiếu mới.
                   </div>
                 </div>
               )}
