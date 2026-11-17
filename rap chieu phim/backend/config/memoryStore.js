@@ -334,7 +334,7 @@ const todayStr = localDateStr(new Date());
 const tomorrowDate = new Date(); tomorrowDate.setDate(tomorrowDate.getDate() + 1);
 const tomorrowStr = localDateStr(tomorrowDate);
 const schedules = [
-  { id: 1, movie_id: 1, room_id: 4, start_time: `${todayStr} 14:00:00`, end_time: `${todayStr} 16:50:00`, format: 'IMAX 2D Phụ đề', ticket_price: 150000, status: 'screening' },
+  { id: 1, movie_id: 1, room_id: 4, start_time: `${tomorrowStr} 14:00:00`, end_time: `${tomorrowStr} 16:50:00`, format: 'IMAX 2D Phụ đề', ticket_price: 150000, status: 'scheduled' },
   { id: 2, movie_id: 1, room_id: 4, start_time: `${tomorrowStr} 18:00:00`, end_time: `${tomorrowStr} 20:50:00`, format: 'IMAX 2D Phụ đề', ticket_price: 160000, status: 'scheduled' },
   { id: 3, movie_id: 5, room_id: 5, start_time: `${todayStr} 19:00:00`, end_time: `${todayStr} 21:10:00`, format: '4DX 3D Phụ đề', ticket_price: 180000, status: 'scheduled' },
   { id: 4, movie_id: 4, room_id: 1, start_time: `${todayStr} 15:00:00`, end_time: `${todayStr} 17:20:00`, format: '2D Tiếng Việt', ticket_price: 90000, status: 'screening' },
@@ -417,13 +417,20 @@ const equipment_types = [
   { id: 8, name: 'Thiết bị mạng & Server', description: 'Máy chủ phát phim DCP Server Dolby Doremi' },
 ];
 
+const addDaysStr = (days) => {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return localDateStr(d);
+};
+
 const equipment = [
-  { id: 1, equipment_type_id: 1, room_id: 1, name: 'Máy chiếu Laser Christie CP4420-RGB 4K', code: 'EQ-P1-PRJ01', manufacturer: 'Christie Digital (Mỹ)', purchase_date: '2023-01-15', warranty_end: '2028-01-15', last_maintenance: '2026-01-10', next_maintenance: '2026-07-10', status: 'good' },
-  { id: 2, equipment_type_id: 2, room_id: 1, name: 'Bộ giải mã âm thanh Dolby Atmos CP950', code: 'EQ-P1-SND01', manufacturer: 'Dolby Laboratories', purchase_date: '2023-01-15', warranty_end: '2028-01-15', last_maintenance: '2026-02-12', next_maintenance: '2026-08-12', status: 'good' },
-  { id: 3, equipment_type_id: 3, room_id: 1, name: 'Điều hòa trung tâm Daikin VRV X 18HP', code: 'EQ-P1-AC01', manufacturer: 'Daikin (Nhật Bản)', purchase_date: '2023-02-01', warranty_end: '2027-02-01', last_maintenance: '2026-03-01', next_maintenance: '2026-06-01', status: 'good' },
-  { id: 16, equipment_type_id: 1, room_id: 4, name: 'Hệ thống máy chiếu kép IMAX Laser Dual 4K', code: 'EQ-P4-PRJ01', manufacturer: 'IMAX Corporation', purchase_date: '2023-08-15', warranty_end: '2033-08-15', last_maintenance: '2026-03-10', next_maintenance: '2026-09-20', status: 'good' },
-  { id: 24, equipment_type_id: 2, room_id: 6, name: 'Bộ giải mã âm thanh Dolby CP850 bị lỗi', code: 'EQ-P6-SND01', manufacturer: 'Dolby Labs', purchase_date: '2022-11-20', warranty_end: '2027-11-20', last_maintenance: '2026-03-12', next_maintenance: '2026-03-20', status: 'repairing' },
-  { id: 25, equipment_type_id: 3, room_id: 8, name: 'Máy nén dàn lạnh điều hòa Trane Chiller Block B', code: 'EQ-P8-AC01', manufacturer: 'Trane', purchase_date: '2022-05-15', warranty_end: '2026-05-15', last_maintenance: '2025-11-10', next_maintenance: '2026-02-10', status: 'broken' },
+  { id: 1, equipment_type_id: 1, room_id: 1, name: 'Máy chiếu Laser Christie CP4420-RGB 4K', code: 'EQ-P1-PRJ01', manufacturer: 'Christie Digital (Mỹ)', purchase_date: '2023-01-15', warranty_end: '2028-01-15', last_maintenance: addDaysStr(-90), next_maintenance: addDaysStr(3), status: 'good' },
+  { id: 2, equipment_type_id: 2, room_id: 1, name: 'Bộ giải mã âm thanh Dolby Atmos CP950', code: 'EQ-P1-SND01', manufacturer: 'Dolby Laboratories', purchase_date: '2023-01-15', warranty_end: '2028-01-15', last_maintenance: addDaysStr(-80), next_maintenance: addDaysStr(7), status: 'good' },
+  { id: 3, equipment_type_id: 3, room_id: 1, name: 'Điều hòa trung tâm Daikin VRV X 18HP', code: 'EQ-P1-AC01', manufacturer: 'Daikin (Nhật Bản)', purchase_date: '2023-02-01', warranty_end: '2027-02-01', last_maintenance: addDaysStr(-95), next_maintenance: addDaysStr(-5), status: 'good' },
+  { id: 16, equipment_type_id: 1, room_id: 4, name: 'Hệ thống máy chiếu kép IMAX Laser Dual 4K', code: 'EQ-P4-PRJ01', manufacturer: 'IMAX Corporation', purchase_date: '2023-08-15', warranty_end: '2033-08-15', last_maintenance: addDaysStr(-45), next_maintenance: addDaysStr(45), status: 'good' },
+  { id: 24, equipment_type_id: 2, room_id: 6, name: 'Bộ giải mã âm thanh Dolby CP850 bị lỗi', code: 'EQ-P6-SND01', manufacturer: 'Dolby Labs', purchase_date: '2022-11-20', warranty_end: '2027-11-20', last_maintenance: addDaysStr(-30), next_maintenance: addDaysStr(20), status: 'repairing' },
+  { id: 25, equipment_type_id: 3, room_id: 8, name: 'Máy nén dàn lạnh điều hòa Trane Chiller Block B', code: 'EQ-P8-AC01', manufacturer: 'Trane', purchase_date: '2022-05-15', warranty_end: '2026-05-15', last_maintenance: addDaysStr(-120), next_maintenance: addDaysStr(35), status: 'broken' },
+  { id: 26, equipment_type_id: 7, room_id: 2, name: 'Camera an ninh hồng ngoại góc rộng', code: 'EQ-P2-CAM01', manufacturer: 'Hikvision', purchase_date: '2023-05-10', warranty_end: '2027-05-10', last_maintenance: addDaysStr(-60), next_maintenance: addDaysStr(40), status: 'check_needed' },
 ];
 
 const incidents = [

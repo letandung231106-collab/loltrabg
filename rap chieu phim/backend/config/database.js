@@ -848,7 +848,51 @@ async function query(sql, params = []) {
 
     // Maintenance Alerts (equipmentController.getMaintenanceAlerts)
     if (normalized.includes('next_maintenance <= date_add')) {
-      return list.filter((e) => e.status !== 'good' || (e.next_maintenance && e.next_maintenance <= '2026-12-31'));
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const limit14Days = new Date(today.getTime() + 14 * 24 * 60 * 60 * 1000);
+      const limit14Str = limit14Days.toISOString().split('T')[0];
+
+      const filtered = list.filter((e) => {
+        const isFaulty = ['check_needed', 'broken', 'repairing'].includes(e.status);
+        const isDueOrOverdue = e.next_maintenance && e.next_maintenance <= limit14Str;
+        return isFaulty || isDueOrOverdue;
+      });
+
+      const withDays = filtered.map((e) => {
+        let daysUntil = null;
+        let alert_reason = 'due_soon';
+        if (e.next_maintenance) {
+          const nextD = new Date(e.next_maintenance);
+          nextD.setHours(0, 0, 0, 0);
+          daysUntil = Math.round((nextD.getTime() - today.getTime()) / (24 * 60 * 60 * 1000));
+        }
+
+        const st = String(e.status || '').toLowerCase();
+        if (st === 'broken' || st === 'repairing') {
+          alert_reason = 'broken';
+        } else if (st === 'check_needed') {
+          alert_reason = 'check_needed';
+        } else if (daysUntil !== null && daysUntil < 0) {
+          alert_reason = 'overdue';
+        } else {
+          alert_reason = 'due_soon';
+        }
+
+        return {
+          ...e,
+          days_until_maintenance: daysUntil,
+          alert_reason,
+        };
+      });
+
+      withDays.sort((a, b) => {
+        if (!a.next_maintenance) return 1;
+        if (!b.next_maintenance) return -1;
+        return a.next_maintenance.localeCompare(b.next_maintenance);
+      });
+
+      return withDays;
     }
 
     let pIdx = 0;

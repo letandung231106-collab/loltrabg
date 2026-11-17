@@ -4,7 +4,6 @@ import { useBooking } from '../../context/BookingContext';
 import { useAuth } from '../../context/AuthContext';
 import { SeatMap } from '../../components/customer/SeatMap';
 import { PaymentModal } from '../../components/customer/PaymentModal';
-import { ConcessionSelectionModal } from '../../components/customer/ConcessionSelectionModal';
 import { TicketCard } from '../../components/customer/TicketCard';
 import { ArrowLeft, Clock, Calendar, Film, MapPin, AlertTriangle, CheckCircle, RefreshCw } from 'lucide-react';
 
@@ -21,8 +20,6 @@ export function BookingFlowPage({
   const [scheduleData, setScheduleData] = useState(null);
   const [loading, setLoading] = useState(Boolean(scheduleId) && !initialIssuedTickets);
   const [errorMsg, setErrorMsg] = useState('');
-  const [isConcessionOpen, setIsConcessionOpen] = useState(false);
-  const [selectedConcessions, setSelectedConcessions] = useState([]);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [issuedTickets, setIssuedTickets] = useState(initialIssuedTickets);
 
@@ -34,7 +31,7 @@ export function BookingFlowPage({
   }, [initialIssuedTickets]);
 
   const isModalOpenRef = useRef(false);
-  isModalOpenRef.current = isPaymentOpen || isConcessionOpen;
+  isModalOpenRef.current = isPaymentOpen;
 
   useEffect(() => {
     if (!scheduleId || initialIssuedTickets) return;
@@ -42,7 +39,7 @@ export function BookingFlowPage({
     fetchSeatMap();
 
     // Auto-refresh sơ đồ ghế thời gian thực mỗi 4s để cập nhật ghế giữ/đã đặt
-    // Tự động tạm ngưng khi tab trình duyệt bị ẩn hoặc đang mở modal thanh toán/combo
+    // Tự động tạm ngưng khi tab trình duyệt bị ẩn hoặc đang mở modal thanh toán
     const interval = setInterval(() => {
       if (document.hidden || isModalOpenRef.current) return;
 
@@ -73,7 +70,7 @@ export function BookingFlowPage({
     }
   };
 
-  // Tiến hành giữ ghế và mở modal thanh toán
+  // Tiến hành giữ ghế và mở trực tiếp modal thanh toán
   const handleProceedToPayment = async () => {
     if (!isAuthenticated) {
       alert('Vui lòng đăng nhập tài khoản để tiếp tục giữ ghế và thanh toán.');
@@ -86,20 +83,12 @@ export function BookingFlowPage({
       if (!isHolding) {
         await proceedToHoldSeats();
       }
-      setIsConcessionOpen(true);
-      // Refresh seat map to show updated holding state
+      setIsPaymentOpen(true);
       fetchSeatMap();
     } catch (err) {
       setErrorMsg(err.message || 'Lỗi khi giữ ghế.');
-      // Refresh seat map to see which seat was conflicted
       fetchSeatMap();
     }
-  };
-
-  const handleConcessionProceed = (chosenConcessions) => {
-    setSelectedConcessions(chosenConcessions || []);
-    setIsConcessionOpen(false);
-    setIsPaymentOpen(true);
   };
 
   const handlePaymentSuccess = (paymentResult) => {
@@ -258,19 +247,10 @@ export function BookingFlowPage({
         onCancelHold={handleCancelHoldSeats}
       />
 
-      {/* Payment Simulator Modal */}
-      <ConcessionSelectionModal
-        isOpen={isConcessionOpen}
-        onClose={() => handleConcessionProceed([])}
-        onProceed={handleConcessionProceed}
-        selectedSeatsCount={selectedSeats?.length || activeBooking?.seats?.length || 1}
-      />
-
       <PaymentModal
         isOpen={isPaymentOpen}
         onClose={() => setIsPaymentOpen(false)}
         onSuccess={handlePaymentSuccess}
-        selectedConcessions={selectedConcessions}
       />
     </div>
   );

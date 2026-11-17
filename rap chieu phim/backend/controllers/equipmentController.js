@@ -107,9 +107,47 @@ async function getMaintenanceAlerts(req, res, next) {
        ORDER BY e.next_maintenance ASC`
     );
 
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const formattedAlerts = (alerts || []).map((e) => {
+      let daysUntil = e.days_until_maintenance !== undefined && e.days_until_maintenance !== null
+        ? Number(e.days_until_maintenance)
+        : null;
+
+      if (daysUntil === null && e.next_maintenance) {
+        const nextD = new Date(e.next_maintenance);
+        nextD.setHours(0, 0, 0, 0);
+        daysUntil = Math.round((nextD.getTime() - today.getTime()) / (24 * 60 * 60 * 1000));
+      }
+
+      // Thứ tự ưu tiên lý do cảnh báo:
+      // 1. broken (status: broken / repairing)
+      // 2. check_needed (status: check_needed)
+      // 3. overdue (next_maintenance < hôm nay, tức daysUntil < 0)
+      // 4. due_soon (trong 14 ngày tới)
+      const st = String(e.status || '').toLowerCase();
+      let alert_reason = 'due_soon';
+      if (st === 'broken' || st === 'repairing') {
+        alert_reason = 'broken';
+      } else if (st === 'check_needed') {
+        alert_reason = 'check_needed';
+      } else if (daysUntil !== null && daysUntil < 0) {
+        alert_reason = 'overdue';
+      } else {
+        alert_reason = 'due_soon';
+      }
+
+      return {
+        ...e,
+        days_until_maintenance: daysUntil,
+        alert_reason,
+      };
+    });
+
     return res.status(200).json({
       success: true,
-      data: alerts,
+      data: formattedAlerts,
     });
   } catch (error) {
     next(error);

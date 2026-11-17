@@ -1383,5 +1383,16 @@ INSERT IGNORE INTO `kdm_licenses` (`id`, `movie_id`, `movie_name`, `room_id`, `r
 (4, 6, 'Godzilla x Kong: Đế Chế Mới', 5, 'Cinema Hall 5 (4DX Motion World)', 'DCI-4DX-44102', '2026-01-01 00:00:00', '2026-03-10 23:59:59', 'expired', 'KDM_GXK_4DX_44102.xml'),
 (5, 5, 'Deadpool & Wolverine', 5, 'Cinema Hall 5 (4DX Motion World)', 'DCI-4DX-55201', '2026-07-26 00:00:00', '2027-03-31 23:59:59', 'active', 'KDM_DPW_4DX_55201.xml');
 
+-- 30. Equipment Next Maintenance Dynamic Distribution
+-- Đặt next_maintenance theo ngày hiện tại để có ví dụ đủ loại cảnh báo:
+-- 1 quá hạn, 2 sắp đến hạn (<14 ngày), 1 hỏng/sửa, 1 kiểm tra, còn lại sau 30 ngày
+UPDATE `equipment` SET `next_maintenance` = DATE_ADD(CURDATE(), INTERVAL 3 DAY), `status` = 'good' WHERE `id` = 1;
+UPDATE `equipment` SET `next_maintenance` = DATE_ADD(CURDATE(), INTERVAL 7 DAY), `status` = 'good' WHERE `id` = 2;
+UPDATE `equipment` SET `next_maintenance` = DATE_SUB(CURDATE(), INTERVAL 5 DAY), `status` = 'good' WHERE `id` = 3;
+UPDATE `equipment` SET `next_maintenance` = DATE_ADD(CURDATE(), INTERVAL 45 DAY), `status` = 'good' WHERE `id` = 16;
+UPDATE `equipment` SET `next_maintenance` = DATE_ADD(CURDATE(), INTERVAL 20 DAY), `status` = 'repairing' WHERE `id` = 24;
+UPDATE `equipment` SET `next_maintenance` = DATE_ADD(CURDATE(), INTERVAL 35 DAY), `status` = 'broken' WHERE `id` = 25;
+UPDATE `equipment` SET `next_maintenance` = DATE_ADD(CURDATE(), INTERVAL 40 DAY), `status` = 'check_needed' WHERE `id` = 11;
+
 -- KẾT THÚC FILE SQL CINEMA_MANAGEMENT.SQL
 -- ====================================================================

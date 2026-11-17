@@ -51,16 +51,8 @@ export function TicketDetailModal({ ticket, isOpen, onClose, onCancelTicket }) {
   const isActive = ticket.status === 'active';
   const isUsed = ticket.status === 'used';
 
-  // Demo concession bundle attached to this ticket/booking if any
-  const concessions = Array.isArray(ticket.concessions) && ticket.concessions.length > 0
-    ? ticket.concessions
-    : [
-        { name: 'Bắp Rang Bơ Phô Mai (L)', quantity: 1, price: 69000 },
-        { name: 'Nước Ngọt Coca-Cola (L)', quantity: 2, price: 39000 },
-      ];
-  const concessionTotal = concessions.reduce((sum, item) => sum + (Number(item.price || 0) * Number(item.quantity || 1)), 0);
   const ticketPrice = Number(ticket.price || ticket.total_amount || 110000);
-  const grandTotal = ticketPrice + concessionTotal;
+  const grandTotal = ticketPrice;
 
   // Render vé điện tử dạng Canvas Graphic Poster chất lượng cao để tải về điện thoại/máy tính
   const handleDownloadTicketImage = () => {
@@ -69,7 +61,7 @@ export function TicketDetailModal({ ticket, isOpen, onClose, onCancelTicket }) {
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
       canvas.width = 600;
-      canvas.height = 920;
+      canvas.height = 760;
 
       // 1. Background gradient đêm rạp chiếu
       const bgGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
@@ -163,44 +155,26 @@ export function TicketDetailModal({ ticket, isOpen, onClose, onCancelTicket }) {
           ctx.font = '900 14px monospace';
           ctx.fillText(ticket.ticket_code || 'TCK-20261114-1', canvas.width / 2, 530);
 
-          // 7. Thông tin bắp nước đính kèm
-          ctx.fillStyle = '#38bdf8';
-          ctx.font = 'bold 15px Arial, sans-serif';
-          ctx.textAlign = 'left';
-          ctx.fillText('COMBO BẮP NƯỚC ĐÃ ĐẶT (NHẬN TẠI QUẦY F&B):', 40, 580);
-
-          ctx.fillStyle = '#e2e8f0';
-          ctx.font = '13px Arial, sans-serif';
-          concessions.forEach((c, idx) => {
-            ctx.fillText(
-              `• ${c.quantity}x ${c.name} (${(c.price * c.quantity).toLocaleString('vi-VN')} đ)`,
-              50,
-              610 + idx * 25
-            );
-          });
-
           // Đường kẻ ngang mờ
           ctx.strokeStyle = '#334155';
           ctx.lineWidth = 1;
           ctx.beginPath();
-          ctx.moveTo(40, 700);
-          ctx.lineTo(canvas.width - 40, 700);
+          ctx.moveTo(40, 560);
+          ctx.lineTo(canvas.width - 40, 560);
           ctx.stroke();
 
           // 8. Bảng đối soát tài chính
           ctx.textAlign = 'left';
           ctx.fillStyle = '#94a3b8';
-          ctx.font = '13px Arial, sans-serif';
-          ctx.fillText(`Tổng tiền vé: ${ticketPrice.toLocaleString('vi-VN')} đ`, 40, 730);
-          ctx.fillText(`Tổng bắp nước: +${concessionTotal.toLocaleString('vi-VN')} đ`, 40, 755);
-          ctx.fillText('Khuyến mãi giảm giá: -20.000 đ', 40, 780);
+          ctx.font = '14px Arial, sans-serif';
+          ctx.fillText(`Tổng tiền vé xem phim: ${ticketPrice.toLocaleString('vi-VN')} đ`, 40, 600);
 
           ctx.fillStyle = '#f59e0b';
           ctx.font = 'bold 16px Arial, sans-serif';
           ctx.fillText(
-            `TỔNG THANH TOÁN: ${Math.max(0, grandTotal - 20000).toLocaleString('vi-VN')} VNĐ (ĐÃ THANH TOÁN)`,
+            `TỔNG THANH TOÁN: ${ticketPrice.toLocaleString('vi-VN')} VNĐ (ĐÃ THANH TOÁN)`,
             40,
-            815
+            645
           );
 
           // 9. Lưu ý khách hàng
@@ -208,9 +182,9 @@ export function TicketDetailModal({ ticket, isOpen, onClose, onCancelTicket }) {
           ctx.fillStyle = '#ef4444';
           ctx.font = 'italic 12px Arial, sans-serif';
           ctx.fillText(
-            '* Vui lòng xuất trình mã QR này tại cửa soát vé và quầy F&B trước giờ chiếu 10 phút.',
+            '* Vui lòng xuất trình mã QR này tại cửa soát vé rạp chiếu trước giờ chiếu 10 phút.',
             canvas.width / 2,
-            865
+            700
           );
 
           // Tự động tải về file PNG
@@ -388,52 +362,16 @@ export function TicketDetailModal({ ticket, isOpen, onClose, onCancelTicket }) {
             </div>
           </div>
 
-          {/* Food & Beverage (Bắp Nước Đã Mua Kèm) */}
-          <div className="p-4 rounded-2xl bg-cinema-950/70 border border-cinema-800 space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-xs font-bold text-amber-400 uppercase tracking-wider">
-                <Utensils className="w-4 h-4" /> Bắp Nước & Combo Đã Đặt Kèm
-              </div>
-              <span className="text-[11px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-semibold">
-                Lấy tại quầy F&B
-              </span>
-            </div>
-
-            <div className="space-y-2">
-              {concessions.map((item, idx) => (
-                <div key={idx} className="flex items-center justify-between text-xs py-1 border-b border-cinema-800/60 last:border-0">
-                  <div className="flex items-center gap-2">
-                    <span className="w-5 h-5 rounded-full bg-cinema-800 text-amber-400 font-mono flex items-center justify-center font-bold text-[11px]">
-                      {item.quantity}x
-                    </span>
-                    <span className="text-white font-medium">{item.name}</span>
-                  </div>
-                  <span className="font-mono text-slate-300">
-                    {(item.price * item.quantity).toLocaleString('vi-VN')} đ
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-
           {/* Payment & Price Breakdown */}
           <div className="p-4 rounded-2xl bg-cinema-850/60 border border-cinema-700/60 space-y-2 text-xs">
             <div className="flex justify-between text-slate-400">
               <span>Tiền vé xem phim:</span>
               <span className="font-mono text-white">{ticketPrice.toLocaleString('vi-VN')} đ</span>
             </div>
-            <div className="flex justify-between text-slate-400">
-              <span>Tiền bắp nước F&B:</span>
-              <span className="font-mono text-white">+{concessionTotal.toLocaleString('vi-VN')} đ</span>
-            </div>
-            <div className="flex justify-between text-emerald-400">
-              <span>Mã giảm giá đã áp dụng:</span>
-              <span className="font-mono">-20.000 đ</span>
-            </div>
             <div className="pt-2 border-t border-cinema-700 flex justify-between items-center text-sm font-black text-white">
               <span>Tổng thanh toán đã trả:</span>
               <span className="text-base text-amber-400 font-mono">
-                {Math.max(0, grandTotal - 20000).toLocaleString('vi-VN')} VNĐ
+                {grandTotal.toLocaleString('vi-VN')} VNĐ
               </span>
             </div>
           </div>

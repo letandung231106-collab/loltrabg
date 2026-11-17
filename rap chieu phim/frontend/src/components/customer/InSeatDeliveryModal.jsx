@@ -14,10 +14,12 @@ import {
   AlertTriangle,
   Loader2,
   Coffee,
+  ShoppingBag,
+  Trash2,
 } from 'lucide-react';
 
 /**
- * Phân tích ngày giờ an toàn tuyệt đối cho Safari macOS (hỗ trợ cả dấu cách và chữ 'T')
+ * Phân tích ngày giờ an toàn cho Safari macOS
  */
 const parseSafeDate = (dStr) => {
   if (!dStr) return null;
@@ -28,7 +30,7 @@ const parseSafeDate = (dStr) => {
 };
 
 /**
- * So sánh 2 ngày có cùng ngày/tháng/năm hay không (theo giờ địa phương)
+ * So sánh 2 ngày có cùng ngày/tháng/năm
  */
 const isSameDate = (d1, d2) => {
   if (!d1 || !d2) return false;
@@ -39,6 +41,14 @@ const isSameDate = (d1, d2) => {
   );
 };
 
+const CATEGORIES = [
+  { id: 'all', label: 'Tất cả' },
+  { id: 'combo', label: 'Combo' },
+  { id: 'popcorn', label: 'Bắp rang' },
+  { id: 'beverage', label: 'Nước uống' },
+  { id: 'snack', label: 'Đồ ăn nhẹ' },
+];
+
 export function InSeatDeliveryModal({ isOpen, onClose }) {
   const { user, isStaff } = useAuth();
 
@@ -47,10 +57,12 @@ export function InSeatDeliveryModal({ isOpen, onClose }) {
   const [seatCode, setSeatCode] = useState('');
   const [note, setNote] = useState('');
 
-  // Giỏ hàng món bắp nước
+  // Giỏ hàng và thực đơn
   const [cart, setCart] = useState([]);
   const [menuItems, setMenuItems] = useState([]);
   const [isLoadingMenu, setIsLoadingMenu] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [justAddedId, setJustAddedId] = useState(null);
 
   // Trạng thái xử lý và gửi đơn
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -58,16 +70,19 @@ export function InSeatDeliveryModal({ isOpen, onClose }) {
   const [submitError, setSubmitError] = useState('');
   const [isLoadingData, setIsLoadingData] = useState(false);
 
-  // Dành cho Customer (Khách hàng): Danh sách vé hôm nay
+  // Mobile Bottom Sheet
+  const [isMobileCartOpen, setIsMobileCartOpen] = useState(false);
+
+  // Customer: Danh sách vé hôm nay
   const [tickets, setTickets] = useState([]);
   const [selectedTicketId, setSelectedTicketId] = useState('');
 
-  // Dành cho Staff / Admin / Manager: Danh sách phòng và ghế
+  // Staff / Admin / Manager: Danh sách phòng và ghế
   const [rooms, setRooms] = useState([]);
   const [selectedRoomId, setSelectedRoomId] = useState('');
   const [roomSeats, setRoomSeats] = useState([]);
 
-  // Cơ chế 1: Thoát Modal bằng phím tắt ESC
+  // ESC key
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e) => {
@@ -79,7 +94,7 @@ export function InSeatDeliveryModal({ isOpen, onClose }) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  // Cơ chế 2: Khóa cuộn trang nền khi mở Modal và dọn dẹp sạch khi đóng / unmount
+  // Lock scroll
   useEffect(() => {
     if (isOpen) {
       const prevOverflow = document.body.style.overflow;
@@ -111,7 +126,6 @@ export function InSeatDeliveryModal({ isOpen, onClose }) {
           };
         });
       } else {
-        // Fallback: Dựng danh sách ghế 6 hàng (A-F), mỗi hàng 12 ghế. Hàng F là ghế đôi
         const rows = ['A', 'B', 'C', 'D', 'E', 'F'];
         rows.forEach((r) => {
           for (let i = 1; i <= 12; i++) {
@@ -139,7 +153,6 @@ export function InSeatDeliveryModal({ isOpen, onClose }) {
       }
     } catch (err) {
       console.warn('Lỗi lấy danh sách ghế phòng:', err);
-      // Quy tắc dựng fallback 6x12 khi API lỗi
       const rows = ['A', 'B', 'C', 'D', 'E', 'F'];
       const fallbackList = [];
       rows.forEach((r) => {
@@ -163,7 +176,7 @@ export function InSeatDeliveryModal({ isOpen, onClose }) {
     }
   };
 
-  // Khởi tạo dữ liệu phù hợp theo vai trò (Customer hoặc Staff/Admin/Manager)
+  // Khởi tạo dữ liệu theo vai trò
   useEffect(() => {
     if (!isOpen) return;
 
@@ -174,7 +187,6 @@ export function InSeatDeliveryModal({ isOpen, onClose }) {
     const initModalData = async () => {
       try {
         if (isStaff) {
-          // 1. Phân quyền Staff / Admin / Manager: Chọn phòng từ API và danh sách ghế của phòng
           const resRooms = await api.getRooms();
           const roomList = (resRooms?.data || resRooms || []).filter(
             (r) => r.status !== 'maintenance' && r.status !== 'inactive'
@@ -195,16 +207,13 @@ export function InSeatDeliveryModal({ isOpen, onClose }) {
             setRoomSeats([]);
           }
         } else {
-          // 2. Phân quyền Customer: Lấy vé từ api.getMyTickets(), lọc vé hợp lệ hôm nay
           const resTickets = await api.getMyTickets();
           const allTickets = resTickets?.data || resTickets || [];
 
           const now = new Date();
           const valid = allTickets.filter((t) => {
-            // Chỉ giữ vé trạng thái 'active'
             if (String(t.status || '').toLowerCase() !== 'active') return false;
 
-            // Suất chiếu phải có ngày giờ hợp lệ
             const start = parseSafeDate(t.start_time);
             let end = parseSafeDate(t.end_time);
             if (!end && start) {
@@ -213,20 +222,17 @@ export function InSeatDeliveryModal({ isOpen, onClose }) {
             }
             if (!start || !end) return false;
 
-            // Suất chiếu hôm nay
             const isToday = isSameDate(start, now);
             if (!isToday) return false;
 
-            // Chưa kết thúc: end >= now hoặc trong cùng ngày chiếu trong vòng 4 tiếng sau suất chiếu
-            const notEnded =
+            return (
               end.getTime() >= now.getTime() ||
-              (isToday && now.getTime() - end.getTime() <= 4 * 60 * 60 * 1000);
-            return notEnded;
+              (isToday && now.getTime() - end.getTime() <= 4 * 60 * 60 * 1000)
+            );
           });
 
           if (!isMounted) return;
 
-          // Chuẩn hóa nhãn hiển thị cho mỗi vé: "Ghế · Phòng · Tên phim giờ chiếu"
           const formatted = valid.map((t) => {
             const code =
               t.seat_code ||
@@ -248,7 +254,6 @@ export function InSeatDeliveryModal({ isOpen, onClose }) {
 
           setTickets(formatted);
 
-          // Nếu có vé, tự động chọn sẵn vé đầu tiên và điền thông tin phòng
           if (formatted.length > 0) {
             const first = formatted[0];
             setSelectedTicketId(first.id);
@@ -261,7 +266,6 @@ export function InSeatDeliveryModal({ isOpen, onClose }) {
           }
         }
 
-        // 3. Tải danh sách món bắp nước F&B từ API
         setIsLoadingMenu(true);
         try {
           const resMenu = await api.getConcessions();
@@ -310,12 +314,21 @@ export function InSeatDeliveryModal({ isOpen, onClose }) {
     0
   );
 
+  const totalItemsCount = cart.reduce(
+    (sum, item) => sum + (Number(item.quantity) || 1),
+    0
+  );
+
   const getItemQty = (itemId) => {
     const found = cart.find((c) => c.id === itemId);
     return found ? found.quantity : 0;
   };
 
   const handleItemQtyChange = (item, delta) => {
+    if (delta > 0) {
+      setJustAddedId(item.id);
+      setTimeout(() => setJustAddedId(null), 350);
+    }
     setCart((prev) => {
       const existing = prev.find((c) => c.id === item.id);
       const currentQty = existing ? existing.quantity : 0;
@@ -339,7 +352,10 @@ export function InSeatDeliveryModal({ isOpen, onClose }) {
     });
   };
 
-  // Staff đổi phòng chiếu
+  const handleRemoveItem = (itemId) => {
+    setCart((prev) => prev.filter((c) => c.id !== itemId));
+  };
+
   const handleStaffRoomChange = async (e) => {
     const newRoomId = Number(e.target.value);
     setSelectedRoomId(newRoomId);
@@ -350,7 +366,6 @@ export function InSeatDeliveryModal({ isOpen, onClose }) {
     await loadStaffSeats(newRoomId, true);
   };
 
-  // Customer đổi vé xem phim
   const handleCustomerTicketChange = (e) => {
     const ticketId = e.target.value;
     setSelectedTicketId(ticketId);
@@ -361,7 +376,6 @@ export function InSeatDeliveryModal({ isOpen, onClose }) {
     }
   };
 
-  // Xử lý gửi đơn hàng giao tận ghế
   const handleOrder = async () => {
     if (cart.length === 0 || !seatCode || totalAmount === 0) return;
     setIsSubmitting(true);
@@ -371,7 +385,6 @@ export function InSeatDeliveryModal({ isOpen, onClose }) {
     const formattedNotes = `Giao tận ghế | Phòng: ${room} | Ghế: ${seatCode} | Ghi chú: ${clientNote}`;
 
     try {
-      // Gửi đơn bắp nước kèm ghi chú vị trí phòng, ghế và ghi chú khách
       await api.sellConcessions({
         items: cart,
         payment_method: 'in_seat_delivery',
@@ -385,16 +398,15 @@ export function InSeatDeliveryModal({ isOpen, onClose }) {
       });
 
       setIsSuccess(true);
+      setIsMobileCartOpen(false);
     } catch (err) {
       console.warn('Lỗi gọi bắp nước tận ghế:', err);
-      // Khi API lỗi: Giữ nguyên giỏ hàng, KHÔNG hiện thành công giả
       setSubmitError(err?.message || 'Có lỗi xảy ra khi gửi đơn đặt bắp nước. Vui lòng thử lại.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // Gom nhóm ghế theo hàng A-F cho Staff
   const groupedStaffSeats = roomSeats.reduce((acc, s) => {
     const row = s.row || 'Khác';
     if (!acc[row]) acc[row] = [];
@@ -402,61 +414,226 @@ export function InSeatDeliveryModal({ isOpen, onClose }) {
     return acc;
   }, {});
 
+  // Lọc theo danh mục
+  const filteredMenuItems = menuItems.filter((item) => {
+    if (selectedCategory === 'all') return true;
+    const cat = String(item.category || '').toLowerCase();
+    const name = String(item.name || '').toLowerCase();
+    if (selectedCategory === 'combo') return cat === 'combo' || name.includes('combo');
+    if (selectedCategory === 'popcorn') return cat === 'popcorn' || name.includes('bắp');
+    if (selectedCategory === 'beverage') return cat === 'beverage' || cat === 'drink' || name.includes('nước') || name.includes('coca') || name.includes('sprite');
+    if (selectedCategory === 'snack') return cat === 'snack' || cat === 'hot_food' || cat === 'dessert' || name.includes('xúc xích') || name.includes('snack');
+    return cat === selectedCategory;
+  });
+
+  // Khối thông tin vị trí dùng chung cho Desktop và Mobile Bottom Sheet
+  const renderLocationSection = () => (
+    <div className="p-3.5 rounded-2xl bg-cinema-900/90 border border-cinema-700/60 space-y-2.5 text-xs">
+      <div className="flex items-center justify-between font-bold text-amber-400 uppercase tracking-wide text-[11px]">
+        <span className="flex items-center gap-1.5">
+          <MapPin className="w-3.5 h-3.5" /> Vị Trí Của Bạn
+        </span>
+        {room && seatCode && (
+          <span className="text-[10px] font-mono text-white bg-cinema-800 px-2 py-0.5 rounded border border-cinema-700">
+            {room} • Ghế {seatCode}
+          </span>
+        )}
+      </div>
+
+      {isLoadingData ? (
+        <div className="py-2 text-center text-slate-400 flex items-center justify-center gap-2">
+          <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400" />
+          <span>Đang tải thông tin vị trí...</span>
+        </div>
+      ) : isStaff ? (
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="text-[10px] text-slate-400 block mb-0.5">Phòng chiếu:</label>
+            <select
+              value={selectedRoomId}
+              onChange={handleStaffRoomChange}
+              className="w-full px-2.5 py-1.5 rounded-xl bg-cinema-950 border border-cinema-700 text-white text-xs font-semibold focus:outline-none focus:border-amber-500"
+            >
+              {rooms.map((r) => (
+                <option key={r.id} value={r.id} className="bg-cinema-950 text-white">
+                  {r.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="text-[10px] text-slate-400 block mb-0.5">Số ghế:</label>
+            <select
+              value={seatCode}
+              onChange={(e) => setSeatCode(e.target.value)}
+              className="w-full px-2.5 py-1.5 rounded-xl bg-cinema-950 border border-cinema-700 text-white text-xs font-mono font-bold focus:outline-none focus:border-amber-500 max-h-48"
+            >
+              {Object.keys(groupedStaffSeats).length === 0 ? (
+                <option value="">Không có ghế</option>
+              ) : (
+                Object.entries(groupedStaffSeats).map(([rowLetter, seatsInRow]) => (
+                  <optgroup
+                    key={rowLetter}
+                    label={`Hàng ${rowLetter}${rowLetter === 'F' ? ' (Đôi)' : ''}`}
+                    className="bg-cinema-950 text-amber-400 font-sans font-bold"
+                  >
+                    {seatsInRow.map((s) => (
+                      <option key={s.seatCode} value={s.seatCode} className="bg-cinema-950 text-white font-mono">
+                        {s.label}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))
+              )}
+            </select>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <div>
+            <label className="text-[10px] text-slate-400 block mb-0.5">Vé đang xem hôm nay:</label>
+            <select
+              value={selectedTicketId}
+              onChange={handleCustomerTicketChange}
+              disabled={tickets.length === 0}
+              className="w-full px-2.5 py-1.5 rounded-xl bg-cinema-950 border border-cinema-700 text-white text-xs font-semibold focus:outline-none focus:border-amber-500 disabled:opacity-50"
+            >
+              {tickets.length === 0 ? (
+                <option value="">Không có vé phù hợp hôm nay</option>
+              ) : (
+                tickets.map((t) => (
+                  <option key={t.id} value={t.id} className="bg-cinema-950 text-white text-xs">
+                    {t.displayLabel}
+                  </option>
+                ))
+              )}
+            </select>
+          </div>
+
+          {tickets.length === 0 && (
+            <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] flex items-center gap-1.5">
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-amber-400" />
+              <span>Chưa có vé cho suất đang chiếu hôm nay</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div>
+        <label className="text-[10px] text-slate-400 block mb-0.5">Ghi chú cho nhân viên (1 dòng):</label>
+        <input
+          type="text"
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder="Vd: Ít đá, xin thêm khăn giấy, tương ớt..."
+          className="w-full px-2.5 py-1.5 rounded-xl bg-cinema-950 border border-cinema-700 text-white text-xs focus:outline-none focus:border-amber-500"
+        />
+      </div>
+    </div>
+  );
+
+  // Khối danh sách món trong giỏ hàng
+  const renderCartItemsList = () => (
+    <div className="flex-1 flex flex-col min-h-0 space-y-2">
+      <div className="flex items-center justify-between text-xs font-bold text-slate-300 uppercase tracking-wide">
+        <span>Món Đang Chọn:</span>
+        {cart.length > 0 && (
+          <span className="text-[11px] font-mono text-amber-400 normal-case">
+            {totalItemsCount} phần
+          </span>
+        )}
+      </div>
+
+      {cart.length === 0 ? (
+        <div className="p-4 rounded-2xl bg-cinema-900/40 border border-dashed border-cinema-800 text-center text-xs text-slate-400 flex flex-col items-center justify-center gap-1.5 py-6">
+          <Utensils className="w-6 h-6 text-slate-500" />
+          <span>Giỏ hàng đang trống.</span>
+          <span className="text-[11px] text-slate-500">Bấm <strong className="text-amber-400">+</strong> ở thực đơn để thêm món.</span>
+        </div>
+      ) : (
+        <div className="flex-1 overflow-y-auto pr-1 space-y-2 min-h-0">
+          {cart.map((item) => (
+            <div
+              key={item.id}
+              className="p-2.5 rounded-xl bg-cinema-900 border border-cinema-800 flex items-center justify-between text-xs gap-2"
+            >
+              <div className="min-w-0 flex-1">
+                <div className="font-bold text-white truncate" title={item.name}>
+                  {item.name}
+                </div>
+                <div className="text-[11px] text-slate-400 font-mono mt-0.5">
+                  {(Number(item.price) || 0).toLocaleString('vi-VN')} đ × {item.quantity} ={' '}
+                  <span className="text-amber-400 font-bold">
+                    {(Number(item.price || 0) * item.quantity).toLocaleString('vi-VN')} đ
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => handleItemQtyChange(item, -1)}
+                  className="w-6 h-6 rounded-lg bg-cinema-800 hover:bg-cinema-700 text-white flex items-center justify-center font-bold transition-colors cursor-pointer"
+                  title="Giảm 1"
+                >
+                  <Minus className="w-3 h-3" />
+                </button>
+                <span className="w-4 text-center font-mono font-bold text-amber-400">
+                  {item.quantity}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleItemQtyChange(item, 1)}
+                  className="w-6 h-6 rounded-lg bg-amber-500 hover:bg-amber-400 text-cinema-950 flex items-center justify-center font-bold transition-colors cursor-pointer"
+                  title="Thêm 1"
+                >
+                  <Plus className="w-3 h-3" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleRemoveItem(item.id)}
+                  className="w-6 h-6 rounded-lg hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 flex items-center justify-center transition-colors cursor-pointer ml-0.5"
+                  title="Xóa món"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
   const modalContent = (
     <div
-      className="fixed inset-0 z-[99999] flex items-center justify-center p-4 sm:p-6 bg-black/85 backdrop-blur-md animate-fade-in"
-      style={{
-        position: 'fixed',
-        inset: 0,
-        width: '100vw',
-        height: '100vh',
-        zIndex: 99999,
-        background: 'rgba(0, 0, 0, 0.82)',
-        backdropFilter: 'blur(8px)',
-        WebkitBackdropFilter: 'blur(8px)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '24px',
-      }}
+      className="fixed inset-0 z-[99999] flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/85 backdrop-blur-md animate-fade-in"
       onClick={(e) => {
-        // Cơ chế 3: Click Outside (Bấm ra ngoài vùng nền tối để đóng Modal)
         if (e.target === e.currentTarget) {
           onClose?.();
         }
       }}
     >
       <div
-        className="relative w-full max-w-[600px] max-h-[88vh] flex flex-col overflow-hidden rounded-2xl bg-[#12151f] border border-white/10 shadow-2xl animate-scale-up"
-        style={{
-          position: 'relative',
-          width: '100%',
-          maxWidth: '600px',
-          maxHeight: '88vh',
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-          borderRadius: '16px',
-          background: '#12151f',
-          border: '1px solid rgba(255,255,255,0.12)',
-        }}
+        className="relative w-full max-w-5xl h-[92vh] max-h-[760px] flex flex-col overflow-hidden rounded-2xl bg-[#0f121d] border border-white/15 shadow-2xl text-slate-200"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Nút Đóng (X) cố định ở góc trên bên phải */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 z-50 w-9 h-9 rounded-full bg-black/75 hover:bg-ruby-600 text-white backdrop-blur-md transition-all flex items-center justify-center border border-white/20 shadow-lg cursor-pointer hover:scale-105 active:scale-95"
+          className="absolute top-3.5 right-3.5 z-50 w-8 h-8 rounded-full bg-black/70 hover:bg-ruby-600 text-white backdrop-blur-md transition-all flex items-center justify-center border border-white/20 shadow-lg cursor-pointer hover:scale-105 active:scale-95"
           title="Đóng (phím ESC)"
           aria-label="Đóng"
         >
-          <X className="w-5 h-5" />
+          <X className="w-4 h-4" />
         </button>
 
-        {/* Header */}
-        <div className="px-6 py-4 bg-cinema-950/90 border-b border-cinema-800 flex items-center justify-between shrink-0 pr-16">
+        {/* Top Header */}
+        <div className="px-5 py-3.5 bg-cinema-950/95 border-b border-cinema-800 flex items-center justify-between shrink-0 pr-14">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-rose-600 flex items-center justify-center text-white shadow-glow-amber">
-              <Utensils className="w-5 h-5" />
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-500 to-rose-600 flex items-center justify-center text-white shadow-glow-amber shrink-0">
+              <Utensils className="w-4 h-4" />
             </div>
             <div>
               <h3 className="text-base font-extrabold text-white flex items-center gap-2">
@@ -465,54 +642,69 @@ export function InSeatDeliveryModal({ isOpen, onClose }) {
                   In-Seat Delivery
                 </span>
               </h3>
-              <p className="text-xs text-slate-400">
-                Nhân viên sẽ mang bắp nước nóng hổi vào tận phòng chiếu cho bạn!
+              <p className="text-[11px] text-slate-400">
+                Nhân viên mang bắp nước nóng hổi phục vụ tận chỗ ngồi của bạn
               </p>
             </div>
           </div>
         </div>
 
-        {/* Scrollable Content Body */}
-        <div
-          className="modal-body flex-1 overflow-y-auto p-6 space-y-6"
-          style={{
-            overflowY: 'auto',
-            flex: 1,
-            padding: '24px',
-          }}
-        >
-          {isSuccess ? (
-            <div className="p-8 text-center space-y-4">
-              <CheckCircle className="w-16 h-16 text-emerald-400 mx-auto animate-bounce" />
-              <h4 className="text-xl font-black text-white">ĐÃ TIẾP NHẬN ĐƠN HÀNG TẬN GHẾ!</h4>
-              <p className="text-xs text-slate-300 max-w-sm mx-auto leading-relaxed">
-                Đơn hàng của bạn đang được chuẩn bị tại quầy F&B. Nhân viên rạp sẽ mang đến tận vị trí{' '}
-                <strong className="text-amber-400 font-mono font-black">
-                  {room} - Ghế {seatCode}
-                </strong>{' '}
-                trong vòng 5-7 phút.
-              </p>
-              <div className="p-3 rounded-2xl bg-cinema-950 border border-cinema-800 text-xs font-mono text-slate-400">
-                Tổng thanh toán:{' '}
-                <span className="text-white font-bold">{totalAmount.toLocaleString('vi-VN')} VNĐ</span>{' '}
-                (Thu tiền mặt hoặc chuyển khoản tại ghế)
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsSuccess(false);
-                  onClose?.();
-                }}
-                className="px-6 py-2.5 rounded-xl bg-ruby-600 hover:bg-ruby-500 text-white font-bold text-xs shadow-glow-red transition-all cursor-pointer"
-              >
-                Hoàn Tất & Xem Phim
-              </button>
+        {/* Body Area */}
+        {isSuccess ? (
+          <div className="flex-1 flex flex-col items-center justify-center p-8 text-center space-y-4 overflow-y-auto">
+            <CheckCircle className="w-16 h-16 text-emerald-400 animate-bounce" />
+            <h4 className="text-xl font-black text-white">ĐÃ TIẾP NHẬN ĐƠN HÀNG TẬN GHẾ!</h4>
+            <p className="text-xs text-slate-300 max-w-sm mx-auto leading-relaxed">
+              Đơn hàng của bạn đang được chuẩn bị tại quầy F&B. Nhân viên rạp sẽ mang đến tận vị trí{' '}
+              <strong className="text-amber-400 font-mono font-black">
+                {room} - Ghế {seatCode}
+              </strong>{' '}
+              trong vòng 5-7 phút.
+            </p>
+            <div className="p-3 rounded-2xl bg-cinema-950 border border-cinema-800 text-xs font-mono text-slate-400">
+              Tổng thanh toán:{' '}
+              <span className="text-white font-bold">{totalAmount.toLocaleString('vi-VN')} VNĐ</span>{' '}
+              (Thu tiền mặt hoặc chuyển khoản tại ghế)
             </div>
-          ) : (
-            <div className="space-y-5">
-              {/* Lỗi submit đơn hàng */}
+            <button
+              type="button"
+              onClick={() => {
+                setIsSuccess(false);
+                onClose?.();
+              }}
+              className="px-6 py-2.5 rounded-xl bg-ruby-600 hover:bg-ruby-500 text-white font-bold text-xs shadow-glow-red transition-all cursor-pointer"
+            >
+              Hoàn Tất & Xem Phim
+            </button>
+          </div>
+        ) : (
+          <div className="flex-1 flex flex-col md:flex-row min-h-0 overflow-hidden">
+            {/* CỘT TRÁI: Thực đơn bắp nước (Categories + Scrollable Food Grid) */}
+            <div className="flex-1 flex flex-col min-w-0 md:border-r border-cinema-800/80">
+              {/* Category Tabs dính trên đầu */}
+              <div className="shrink-0 px-4 py-2.5 bg-cinema-950/70 border-b border-cinema-800 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+                {CATEGORIES.map((cat) => {
+                  const isActive = selectedCategory === cat.id;
+                  return (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => setSelectedCategory(cat.id)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 ${
+                        isActive
+                          ? 'bg-amber-500 text-cinema-950 shadow-md font-extrabold'
+                          : 'bg-cinema-900 text-slate-300 hover:text-white hover:bg-cinema-850'
+                      }`}
+                    >
+                      {cat.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Thông báo lỗi nếu có */}
               {submitError && (
-                <div className="p-3 rounded-xl bg-rose-500/15 border border-rose-500/40 text-rose-300 text-xs flex items-center justify-between animate-fade-in">
+                <div className="mx-4 mt-3 p-2.5 rounded-xl bg-rose-500/15 border border-rose-500/40 text-rose-300 text-xs flex items-center justify-between shrink-0">
                   <div className="flex items-center gap-2">
                     <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
                     <span>{submitError}</span>
@@ -521,213 +713,85 @@ export function InSeatDeliveryModal({ isOpen, onClose }) {
                     type="button"
                     onClick={() => setSubmitError('')}
                     className="text-slate-400 hover:text-white p-1"
-                    title="Ẩn thông báo"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
                 </div>
               )}
 
-              {/* Delivery Location inputs */}
-              <div className="p-4 rounded-2xl bg-cinema-950 border border-cinema-800 space-y-3 text-xs">
-                <div className="flex items-center justify-between font-bold text-amber-400 uppercase tracking-wider text-[11px]">
-                  <span className="flex items-center gap-1.5">
-                    <MapPin className="w-4 h-4" /> Vị Trí Của Bạn Trong Rạp
-                  </span>
-                  {room && seatCode && (
-                    <span className="text-[11px] font-mono text-slate-300 font-bold normal-case bg-cinema-900 px-2.5 py-0.5 rounded-lg border border-cinema-700/60">
-                      {room} - Ghế {seatCode}
-                    </span>
-                  )}
-                </div>
-
-                {isLoadingData ? (
-                  <div className="py-6 text-center text-slate-400 flex items-center justify-center gap-2">
-                    <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
-                    <span>Đang tải thông tin phòng và ghế...</span>
-                  </div>
-                ) : isStaff ? (
-                  /* ================= GIAO DIỆN DÀNH CHO ADMIN / MANAGER / STAFF ================= */
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-[10px] text-slate-400 block mb-1">
-                          Phòng chiếu (API):
-                        </label>
-                        <select
-                          value={selectedRoomId}
-                          onChange={handleStaffRoomChange}
-                          className="w-full px-3 py-2 rounded-xl bg-cinema-900 border border-cinema-700 text-white text-xs font-semibold focus:outline-none focus:border-amber-500"
-                        >
-                          {rooms.map((r) => (
-                            <option key={r.id} value={r.id} className="bg-cinema-900 text-white">
-                              {r.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="text-[10px] text-slate-400 block mb-1">
-                          Số ghế ngồi (Nhóm theo hàng A-F):
-                        </label>
-                        <select
-                          value={seatCode}
-                          onChange={(e) => setSeatCode(e.target.value)}
-                          className="w-full px-3 py-2 rounded-xl bg-cinema-900 border border-cinema-700 text-white text-xs font-mono font-bold focus:outline-none focus:border-amber-500 max-h-60 overflow-y-auto"
-                        >
-                          {Object.keys(groupedStaffSeats).length === 0 ? (
-                            <option value="">Không có ghế</option>
-                          ) : (
-                            Object.entries(groupedStaffSeats).map(([rowLetter, seatsInRow]) => (
-                              <optgroup
-                                key={rowLetter}
-                                label={`Hàng ${rowLetter}${rowLetter === 'F' ? ' (Ghế Đôi - 2 chỗ)' : ''}`}
-                                className="bg-cinema-950 text-amber-400 font-sans font-bold"
-                              >
-                                {seatsInRow.map((s) => (
-                                  <option
-                                    key={s.seatCode}
-                                    value={s.seatCode}
-                                    className="bg-cinema-900 text-white font-mono"
-                                  >
-                                    {s.label}
-                                  </option>
-                                ))}
-                              </optgroup>
-                            ))
-                          )}
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  /* ================= GIAO DIỆN DÀNH CHO CUSTOMER (KHÁCH HÀNG) ================= */
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-[10px] text-slate-400 block mb-1">
-                          Phòng chiếu (Tự điền theo vé):
-                        </label>
-                        <input
-                          type="text"
-                          readOnly
-                          value={room || 'Chưa có phòng'}
-                          className="w-full px-3 py-2 rounded-xl bg-cinema-900/60 border border-cinema-800 text-slate-300 text-xs font-semibold focus:outline-none cursor-not-allowed select-none"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="text-[10px] text-slate-400 block mb-1">
-                          Số ghế ngồi của bạn:
-                        </label>
-                        <select
-                          value={selectedTicketId}
-                          onChange={handleCustomerTicketChange}
-                          disabled={tickets.length === 0}
-                          className="w-full px-3 py-2 rounded-xl bg-cinema-900 border border-cinema-700 text-white text-xs font-semibold focus:outline-none focus:border-amber-500 disabled:opacity-50 disabled:cursor-not-allowed max-h-60 overflow-y-auto"
-                        >
-                          {tickets.length === 0 ? (
-                            <option value="">Không có vé phù hợp</option>
-                          ) : (
-                            tickets.map((t) => (
-                              <option
-                                key={t.id}
-                                value={t.id}
-                                className="bg-cinema-900 text-white font-sans text-xs"
-                              >
-                                {t.displayLabel}
-                              </option>
-                            ))
-                          )}
-                        </select>
-                      </div>
-                    </div>
-
-                    {tickets.length === 0 && (
-                      <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-center gap-2">
-                        <AlertTriangle className="w-4 h-4 shrink-0 text-amber-400" />
-                        <span>Bạn chưa có vé cho suất đang chiếu hôm nay</span>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                <div>
-                  <label className="text-[10px] text-slate-400 block mb-1">
-                    Ghi chú cho nhân viên (Tùy chọn):
-                  </label>
-                  <input
-                    type="text"
-                    value={note}
-                    onChange={(e) => setNote(e.target.value)}
-                    placeholder="Vd: Xin thêm đá, ít phô mai, mang khăn giấy..."
-                    className="w-full px-3 py-2 rounded-xl bg-cinema-900 border border-cinema-700 text-white text-xs focus:outline-none focus:border-amber-500"
-                  />
-                </div>
-              </div>
-
-              {/* Menu bắp nước F&B (Lưới 2 cột) */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-xs font-bold text-amber-400 uppercase tracking-wider">
-                  <span className="flex items-center gap-1.5">
-                    <Coffee className="w-4 h-4" /> Thực Đơn Bắp Nước Rạp Chiếu
-                  </span>
-                  <span className="text-[10px] text-slate-400 font-normal normal-case">
-                    {menuItems.length} món sẵn sàng phục vụ
-                  </span>
-                </div>
-
+              {/* Scrollable Food Grid */}
+              <div className="flex-1 overflow-y-auto p-4 min-h-0">
                 {isLoadingMenu ? (
-                  <div className="py-6 text-center text-slate-400 flex items-center justify-center gap-2">
-                    <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
+                  <div className="py-12 text-center text-slate-400 flex items-center justify-center gap-2">
+                    <Loader2 className="w-5 h-5 animate-spin text-amber-400" />
                     <span>Đang tải thực đơn bắp nước...</span>
                   </div>
+                ) : filteredMenuItems.length === 0 ? (
+                  <div className="py-12 text-center text-slate-400 text-xs">
+                    Không có món nào trong danh mục này.
+                  </div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[280px] overflow-y-auto pr-1">
-                    {menuItems.map((item) => {
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    {filteredMenuItems.map((item) => {
                       const qty = getItemQty(item.id);
+                      const isBouncing = justAddedId === item.id;
                       return (
                         <div
                           key={item.id}
-                          className={`p-2.5 rounded-2xl border transition-all flex items-center justify-between gap-2.5 ${
-                            qty > 0
+                          className={`flex flex-col justify-between rounded-2xl border p-2.5 transition-all duration-200 ${
+                            isBouncing
+                              ? 'scale-105 border-amber-400 bg-amber-500/20 shadow-lg'
+                              : qty > 0
                               ? 'bg-amber-500/10 border-amber-500/50 shadow-sm'
                               : 'bg-cinema-900/80 border-cinema-800 hover:border-cinema-700'
                           }`}
                         >
-                          <div className="flex items-center gap-2.5 min-w-0">
+                          <div>
                             {item.image ? (
-                              <img
-                                src={item.image}
-                                alt={item.name}
-                                className="w-12 h-12 rounded-xl object-cover shrink-0 border border-cinema-700"
-                                onError={(e) => {
-                                  e.target.style.display = 'none';
-                                }}
-                              />
+                              <div className="w-full h-24 rounded-xl overflow-hidden mb-2 bg-cinema-950">
+                                <img
+                                  src={item.image}
+                                  alt={item.name}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    e.target.style.display = 'none';
+                                  }}
+                                />
+                              </div>
                             ) : (
-                              <div className="w-12 h-12 rounded-xl bg-cinema-800 border border-cinema-700 flex items-center justify-center text-amber-400 shrink-0">
-                                <Utensils className="w-5 h-5" />
+                              <div className="w-full h-24 rounded-xl mb-2 bg-cinema-950 border border-cinema-800 flex items-center justify-center text-amber-400">
+                                <Coffee className="w-6 h-6" />
                               </div>
                             )}
-                            <div className="min-w-0">
-                              <div className="font-bold text-white text-xs truncate" title={item.name}>
-                                {item.name}
-                              </div>
-                              <div className="text-amber-400 font-mono font-bold text-xs">
-                                {(Number(item.price) || 0).toLocaleString('vi-VN')} đ
-                              </div>
+
+                            <div
+                              className="font-bold text-white text-xs line-clamp-2 min-h-[2rem] leading-snug"
+                              title={item.name}
+                            >
+                              {item.name}
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            {qty > 0 && (
-                              <>
+                          <div className="mt-2.5 pt-2 border-t border-cinema-800/60 flex items-center justify-between gap-1.5">
+                            <span className="text-amber-400 font-mono font-bold text-xs">
+                              {(Number(item.price) || 0).toLocaleString('vi-VN')} đ
+                            </span>
+
+                            {qty === 0 ? (
+                              <button
+                                type="button"
+                                onClick={() => handleItemQtyChange(item, 1)}
+                                className="w-7 h-7 rounded-xl bg-amber-500 hover:bg-amber-400 text-cinema-950 flex items-center justify-center font-bold transition-all shadow cursor-pointer active:scale-90"
+                                title="Thêm vào giỏ"
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                              </button>
+                            ) : (
+                              <div className="flex items-center gap-1 shrink-0 bg-cinema-950/80 rounded-xl p-0.5 border border-cinema-700">
                                 <button
                                   type="button"
                                   onClick={() => handleItemQtyChange(item, -1)}
-                                  className="w-6 h-6 rounded-lg bg-cinema-800 hover:bg-cinema-700 text-white flex items-center justify-center font-bold text-xs transition-colors cursor-pointer"
+                                  className="w-6 h-6 rounded-lg bg-cinema-800 hover:bg-cinema-700 text-white flex items-center justify-center font-bold transition-colors cursor-pointer"
                                   title="Giảm 1"
                                 >
                                   <Minus className="w-3 h-3" />
@@ -735,16 +799,16 @@ export function InSeatDeliveryModal({ isOpen, onClose }) {
                                 <span className="w-4 text-center font-mono font-bold text-amber-400 text-xs">
                                   {qty}
                                 </span>
-                              </>
+                                <button
+                                  type="button"
+                                  onClick={() => handleItemQtyChange(item, 1)}
+                                  className="w-6 h-6 rounded-lg bg-amber-500 hover:bg-amber-400 text-cinema-950 flex items-center justify-center font-bold transition-colors cursor-pointer"
+                                  title="Thêm 1"
+                                >
+                                  <Plus className="w-3 h-3" />
+                                </button>
+                              </div>
                             )}
-                            <button
-                              type="button"
-                              onClick={() => handleItemQtyChange(item, 1)}
-                              className="w-6 h-6 rounded-lg bg-amber-500 hover:bg-amber-400 text-cinema-950 flex items-center justify-center font-bold text-xs transition-colors shadow cursor-pointer"
-                              title="Thêm món"
-                            >
-                              <Plus className="w-3 h-3" />
-                            </button>
                           </div>
                         </div>
                       );
@@ -753,69 +817,43 @@ export function InSeatDeliveryModal({ isOpen, onClose }) {
                 )}
               </div>
 
-              {/* Cart Items (Món Đang Chọn) */}
-              <div className="space-y-2 pt-2 border-t border-cinema-800/80">
-                <div className="flex items-center justify-between text-xs font-bold text-slate-300 uppercase tracking-wider">
-                  <span>Món Đang Chọn:</span>
-                  {cart.length > 0 && (
-                    <span className="text-[11px] font-mono text-amber-400 normal-case">
-                      {cart.reduce((s, c) => s + c.quantity, 0)} phần
-                    </span>
-                  )}
+              {/* Mobile Fixed Bottom Bar */}
+              <div className="md:hidden shrink-0 p-3 bg-cinema-950 border-t border-cinema-800 flex items-center justify-between">
+                <div>
+                  <div className="text-[11px] text-slate-400">
+                    <strong className="text-amber-400 font-bold">{totalItemsCount}</strong> phần đã chọn
+                  </div>
+                  <div className="text-sm font-black text-amber-400 font-mono">
+                    {totalAmount.toLocaleString('vi-VN')} VNĐ
+                  </div>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setIsMobileCartOpen(true)}
+                  className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-cinema-950 font-extrabold text-xs flex items-center gap-1.5 shadow-md transition-all active:scale-95 cursor-pointer"
+                >
+                  <ShoppingBag className="w-4 h-4" />
+                  <span>Xem Giỏ ({totalItemsCount})</span>
+                </button>
+              </div>
+            </div>
 
-                {cart.length === 0 ? (
-                  <div className="p-3 rounded-xl bg-cinema-900/60 border border-dashed border-cinema-800 text-center text-xs text-slate-400">
-                    Chưa chọn món nào. Hãy bấm dấu <strong className="text-amber-400 font-bold">+</strong> ở thực đơn phía trên để thêm món.
-                  </div>
-                ) : (
-                  <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
-                    {cart.map((item) => (
-                      <div
-                        key={item.id}
-                        className="p-2.5 rounded-xl bg-cinema-850/80 border border-cinema-700/60 flex items-center justify-between text-xs"
-                      >
-                        <div className="min-w-0 pr-2">
-                          <div className="font-bold text-white truncate">{item.name}</div>
-                          <div className="text-slate-400 font-mono text-[11px]">
-                            {(Number(item.price) || 0).toLocaleString('vi-VN')} đ × {item.quantity} ={' '}
-                            <span className="text-amber-400 font-bold">
-                              {(Number(item.price || 0) * item.quantity).toLocaleString('vi-VN')} đ
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => handleItemQtyChange(item, -1)}
-                            className="w-6 h-6 rounded-lg bg-cinema-800 hover:bg-cinema-700 text-white flex items-center justify-center font-bold cursor-pointer"
-                            title="Giảm 1 món"
-                          >
-                            <Minus className="w-3 h-3" />
-                          </button>
-                          <span className="w-5 text-center font-mono font-bold text-amber-400">
-                            {item.quantity}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => handleItemQtyChange(item, 1)}
-                            className="w-6 h-6 rounded-lg bg-amber-500 hover:bg-amber-400 text-cinema-950 flex items-center justify-center font-bold cursor-pointer"
-                            title="Thêm 1 món"
-                          >
-                            <Plus className="w-3 h-3" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+            {/* CỘT PHẢI: Desktop Fixed Sidebar (Vị trí + Món đã chọn + Footer) */}
+            <div className="hidden md:flex md:w-[360px] lg:w-[380px] shrink-0 flex-col bg-cinema-950/60 min-h-0">
+              {/* Vị trí của bạn */}
+              <div className="p-4 shrink-0 border-b border-cinema-800">
+                {renderLocationSection()}
               </div>
 
-              {/* Total & Submit */}
-              <div className="pt-3 border-t border-cinema-800 flex items-center justify-between">
-                <div>
-                  <div className="text-[10px] text-slate-400">Tổng tiền gọi món:</div>
+              {/* Món đang chọn */}
+              <div className="p-4 flex-1 flex flex-col min-h-0 overflow-hidden">
+                {renderCartItemsList()}
+              </div>
+
+              {/* Fixed Footer: Tổng tiền + Nút Đặt */}
+              <div className="p-4 shrink-0 border-t border-cinema-800 bg-cinema-950 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-xs text-slate-400">Tổng tiền gọi món:</div>
                   <div className="text-lg font-black text-amber-400 font-mono">
                     {totalAmount.toLocaleString('vi-VN')} VNĐ
                   </div>
@@ -825,23 +863,76 @@ export function InSeatDeliveryModal({ isOpen, onClose }) {
                   type="button"
                   disabled={isSubmitting || totalAmount === 0 || !seatCode}
                   onClick={handleOrder}
-                  className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-ruby-600 via-rose-600 to-ruby-700 hover:from-ruby-500 hover:to-rose-500 text-white font-extrabold text-xs shadow-glow-red transition-all flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  className="w-full py-2.5 rounded-xl bg-gradient-to-r from-ruby-600 via-rose-600 to-ruby-700 hover:from-ruby-500 hover:to-rose-500 text-white font-extrabold text-xs shadow-glow-red transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                 >
                   <Send className="w-3.5 h-3.5" />
                   <span>
                     {!seatCode
-                      ? 'Vui lòng chọn ghế'
+                      ? 'Vui lòng chọn ghế ngồi'
                       : totalAmount === 0
-                      ? 'Chưa chọn món'
+                      ? 'Chưa chọn món nào'
                       : isSubmitting
-                      ? 'Đang gửi...'
+                      ? 'Đang gửi đơn...'
                       : 'Gửi Đơn Phục Vụ Tận Ghế'}
                   </span>
                 </button>
               </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
+
+        {/* Mobile Slide-up Bottom Sheet khi bấm 'Xem giỏ' */}
+        {isMobileCartOpen && !isSuccess && (
+          <div
+            className="md:hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex flex-col justify-end animate-fade-in"
+            onClick={() => setIsMobileCartOpen(false)}
+          >
+            <div
+              className="w-full max-h-[82vh] bg-cinema-900 border-t border-cinema-700 rounded-t-3xl p-4 flex flex-col shadow-2xl animate-slide-up space-y-3"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between pb-2 border-b border-cinema-800">
+                <div className="flex items-center gap-2">
+                  <ShoppingBag className="w-4 h-4 text-amber-400" />
+                  <h4 className="font-extrabold text-white text-sm">Giỏ Hàng & Vị Trí Giao</h4>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold">
+                    {totalItemsCount} món
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsMobileCartOpen(false)}
+                  className="w-7 h-7 rounded-full bg-cinema-800 text-slate-300 flex items-center justify-center hover:bg-cinema-700 cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="overflow-y-auto space-y-3 flex-1 pr-1 max-h-[50vh]">
+                {renderLocationSection()}
+                {renderCartItemsList()}
+              </div>
+
+              <div className="pt-3 border-t border-cinema-800 flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-[10px] text-slate-400">Tổng thanh toán:</div>
+                  <div className="text-base font-black text-amber-400 font-mono">
+                    {totalAmount.toLocaleString('vi-VN')} VNĐ
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  disabled={isSubmitting || totalAmount === 0 || !seatCode}
+                  onClick={handleOrder}
+                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-ruby-600 to-rose-600 text-white font-extrabold text-xs shadow-glow-red flex items-center gap-1.5 disabled:opacity-40 cursor-pointer"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  <span>{isSubmitting ? 'Đang gửi...' : 'Gửi Đơn'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

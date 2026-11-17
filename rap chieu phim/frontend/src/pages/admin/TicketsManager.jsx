@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
-import { Ticket, Search, QrCode, CheckCircle, XCircle, AlertCircle, RefreshCw } from 'lucide-react';
+import { Ticket, Search, QrCode, CheckCircle, XCircle, AlertCircle, RefreshCw, Copy, Check } from 'lucide-react';
 
 export function TicketsManager() {
   const [tickets, setTickets] = useState([]);
@@ -10,6 +10,35 @@ export function TicketsManager() {
   const [verifyCode, setVerifyCode] = useState('');
   const [verifyResult, setVerifyResult] = useState(null);
   const [verifying, setVerifying] = useState(false);
+  const [copiedCode, setCopiedCode] = useState(null);
+
+  const handleCopyCode = async (code) => {
+    if (!code) return;
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(code);
+      } else {
+        throw new Error('Clipboard API not available');
+      }
+    } catch (_e) {
+      const el = document.createElement('textarea');
+      el.value = code;
+      el.style.position = 'fixed';
+      el.style.opacity = '0';
+      document.body.appendChild(el);
+      el.select();
+      try {
+        document.execCommand('copy');
+      } catch (err) {
+        console.error('Fallback copy error:', err);
+      }
+      document.body.removeChild(el);
+    }
+    setCopiedCode(code);
+    setTimeout(() => {
+      setCopiedCode((curr) => (curr === code ? null : curr));
+    }, 1500);
+  };
 
   useEffect(() => {
     fetchTickets();
@@ -157,8 +186,27 @@ export function TicketsManager() {
             <tbody className="divide-y divide-cinema-800">
               {tickets.map((t) => (
                 <tr key={t.id} className="hover:bg-cinema-850/60 transition-colors">
-                  <td className="p-4 font-mono font-bold text-amber-400">
-                    {t.ticket_code}
+                  <td className="p-4">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-bold text-amber-400 select-all">{t.ticket_code}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyCode(t.ticket_code)}
+                        className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors border cursor-pointer shrink-0 ${
+                          copiedCode === t.ticket_code
+                            ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                            : 'bg-cinema-800/80 hover:bg-cinema-700 text-slate-400 hover:text-white border-cinema-700/60'
+                        }`}
+                        title={copiedCode === t.ticket_code ? 'Đã sao chép!' : 'Sao chép mã vé'}
+                        aria-label="Sao chép mã vé"
+                      >
+                        {copiedCode === t.ticket_code ? (
+                          <Check className="w-3.5 h-3.5 text-emerald-400" />
+                        ) : (
+                          <Copy className="w-3.5 h-3.5" />
+                        )}
+                      </button>
+                    </div>
                   </td>
                   <td className="p-4">
                     <div className="font-bold text-white text-sm">{t.movie_name}</div>

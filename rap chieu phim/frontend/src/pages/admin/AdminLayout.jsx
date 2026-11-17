@@ -231,13 +231,6 @@ export function AdminLayout({ currentTab, onSelectTab, children }) {
                         <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`} />
                         <span className="truncate">{item.label}</span>
                       </div>
-                      {item.type === 'merged' && (
-                        <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase ${
-                          isActive ? 'bg-white/20 text-white' : 'bg-cinema-800 text-slate-400'
-                        }`}>
-                          {item.tabs.length} tab
-                        </span>
-                      )}
                     </button>
                   );
                 })}

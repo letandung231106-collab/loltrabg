@@ -36,7 +36,6 @@ export function PaymentModal({
   isOpen,
   onClose,
   onSuccess,
-  selectedConcessions = [],
 }) {
   const { activeBooking, selectedSeats, formattedHoldTime, holdRemainingSeconds, resetBookingState } = useBooking();
   const [paymentMethod, setPaymentMethod] = useState('momo');
@@ -61,6 +60,62 @@ export function PaymentModal({
   // Loyalty Points state
   const [useLoyaltyPoints, setUseLoyaltyPoints] = useState(false);
   const [availablePoints, setAvailablePoints] = useState(() => loyaltyService.getPoints());
+
+  // Tính toán chi phí vé - giảm giá voucher - trừ điểm loyalty
+  const ticketAmount = Number(activeBooking?.totalAmount || 0);
+  const subtotal = ticketAmount;
+
+  let discountAmount = 0;
+  if (appliedVoucher) {
+    if (appliedVoucher.discountAmount) {
+      discountAmount = appliedVoucher.discountAmount;
+    } else if (appliedVoucher.discountPercent) {
+      discountAmount = Math.min(
+        (subtotal * appliedVoucher.discountPercent) / 100,
+        appliedVoucher.maxDiscount || Infinity
+      );
+    }
+  }
+  discountAmount = Math.min(discountAmount, subtotal);
+
+  const amountAfterVoucher = Math.max(0, subtotal - discountAmount);
+  const loyaltyDeduction = useLoyaltyPoints ? Math.min(amountAfterVoucher, availablePoints) : 0;
+  const finalTotalAmount = Math.max(0, amountAfterVoucher - loyaltyDeduction);
+
+  const handlePaymentSuccessPostActions = async (method) => {
+    // 1. Đánh dấu voucher đã dùng
+    if (appliedVoucher?.code) {
+      voucherWallet.markAsUsed(appliedVoucher.code);
+    }
+
+    // 2. Trừ điểm loyalty nếu có dùng
+    if (useLoyaltyPoints && loyaltyDeduction > 0) {
+      loyaltyService.redeemPoints(loyaltyDeduction, `Thanh toán đơn ${activeBooking?.bookingCode || ''}`);
+    }
+
+    // 3. Tích lũy 5% điểm thưởng cho số tiền thanh toán thực tế
+    loyaltyService.addPoints(finalTotalAmount, `Tích điểm đơn vé ${activeBooking?.bookingCode || ''}`);
+  };
+
+  const handleCreateMomoOrder = async (reqType = momoRequestType) => {
+    if (!activeBooking) return;
+    setMomoLoading(true);
+    setErrorMsg('');
+    try {
+      const res = await api.createMomoPayment({
+        booking_id: activeBooking.bookingId,
+        request_type: reqType,
+        voucher_code: appliedVoucher?.code || undefined,
+      });
+      if (res.success && res.data) {
+        setMomoSession(res.data);
+      }
+    } catch (err) {
+      setErrorMsg(err.message || 'Không thể khởi tạo giao dịch MoMo Sandbox.');
+    } finally {
+      setMomoLoading(false);
+    }
+  };
 
   // Tự động khởi tạo phiên MoMo Sandbox khi chọn phương thức MoMo
   useEffect(() => {
@@ -99,34 +154,49 @@ export function PaymentModal({
     }
   }, [isOpen]);
 
+  // SePay Automated Bank Transfer Hook for Movie Booking (chạy vô điều kiện trên mọi render)
+  useEffect(() => {
+    if (!isOpen || !activeBooking || paymentMethod !== 'vietqr') return;
+
+    let isMounted = true;
+    setSepayStatus('waiting');
+
+    // Đăng ký phiên booking với SePay backend
+    api.registerSepayBookingSession({
+      bookingId: activeBooking.bookingId,
+      bookingCode: activeBooking.bookingCode,
+      totalAmount: finalTotalAmount,
+    }).catch((err) => {
+      console.warn('[SePay Register Booking]:', err.message);
+    });
+
+    const interval = setInterval(async () => {
+      if (!isMounted) return;
+      try {
+        const res = await api.checkSepayStatus(activeBooking.bookingCode);
+        if (res && res.isPaid && isMounted) {
+          clearInterval(interval);
+          setSepayStatus('paid');
+          confetti({
+            particleCount: 140,
+            spread: 90,
+            origin: { y: 0.6 },
+          });
+          await handlePaymentSuccessPostActions('vietqr');
+          onSuccess(res.data);
+        }
+      } catch (e) {
+        // Polling error silently handled
+      }
+    }, 2000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [isOpen, activeBooking?.bookingId, activeBooking?.bookingCode, paymentMethod, finalTotalAmount]);
+
   if (!isOpen || !activeBooking) return null;
-
-  // Tính toán chi phí an toàn: vé + bắp nước - giảm giá voucher - trừ điểm loyalty
-  const ticketAmount = Number(activeBooking.totalAmount || 0);
-  const safeConcessions = Array.isArray(selectedConcessions) ? selectedConcessions : [];
-  const concessionAmount = safeConcessions.reduce(
-    (sum, item) => sum + Number(item?.price || 0) * Number(item?.quantity || 1),
-    0
-  );
-  const subtotal = ticketAmount + concessionAmount;
-
-  let discountAmount = 0;
-  if (appliedVoucher) {
-    if (appliedVoucher.discountAmount) {
-      discountAmount = appliedVoucher.discountAmount;
-    } else if (appliedVoucher.discountPercent) {
-      discountAmount = Math.min(
-        (subtotal * appliedVoucher.discountPercent) / 100,
-        appliedVoucher.maxDiscount || Infinity
-      );
-    }
-  }
-  discountAmount = Math.min(discountAmount, subtotal);
-
-  const amountAfterVoucher = Math.max(0, subtotal - discountAmount);
-  // Điểm thưởng loyalty tối đa có thể trừ: tối đa bằng số tiền còn lại và tối đa bằng availablePoints
-  const loyaltyDeduction = useLoyaltyPoints ? Math.min(amountAfterVoucher, availablePoints) : 0;
-  const finalTotalAmount = Math.max(0, amountAfterVoucher - loyaltyDeduction);
 
   const handleApplyVoucher = async (codeToApply) => {
     const code = (codeToApply || voucherInput || '').trim().toUpperCase();
@@ -158,62 +228,11 @@ export function PaymentModal({
     setVoucherError('');
   };
 
-  const handleCreateMomoOrder = async (reqType = momoRequestType) => {
-    setMomoLoading(true);
-    setErrorMsg('');
-    try {
-      const res = await api.createMomoPayment({
-        booking_id: activeBooking.bookingId,
-        request_type: reqType,
-        voucher_code: appliedVoucher?.code || undefined,
-      });
-      if (res.success && res.data) {
-        setMomoSession(res.data);
-      }
-    } catch (err) {
-      setErrorMsg(err.message || 'Không thể khởi tạo giao dịch MoMo Sandbox.');
-    } finally {
-      setMomoLoading(false);
-    }
-  };
-
   const handleOpenMomoGatewayRedirect = () => {
     if (!momoSession?.payUrl) {
       return handlePay({ isFailure: false, method: 'momo' });
     }
     window.open(momoSession.payUrl, '_blank', 'width=980,height=720');
-  };
-
-  const handlePaymentSuccessPostActions = async (method) => {
-    // 1. Đánh dấu voucher đã dùng
-    if (appliedVoucher?.code) {
-      voucherWallet.markAsUsed(appliedVoucher.code);
-    }
-
-    // 2. Trừ điểm loyalty nếu có dùng
-    if (useLoyaltyPoints && loyaltyDeduction > 0) {
-      loyaltyService.redeemPoints(loyaltyDeduction, `Thanh toán đơn ${activeBooking.bookingCode}`);
-    }
-
-    // 3. Tích lũy 5% điểm thưởng cho số tiền thanh toán thực tế
-    loyaltyService.addPoints(finalTotalAmount, `Tích điểm đơn vé ${activeBooking.bookingCode}`);
-
-    // 4. Bán bắp nước vào kho BOM
-    if (safeConcessions.length > 0) {
-      try {
-        await api.sellConcessions({
-          items: safeConcessions.map((c) => ({
-            id: c.id,
-            name: c.name,
-            price: Number(c.price) || 0,
-            quantity: Number(c.quantity) || 1,
-          })),
-          payment_method: method,
-        });
-      } catch (e) {
-        console.warn('Ghi nhận trừ kho bắp nước tự động:', e.message);
-      }
-    }
   };
 
   const handleMomoCallbackConfirm = async (resultCode = 0) => {
@@ -294,48 +313,6 @@ export function PaymentModal({
       setLoading(false);
     }
   };
-
-  // SePay Automated Bank Transfer Hook for Movie Booking
-  useEffect(() => {
-    if (!isOpen || !activeBooking || paymentMethod !== 'vietqr') return;
-
-    let isMounted = true;
-    setSepayStatus('waiting');
-
-    // Đăng ký phiên booking với SePay backend
-    api.registerSepayBookingSession({
-      bookingId: activeBooking.bookingId,
-      bookingCode: activeBooking.bookingCode,
-      totalAmount: finalTotalAmount,
-    }).catch((err) => {
-      console.warn('[SePay Register Booking]:', err.message);
-    });
-
-    const interval = setInterval(async () => {
-      if (!isMounted) return;
-      try {
-        const res = await api.checkSepayStatus(activeBooking.bookingCode);
-        if (res && res.isPaid && isMounted) {
-          clearInterval(interval);
-          setSepayStatus('paid');
-          confetti({
-            particleCount: 140,
-            spread: 90,
-            origin: { y: 0.6 },
-          });
-          await handlePaymentSuccessPostActions('vietqr');
-          onSuccess(res.data);
-        }
-      } catch (e) {
-        // Polling error silently handled
-      }
-    }, 2000);
-
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-    };
-  }, [isOpen, activeBooking?.bookingId, activeBooking?.bookingCode, paymentMethod, finalTotalAmount]);
 
   const handleSimulateSepay = async () => {
     if (!activeBooking) return;
@@ -821,15 +798,6 @@ export function PaymentModal({
                   <span>Tiền vé ({totalSeatsCount} mã ghế • {totalPeopleCount} chỗ ngồi):</span>
                   <span className="font-bold text-white">{ticketAmount.toLocaleString('vi-VN')} VNĐ</span>
                 </div>
-
-                {safeConcessions.length > 0 && (
-                  <div className="flex justify-between text-amber-300 pt-1 border-t border-cinema-800">
-                    <span className="flex items-center gap-1">
-                      <Utensils className="w-3 h-3" /> Bắp nước & combo ({safeConcessions.reduce((sum, c) => sum + Number(c?.quantity || 1), 0)} món):
-                    </span>
-                    <span className="font-bold">+{concessionAmount.toLocaleString('vi-VN')} VNĐ</span>
-                  </div>
-                )}
 
                 {appliedVoucher && (
                   <div className="flex justify-between text-emerald-400 pt-1 border-t border-cinema-800">
