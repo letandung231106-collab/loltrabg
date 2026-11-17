@@ -36,6 +36,7 @@ export function PaymentModal({
   isOpen,
   onClose,
   onSuccess,
+  selectedConcessions = [],
 }) {
   const { activeBooking, selectedSeats, formattedHoldTime, holdRemainingSeconds, resetBookingState } = useBooking();
   const [paymentMethod, setPaymentMethod] = useState('momo');
@@ -61,9 +62,14 @@ export function PaymentModal({
   const [useLoyaltyPoints, setUseLoyaltyPoints] = useState(false);
   const [availablePoints, setAvailablePoints] = useState(() => loyaltyService.getPoints());
 
-  // Tính toán chi phí vé - giảm giá voucher - trừ điểm loyalty
+  // Tính toán chi phí vé + bắp nước - giảm giá voucher - trừ điểm loyalty
   const ticketAmount = Number(activeBooking?.totalAmount || 0);
-  const subtotal = ticketAmount;
+  const safeConcessions = Array.isArray(selectedConcessions) ? selectedConcessions : [];
+  const concessionAmount = safeConcessions.reduce(
+    (sum, item) => sum + Number(item?.price || item?.unit_price || 0) * Number(item?.quantity || 1),
+    0
+  );
+  const subtotal = ticketAmount + concessionAmount;
 
   let discountAmount = 0;
   if (appliedVoucher) {
@@ -81,6 +87,11 @@ export function PaymentModal({
   const amountAfterVoucher = Math.max(0, subtotal - discountAmount);
   const loyaltyDeduction = useLoyaltyPoints ? Math.min(amountAfterVoucher, availablePoints) : 0;
   const finalTotalAmount = Math.max(0, amountAfterVoucher - loyaltyDeduction);
+
+  const concessionsPayload = safeConcessions.map((c) => ({
+    item_id: c.id || c.concession_item_id || c.item_id,
+    quantity: Number(c.quantity || 1),
+  }));
 
   const handlePaymentSuccessPostActions = async (method) => {
     // 1. Đánh dấu voucher đã dùng
@@ -106,6 +117,7 @@ export function PaymentModal({
         booking_id: activeBooking.bookingId,
         request_type: reqType,
         voucher_code: appliedVoucher?.code || undefined,
+        concessions: concessionsPayload,
       });
       if (res.success && res.data) {
         setMomoSession(res.data);
@@ -166,6 +178,7 @@ export function PaymentModal({
       bookingId: activeBooking.bookingId,
       bookingCode: activeBooking.bookingCode,
       totalAmount: finalTotalAmount,
+      concessions: concessionsPayload,
     }).catch((err) => {
       console.warn('[SePay Register Booking]:', err.message);
     });
@@ -243,7 +256,7 @@ export function PaymentModal({
         booking_id: activeBooking.bookingId,
         orderId: momoSession?.orderId || `MOMO_${activeBooking.bookingCode}_${Date.now()}`,
         requestId: momoSession?.requestId || `REQ_${Date.now()}`,
-        amount: String(finalTotalAmount),
+        amount: String(momoSession?.amount !== undefined ? momoSession.amount : finalTotalAmount),
         orderInfo: `Thanh toan ve xem phim Night Movie - Ma don ${activeBooking.bookingCode}`,
         resultCode: resultCode,
         transId: String(Math.floor(2000000000 + Math.random() * 900000000)),
@@ -289,6 +302,7 @@ export function PaymentModal({
         payment_method: method,
         simulate_failure: isFailure,
         voucher_code: appliedVoucher?.code || undefined,
+        concessions: concessionsPayload,
       });
 
       if (res.success && res.data?.paymentStatus === 'success') {
@@ -796,20 +810,42 @@ export function PaymentModal({
                 </div>
                 <div className="flex justify-between text-slate-300">
                   <span>Tiền vé ({totalSeatsCount} mã ghế • {totalPeopleCount} chỗ ngồi):</span>
-                  <span className="font-bold text-white">{ticketAmount.toLocaleString('vi-VN')} VNĐ</span>
+                  <span className="font-bold text-white font-mono">{ticketAmount.toLocaleString('vi-VN')} VNĐ</span>
                 </div>
+
+                {safeConcessions.length > 0 && (
+                  <div className="pt-1.5 pb-1 border-t border-cinema-800 space-y-1">
+                    <div className="flex justify-between text-slate-300 font-semibold">
+                      <span>Bắp nước & Combo ({safeConcessions.reduce((s, i) => s + Number(i.quantity || 1), 0)} món):</span>
+                      <span className="font-bold text-amber-400 font-mono">+{concessionAmount.toLocaleString('vi-VN')} VNĐ</span>
+                    </div>
+                    {safeConcessions.map((item, idx) => {
+                      const itemQty = Number(item.quantity || 1);
+                      const itemPrice = Number(item.price || item.unit_price || 0);
+                      const lineTotal = itemQty * itemPrice;
+                      return (
+                        <div key={item.id || idx} className="flex justify-between text-slate-400 pl-2 text-[11px]">
+                          <span className="truncate max-w-[260px]">• {itemQty}x {item.name}</span>
+                          <span className="font-mono text-slate-300 shrink-0">
+                            {lineTotal.toLocaleString('vi-VN')} đ
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
 
                 {appliedVoucher && (
                   <div className="flex justify-between text-emerald-400 pt-1 border-t border-cinema-800">
                     <span>Khuyến mãi ({appliedVoucher.code}):</span>
-                    <span className="font-bold">-{discountAmount.toLocaleString('vi-VN')} VNĐ</span>
+                    <span className="font-bold font-mono">-{discountAmount.toLocaleString('vi-VN')} VNĐ</span>
                   </div>
                 )}
 
                 {useLoyaltyPoints && loyaltyDeduction > 0 && (
                   <div className="flex justify-between text-amber-400 pt-1 border-t border-cinema-800">
                     <span>Điểm thưởng loyalty:</span>
-                    <span className="font-bold">-{loyaltyDeduction.toLocaleString('vi-VN')} VNĐ</span>
+                    <span className="font-bold font-mono">-{loyaltyDeduction.toLocaleString('vi-VN')} VNĐ</span>
                   </div>
                 )}
 
@@ -823,6 +859,9 @@ export function PaymentModal({
                   <span className="text-xl text-amber-400 font-mono">
                     {finalTotalAmount.toLocaleString('vi-VN')} VNĐ
                   </span>
+                </div>
+                <div className="text-[10px] text-slate-400 text-right italic">
+                  * Số hiển thị chỉ để xem; số tiền thực thu do backend xác nhận khi tạo giao dịch.
                 </div>
               </div>
             );

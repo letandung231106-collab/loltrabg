@@ -142,6 +142,7 @@ CREATE TABLE IF NOT EXISTS `bookings` (
   `booking_code` VARCHAR(50) NOT NULL UNIQUE,
   `booking_time` DATETIME DEFAULT CURRENT_TIMESTAMP,
   `total_amount` DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+  `concession_amount` DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
   `voucher_code` VARCHAR(50) NULL,
   `discount_amount` DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
   `status` ENUM('pending', 'paid', 'cancelled', 'expired') NOT NULL DEFAULT 'pending',
@@ -165,6 +166,22 @@ CREATE TABLE IF NOT EXISTS `booking_seats` (
   INDEX `idx_hold_expire` (`hold_expire`),
   CONSTRAINT `fk_booking_seats_booking` FOREIGN KEY (`booking_id`) REFERENCES `bookings` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT `fk_booking_seats_seat` FOREIGN KEY (`seat_id`) REFERENCES `seats` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------------------
+-- 10.1. BẢNG booking_concessions (Bắp nước & Combo đặt cùng đơn vé)
+-- --------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `booking_concessions` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `booking_id` INT NOT NULL,
+  `concession_item_id` INT NOT NULL,
+  `quantity` INT NOT NULL DEFAULT 1,
+  `unit_price` DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  INDEX `idx_booking_concessions_booking` (`booking_id`),
+  INDEX `idx_booking_concessions_item` (`concession_item_id`),
+  CONSTRAINT `fk_booking_concessions_booking` FOREIGN KEY (`booking_id`) REFERENCES `bookings` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_booking_concessions_item` FOREIGN KEY (`concession_item_id`) REFERENCES `concession_items` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------------------
@@ -1190,6 +1207,18 @@ CREATE TABLE IF NOT EXISTS `concession_items` (
   `description` TEXT NULL,
   `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT IGNORE INTO `concession_items` (`id`, `name`, `category`, `price`, `cost_price`, `image`, `is_active`, `description`) VALUES
+(1, 'Bắp Rang Bơ Phô Mai (L)', 'popcorn', 69000.00, 18000.00, 'https://images.unsplash.com/photo-1578849278619-e73505e9610f?q=80&w=400', 1, 'Bắp rang bơ giòn rụm phủ phô mai Cheddar hảo hạng size L 85oz'),
+(2, 'Bắp Rang Caramen Ngọt (L)', 'popcorn', 69000.00, 19000.00, 'https://images.unsplash.com/photo-1585647347384-2593bc35786b?q=80&w=400', 1, 'Bắp rang bơ truyền thống bọc caramen đậm đà ngọt ngào'),
+(3, 'Coca-Cola Tươi (32oz)', 'beverage', 39000.00, 7000.00, 'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?q=80&w=400', 1, 'Nước ngọt Coca-Cola mát lạnh sảng khoái'),
+(4, 'Sprite Tươi (32oz)', 'beverage', 39000.00, 7000.00, 'https://images.unsplash.com/photo-1625772299848-391b6a87d7b3?q=80&w=400', 1, 'Nước ngọt Sprite chanh tươi mát'),
+(5, 'Combo Đơn (1 Bắp L + 1 Nước 32oz)', 'combo', 95000.00, 25000.00, '/images/combo-don.jpg', 1, 'Tiết kiệm 13.000đ - 1 Bắp phô mai/ngọt + 1 Nước ngọt tự chọn'),
+(6, 'Combo Đôi Night Movie (1 Bắp L + 2 Nước + 1 Snack)', 'combo', 145000.00, 42000.00, '/images/combo-doi.jpg', 1, 'Bộ đôi xem phim hoàn hảo: 1 Bắp lớn 2 vị + 2 Nước lớn + 1 Snack khoai tây'),
+(7, 'Xúc Xích Nướng Phô Mai', 'hot_food', 35000.00, 12000.00, 'https://images.unsplash.com/photo-1619740455993-9e612b1af08a?q=80&w=400', 1, 'Xúc xích bò nướng giòn kèm sốt mù tạt mật ong'),
+(8, 'Kem Trái Cây Mùa Hè (Tạm ngưng)', 'hot_food', 29000.00, 10000.00, 'https://images.unsplash.com/photo-1497034825429-c343d7c6a68f?q=80&w=400', 0, 'Tạm ngưng phục vụ'),
+(9, 'Bánh Tart Trứng Nướng', 'hot_food', 29000.00, 10000.00, '/images/egg-tart.jpg', 1, 'Bánh tart trứng vỏ ngàn lớp giòn xốp, nhân kem trứng nướng thơm lừng béo ngậy'),
+(10, 'Bim Bim Khoai Tây Giòn Rụm', 'hot_food', 25000.00, 9000.00, '/images/bim-bim.jpg', 1, 'Snack bim bim khoai tây lát mỏng giòn rụm vị tự nhiên thơm ngon khi xem phim');
 
 -- --------------------------------------------------------------------
 -- 20. BẢNG inventory_ingredients (Kho Nguyên Vật Liệu)

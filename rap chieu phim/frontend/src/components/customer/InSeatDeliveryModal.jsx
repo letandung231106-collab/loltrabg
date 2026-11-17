@@ -49,6 +49,49 @@ const CATEGORIES = [
   { id: 'snack', label: 'Đồ ăn nhẹ' },
 ];
 
+const ITEM_IMAGE_MAP = {
+  1: 'https://images.unsplash.com/photo-1578849278619-e73505e9610f?q=80&w=400', // Bắp phô mai Cheddar L
+  2: 'https://images.unsplash.com/photo-1585647347384-2593bc35786b?q=80&w=400', // Bắp caramen ngọt L
+  3: 'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?q=80&w=400', // Coca-Cola tươi 32oz
+  4: 'https://images.unsplash.com/photo-1625772299848-391b6a87d7b3?q=80&w=400', // Sprite tươi 32oz
+  5: '/images/combo-don.jpg', // Combo Đơn (1 bắp + 1 nước)
+  6: '/images/combo-doi.jpg', // Combo Đôi Night Movie (1 bắp + 2 nước + 1 snack)
+  7: 'https://images.unsplash.com/photo-1619740455993-9e612b1af08a?q=80&w=400', // Xúc xích nướng phô mai
+  8: 'https://images.unsplash.com/photo-1497034825429-c343d7c6a68f?q=80&w=400', // Kem trái cây
+  9: '/images/egg-tart.jpg', // Bánh Tart Trứng Nướng
+  10: '/images/bim-bim.jpg', // Bim Bim Khoai Tây Giòn Rụm
+};
+
+const CATEGORY_DEFAULT_IMAGES = {
+  popcorn: 'https://images.unsplash.com/photo-1578849278619-e73505e9610f?q=80&w=400',
+  beverage: 'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?q=80&w=400',
+  combo: '/images/combo-doi.jpg',
+  hot_food: 'https://images.unsplash.com/photo-1619740455993-9e612b1af08a?q=80&w=400',
+  snack: '/images/bim-bim.jpg',
+  dessert: '/images/egg-tart.jpg',
+};
+
+function getItemImage(item) {
+  if (!item) return CATEGORY_DEFAULT_IMAGES.popcorn;
+  if (ITEM_IMAGE_MAP[item.id]) return ITEM_IMAGE_MAP[item.id];
+  const raw = item.image || item.image_url;
+  if (raw && typeof raw === 'string' && raw.trim() && !raw.includes('photo-1572177191856-3cde618dee1f') && !raw.includes('photo-1518173946687-a4c8a383392e')) {
+    return raw.trim();
+  }
+  const name = (item.name || '').toLowerCase();
+  if (name.includes('tart') || name.includes('trứng')) return ITEM_IMAGE_MAP[9];
+  if (name.includes('bim bim') || name.includes('khoai tây') || name.includes('chips')) return ITEM_IMAGE_MAP[10];
+  if (name.includes('sprite')) return ITEM_IMAGE_MAP[4];
+  if (name.includes('coca') || name.includes('pepsi') || name.includes('nước')) return ITEM_IMAGE_MAP[3];
+  if (name.includes('caramen') || name.includes('caramel')) return ITEM_IMAGE_MAP[2];
+  if (name.includes('đôi') || name.includes('combo đôi')) return ITEM_IMAGE_MAP[6];
+  if (name.includes('combo')) return ITEM_IMAGE_MAP[5];
+  if (name.includes('xúc xích') || name.includes('hotdog')) return ITEM_IMAGE_MAP[7];
+  if (name.includes('phô mai') || name.includes('bắp')) return ITEM_IMAGE_MAP[1];
+  if (name.includes('kem')) return ITEM_IMAGE_MAP[8];
+  return CATEGORY_DEFAULT_IMAGES[item.category] || CATEGORY_DEFAULT_IMAGES.popcorn;
+}
+
 export function InSeatDeliveryModal({ isOpen, onClose }) {
   const { user, isStaff } = useAuth();
 
@@ -422,7 +465,7 @@ export function InSeatDeliveryModal({ isOpen, onClose }) {
     if (selectedCategory === 'combo') return cat === 'combo' || name.includes('combo');
     if (selectedCategory === 'popcorn') return cat === 'popcorn' || name.includes('bắp');
     if (selectedCategory === 'beverage') return cat === 'beverage' || cat === 'drink' || name.includes('nước') || name.includes('coca') || name.includes('sprite');
-    if (selectedCategory === 'snack') return cat === 'snack' || cat === 'hot_food' || cat === 'dessert' || name.includes('xúc xích') || name.includes('snack');
+    if (selectedCategory === 'snack') return cat === 'snack' || cat === 'hot_food' || cat === 'dessert' || name.includes('xúc xích') || name.includes('snack') || name.includes('tart') || name.includes('bim bim') || name.includes('khoai tây');
     return cat === selectedCategory;
   });
 
@@ -747,22 +790,18 @@ export function InSeatDeliveryModal({ isOpen, onClose }) {
                           }`}
                         >
                           <div>
-                            {item.image ? (
-                              <div className="w-full h-24 rounded-xl overflow-hidden mb-2 bg-cinema-950">
-                                <img
-                                  src={item.image}
-                                  alt={item.name}
-                                  className="w-full h-full object-cover"
-                                  onError={(e) => {
-                                    e.target.style.display = 'none';
-                                  }}
-                                />
-                              </div>
-                            ) : (
-                              <div className="w-full h-24 rounded-xl mb-2 bg-cinema-950 border border-cinema-800 flex items-center justify-center text-amber-400">
-                                <Coffee className="w-6 h-6" />
-                              </div>
-                            )}
+                            <div className="w-full h-24 rounded-xl overflow-hidden mb-2 bg-cinema-950 border border-cinema-800">
+                              <img
+                                src={getItemImage(item)}
+                                alt={item.name}
+                                className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
+                                loading="lazy"
+                                onError={(e) => {
+                                  e.target.onerror = null;
+                                  e.target.src = getItemImage({ ...item, image: '', image_url: '' });
+                                }}
+                              />
+                            </div>
 
                             <div
                               className="font-bold text-white text-xs line-clamp-2 min-h-[2rem] leading-snug"

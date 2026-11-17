@@ -382,11 +382,11 @@ const schedules = [
 })();
 
 const bookings = [
-  { id: 1, customer_id: 1, screening_id: 5, booking_code: 'BK-20260914-001', booking_time: `${todayStr} 10:15:00`, total_amount: 220000, voucher_code: null, discount_amount: 0, status: 'paid' },
-  { id: 2, customer_id: 1, screening_id: 1, booking_code: 'BK-20260914-002', booking_time: `${todayStr} 11:00:00`, total_amount: 150000, voucher_code: null, discount_amount: 0, status: 'paid' },
-  { id: 3, customer_id: 1, screening_id: 7, booking_code: 'BK-20260914-003', booking_time: `${todayStr} 11:30:00`, total_amount: 140000, voucher_code: null, discount_amount: 0, status: 'pending' },
-  { id: 4, customer_id: 1, screening_id: 3, booking_code: 'BK-20260914-004', booking_time: `${todayStr} 12:00:00`, total_amount: 180000, voucher_code: null, discount_amount: 0, status: 'paid' },
-  { id: 5, customer_id: 2, screening_id: 1, booking_code: 'BK-20260914-005', booking_time: `${todayStr} 12:30:00`, total_amount: 150000, voucher_code: null, discount_amount: 0, status: 'paid' },
+  { id: 1, customer_id: 1, screening_id: 5, booking_code: 'BK-20260914-001', booking_time: `${todayStr} 10:15:00`, total_amount: 220000, concession_amount: 0, voucher_code: null, discount_amount: 0, status: 'paid' },
+  { id: 2, customer_id: 1, screening_id: 1, booking_code: 'BK-20260914-002', booking_time: `${todayStr} 11:00:00`, total_amount: 150000, concession_amount: 0, voucher_code: null, discount_amount: 0, status: 'paid' },
+  { id: 3, customer_id: 1, screening_id: 7, booking_code: 'BK-20260914-003', booking_time: `${todayStr} 11:30:00`, total_amount: 140000, concession_amount: 0, voucher_code: null, discount_amount: 0, status: 'pending' },
+  { id: 4, customer_id: 1, screening_id: 3, booking_code: 'BK-20260914-004', booking_time: `${todayStr} 12:00:00`, total_amount: 180000, concession_amount: 0, voucher_code: null, discount_amount: 0, status: 'paid' },
+  { id: 5, customer_id: 2, screening_id: 1, booking_code: 'BK-20260914-005', booking_time: `${todayStr} 12:30:00`, total_amount: 150000, concession_amount: 0, voucher_code: null, discount_amount: 0, status: 'paid' },
 ];
 
 const booking_seats = [
@@ -397,6 +397,8 @@ const booking_seats = [
   { id: 5, booking_id: 4, seat_id: 301, price: 180000, status: 'booked', hold_start: `${todayStr} 12:00:00`, hold_expire: `${todayStr} 12:10:00` },
   { id: 6, booking_id: 5, seat_id: 218, price: 150000, status: 'booked', hold_start: `${todayStr} 12:30:00`, hold_expire: `${todayStr} 12:40:00` },
 ];
+
+const booking_concessions = [];
 
 const tickets = [
   { id: 1, booking_id: 1, customer_id: 1, screening_id: 5, seat_id: 41, ticket_code: 'TCK-20260914-5-D5', status: 'active', created_at: `${todayStr} 10:18:22` },
@@ -491,10 +493,12 @@ const concession_items = [
   { id: 2, name: 'Bắp Rang Caramen Ngọt (L)', category: 'popcorn', price: 69000, cost_price: 19000, image: 'https://images.unsplash.com/photo-1585647347384-2593bc35786b?q=80&w=400', is_active: true, description: 'Bắp rang bơ truyền thống bọc caramen đậm đà ngọt ngào' },
   { id: 3, name: 'Coca-Cola Tươi (32oz)', category: 'beverage', price: 39000, cost_price: 7000, image: 'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?q=80&w=400', is_active: true, description: 'Nước ngọt Coca-Cola mát lạnh sảng khoái' },
   { id: 4, name: 'Sprite Tươi (32oz)', category: 'beverage', price: 39000, cost_price: 7000, image: 'https://images.unsplash.com/photo-1625772299848-391b6a87d7b3?q=80&w=400', is_active: true, description: 'Nước ngọt Sprite chanh tươi mát' },
-  { id: 5, name: 'Combo Đơn (1 Bắp L + 1 Nước 32oz)', category: 'combo', price: 95000, cost_price: 25000, image: 'https://images.unsplash.com/photo-1505686994434-e3cc5abf1330?q=80&w=400', is_active: true, description: 'Tiết kiệm 13.000đ - 1 Bắp phô mai/ngọt + 1 Nước ngọt tự chọn' },
-  { id: 6, name: 'Combo Đôi Night Movie (1 Bắp L + 2 Nước + 1 Snack)', category: 'combo', price: 145000, cost_price: 42000, image: 'https://images.unsplash.com/photo-1518173946687-a4c8a383392e?q=80&w=400', is_active: true, description: 'Bộ đôi xem phim hoàn hảo: 1 Bắp lớn 2 vị + 2 Nước lớn + 1 Snack khoai tây' },
-  { id: 7, name: 'Xúc Xích Nướng Phô Mai', category: 'hot_food', price: 35000, cost_price: 12000, image: 'https://images.unsplash.com/photo-1541592106381-b31e9677c0e5?q=80&w=400', is_active: true, description: 'Xúc xích bò nướng giòn kèm sốt mù tạt mật ong' },
-  { id: 8, name: 'Kem Trái Cây Mùa Hè (Tạm ngưng)', category: 'dessert', price: 29000, cost_price: 10000, image: '', is_active: false, description: 'Tạm ngưng phục vụ' },
+  { id: 5, name: 'Combo Đơn (1 Bắp L + 1 Nước 32oz)', category: 'combo', price: 95000, cost_price: 25000, image: '/images/combo-don.jpg', is_active: true, description: 'Tiết kiệm 13.000đ - 1 Bắp phô mai/ngọt + 1 Nước ngọt tự chọn' },
+  { id: 6, name: 'Combo Đôi Night Movie (1 Bắp L + 2 Nước + 1 Snack)', category: 'combo', price: 145000, cost_price: 42000, image: '/images/combo-doi.jpg', is_active: true, description: 'Bộ đôi xem phim hoàn hảo: 1 Bắp lớn 2 vị + 2 Nước lớn + 1 Snack khoai tây' },
+  { id: 7, name: 'Xúc Xích Nướng Phô Mai', category: 'hot_food', price: 35000, cost_price: 12000, image: 'https://images.unsplash.com/photo-1619740455993-9e612b1af08a?q=80&w=400', is_active: true, description: 'Xúc xích bò nướng giòn kèm sốt mù tạt mật ong' },
+  { id: 8, name: 'Kem Trái Cây Mùa Hè (Tạm ngưng)', category: 'dessert', price: 29000, cost_price: 10000, image: 'https://images.unsplash.com/photo-1497034825429-c343d7c6a68f?q=80&w=400', is_active: false, description: 'Tạm ngưng phục vụ' },
+  { id: 9, name: 'Bánh Tart Trứng Nướng', category: 'hot_food', price: 29000, cost_price: 10000, image: '/images/egg-tart.jpg', is_active: true, description: 'Bánh tart trứng vỏ ngàn lớp giòn xốp, nhân kem trứng nướng thơm lừng béo ngậy' },
+  { id: 10, name: 'Bim Bim Khoai Tây Giòn Rụm', category: 'hot_food', price: 25000, cost_price: 9000, image: '/images/bim-bim.jpg', is_active: true, description: 'Snack bim bim khoai tây lát mỏng giòn rụm vị tự nhiên thơm ngon khi xem phim' },
 ];
 
 // --- 17.1. Đơn Hàng Bán Lẻ F&B (Concession Orders & Items) ---
@@ -607,6 +611,7 @@ module.exports = {
   schedules,
   bookings,
   booking_seats,
+  booking_concessions,
   tickets,
   payments,
   equipment_types,

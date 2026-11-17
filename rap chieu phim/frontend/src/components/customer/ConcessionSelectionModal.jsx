@@ -1,7 +1,59 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { api } from '../../services/api';
-import { Utensils, Plus, Minus, ShoppingBag, ArrowRight, ArrowLeft, Check, Coffee, X } from 'lucide-react';
+import { useBooking } from '../../context/BookingContext';
+import { Utensils, Plus, Minus, ShoppingBag, ArrowRight, ArrowLeft, Check, Coffee, X, Clock } from 'lucide-react';
+
+// Bảng ánh xạ ảnh đại diện phân biệt riêng cho từng món F&B
+const ITEM_IMAGE_MAP = {
+  1: 'https://images.unsplash.com/photo-1578849278619-e73505e9610f?q=80&w=400', // Bắp phô mai Cheddar L
+  2: 'https://images.unsplash.com/photo-1585647347384-2593bc35786b?q=80&w=400', // Bắp caramen ngọt L
+  3: 'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?q=80&w=400', // Coca-Cola tươi 32oz mát lạnh
+  4: 'https://images.unsplash.com/photo-1625772299848-391b6a87d7b3?q=80&w=400', // Sprite tươi 32oz chanh tươi
+  5: '/images/combo-don.jpg', // Combo Đơn (1 bắp L + 1 nước 32oz)
+  6: '/images/combo-doi.jpg', // Combo Đôi Night Movie (1 bắp lớn 2 vị + 2 nước lớn + 1 snack khoai tây)
+  7: 'https://images.unsplash.com/photo-1619740455993-9e612b1af08a?q=80&w=400', // Xúc xích nướng phô mai
+  8: 'https://images.unsplash.com/photo-1497034825429-c343d7c6a68f?q=80&w=400', // Kem trái cây
+  9: '/images/egg-tart.jpg', // Bánh Tart Trứng Nướng
+  10: '/images/bim-bim.jpg', // Bim Bim Khoai Tây Giòn Rụm
+};
+
+const CATEGORY_DEFAULT_IMAGES = {
+  popcorn: 'https://images.unsplash.com/photo-1578849278619-e73505e9610f?q=80&w=400',
+  beverage: 'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?q=80&w=400',
+  combo: '/images/combo-doi.jpg',
+  hot_food: 'https://images.unsplash.com/photo-1619740455993-9e612b1af08a?q=80&w=400',
+  snack: '/images/bim-bim.jpg',
+  dessert: '/images/egg-tart.jpg',
+};
+
+function getItemImage(item) {
+  if (!item) return CATEGORY_DEFAULT_IMAGES.popcorn;
+  // 1. Ánh xạ trực tiếp theo ID món
+  if (ITEM_IMAGE_MAP[item.id]) {
+    return ITEM_IMAGE_MAP[item.id];
+  }
+  // 2. Ảnh từ cơ sở dữ liệu nếu có và không phải ảnh trùng lặp cũ
+  const raw = item.image || item.image_url;
+  if (raw && typeof raw === 'string' && raw.trim() && !raw.includes('photo-1572177191856-3cde618dee1f') && !raw.includes('photo-1518173946687-a4c8a383392e')) {
+    return raw.trim();
+  }
+  // 3. Nhận diện ngữ nghĩa theo tên món
+  const name = (item.name || '').toLowerCase();
+  if (name.includes('tart') || name.includes('trứng')) return ITEM_IMAGE_MAP[9];
+  if (name.includes('bim bim') || name.includes('khoai tây') || name.includes('chips')) return ITEM_IMAGE_MAP[10];
+  if (name.includes('sprite')) return ITEM_IMAGE_MAP[4];
+  if (name.includes('coca') || name.includes('pepsi') || name.includes('nước ngọt')) return ITEM_IMAGE_MAP[3];
+  if (name.includes('caramen') || name.includes('caramel')) return ITEM_IMAGE_MAP[2];
+  if (name.includes('đôi') || name.includes('combo đôi')) return ITEM_IMAGE_MAP[6];
+  if (name.includes('combo')) return ITEM_IMAGE_MAP[5];
+  if (name.includes('xúc xích') || name.includes('hotdog')) return ITEM_IMAGE_MAP[7];
+  if (name.includes('phô mai') || name.includes('bắp')) return ITEM_IMAGE_MAP[1];
+  if (name.includes('kem')) return ITEM_IMAGE_MAP[8];
+
+  // 4. Mặc định theo danh mục
+  return CATEGORY_DEFAULT_IMAGES[item.category] || CATEGORY_DEFAULT_IMAGES.popcorn;
+}
 
 export function ConcessionSelectionModal({
   isOpen,
@@ -9,10 +61,18 @@ export function ConcessionSelectionModal({
   onProceed,
   selectedSeatsCount = 0,
 }) {
+  const { formattedHoldTime, holdRemainingSeconds, isHolding } = useBooking();
   const [items, setItems] = useState([]);
   const [selectedConcessions, setSelectedConcessions] = useState({});
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState('all');
+
+  // Tự động đóng modal và hủy khi hết thời gian giữ ghế 10 phút
+  useEffect(() => {
+    if (isOpen && (!isHolding || (holdRemainingSeconds !== null && holdRemainingSeconds <= 0))) {
+      onClose?.();
+    }
+  }, [isOpen, isHolding, holdRemainingSeconds, onClose]);
 
   // Cơ chế 1: Thoát Modal bằng phím tắt ESC
   useEffect(() => {
@@ -168,6 +228,17 @@ export function ConcessionSelectionModal({
           </div>
         </div>
 
+        {/* 10-Minute Seat Hold Countdown Bar */}
+        <div className="mx-6 mt-3 px-4 py-2 rounded-xl bg-blue-950/50 border border-blue-500/40 text-blue-200 text-xs flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2">
+            <Clock className="w-4 h-4 text-blue-400 animate-pulse" />
+            <span>Thời gian giữ ghế tạm thời còn lại:</span>
+          </div>
+          <span className="font-mono text-sm font-black text-amber-400 tracking-wider">
+            {typeof formattedHoldTime === 'function' ? formattedHoldTime() : '10:00'}
+          </span>
+        </div>
+
         {/* Categories Bar */}
         <div className="px-6 py-2.5 bg-cinema-900/60 border-b border-cinema-800/80 flex items-center gap-2 overflow-x-auto shrink-0">
           {categories.map((cat) => (
@@ -210,12 +281,13 @@ export function ConcessionSelectionModal({
                   <div className="flex items-center gap-3.5 min-w-0">
                     <div className="w-14 h-14 rounded-xl overflow-hidden bg-cinema-950 border border-cinema-800 shrink-0">
                       <img
-                        src={item.image_url || 'https://images.unsplash.com/photo-1572177191856-3cde618dee1f?q=80&w=400'}
+                        src={getItemImage(item)}
                         alt={item.name}
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
+                        loading="lazy"
                         onError={(e) => {
                           e.target.onerror = null;
-                          e.target.src = 'https://images.unsplash.com/photo-1572177191856-3cde618dee1f?q=80&w=400';
+                          e.target.src = getItemImage({ ...item, image: '', image_url: '' });
                         }}
                       />
                     </div>
@@ -280,9 +352,9 @@ export function ConcessionSelectionModal({
             <button
               type="button"
               onClick={() => onProceed([])}
-              className="px-4 py-2.5 rounded-xl bg-cinema-800 hover:bg-cinema-700 text-slate-300 text-xs font-bold transition-all cursor-pointer"
+              className="px-4 py-2.5 rounded-xl bg-cinema-800 hover:bg-cinema-700 text-slate-300 hover:text-white text-xs font-bold transition-all cursor-pointer border border-cinema-700"
             >
-              Không mua bắp nước
+              Bỏ qua (Không mua bắp nước)
             </button>
             <button
               type="button"

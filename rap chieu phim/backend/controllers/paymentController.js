@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const db = require('../config/database');
 const { validateAndCalculateVoucher } = require('../config/vouchers');
 const { badRequest, forbidden, notFound } = require('../utils/httpError');
+const { executeConcessionSaleTransaction } = require('./concessionController');
 
 // Bộ nhớ tạm lưu phiên giao dịch MoMo Sandbox để đối chiếu IPN & Return URL
 const pendingMomoOrders = new Map();
@@ -33,6 +34,106 @@ function getMomoConfig() {
  */
 function signHmacSha256(rawSignature, secretKey) {
   return crypto.createHmac('sha256', secretKey).update(rawSignature).digest('hex');
+}
+
+/**
+ * Helper: Tính số tiền thực thu chính xác của đơn đặt vé
+ * payable_amount = total_amount (vé) + concession_amount (bắp nước) - discount_amount (voucher)
+ */
+function calculateBookingPayable(booking) {
+  const totalAmount = Math.round(Number(booking?.total_amount || 0));
+  const concessionAmount = Math.round(Number(booking?.concession_amount || 0));
+  const discountAmount = Math.round(Number(booking?.discount_amount || 0));
+  return Math.max(0, totalAmount + concessionAmount - discountAmount);
+}
+
+/**
+ * Helper: Lưu và cập nhật danh sách bắp nước & combo cho đơn vé
+ * Kiểm tra xác thực món, trạng thái kinh doanh, số lượng và tính lại giá chuẩn từ DB
+ */
+async function saveBookingConcessions(conn, bookingId, concessions) {
+  if (concessions === undefined || concessions === null) {
+    return null;
+  }
+
+  if (!Array.isArray(concessions)) {
+    throw badRequest('Danh sách bắp nước concessions phải là một mảng.');
+  }
+
+  // Trường hợp khách bỏ qua hoặc xóa hết món bắp nước
+  if (concessions.length === 0) {
+    await conn.query(`DELETE FROM booking_concessions WHERE booking_id = ?`, [bookingId]);
+    await conn.query(`UPDATE bookings SET concession_amount = 0 WHERE id = ?`, [bookingId]);
+    return 0;
+  }
+
+  // 1. Kiểm tra tính hợp lệ của ID món và số lượng
+  const itemIds = [];
+  for (const c of concessions) {
+    const rawId = c.item_id || c.id;
+    const itemId = parseInt(rawId, 10);
+    if (!Number.isInteger(itemId) || itemId <= 0) {
+      throw badRequest(`ID món bắp nước không hợp lệ: ${rawId}`);
+    }
+    const qty = parseInt(c.quantity, 10);
+    if (!Number.isInteger(qty) || qty <= 0 || qty > 20) {
+      throw badRequest(`Số lượng món (ID: ${itemId}) không hợp lệ (phải là số nguyên từ 1 đến 20).`);
+    }
+    itemIds.push(itemId);
+  }
+
+  // 2. Tra cứu thông tin giá và trạng thái THỰC TẾ từ Database (chống giả mạo giá từ client)
+  const rawDbItems = await conn.query(
+    `SELECT * FROM concession_items WHERE id IN (?)`,
+    [itemIds]
+  );
+  const dbItems = Array.isArray(rawDbItems) && Array.isArray(rawDbItems[0])
+    ? rawDbItems[0]
+    : (Array.isArray(rawDbItems) ? rawDbItems : []);
+
+  let totalConcessionAmount = 0;
+  const validatedList = [];
+
+  for (const c of concessions) {
+    const itemId = parseInt(c.item_id || c.id, 10);
+    const qty = parseInt(c.quantity, 10);
+    const found = dbItems.find((item) => item.id === itemId);
+
+    if (!found) {
+      throw badRequest(`Sản phẩm F&B với ID ${itemId} không tồn tại trong hệ thống.`);
+    }
+    if (!found.is_active) {
+      throw badRequest(`Sản phẩm '${found.name}' hiện đang tạm ngừng kinh doanh.`);
+    }
+
+    const realUnitPrice = parseFloat(found.price);
+    totalConcessionAmount += realUnitPrice * qty;
+    validatedList.push({
+      concession_item_id: found.id,
+      quantity: qty,
+      unit_price: realUnitPrice,
+    });
+  }
+
+  // 3. Xóa các món cũ của booking này nếu có (Idempotent update)
+  await conn.query(`DELETE FROM booking_concessions WHERE booking_id = ?`, [bookingId]);
+
+  // 4. Lưu từng món vào booking_concessions
+  for (const item of validatedList) {
+    await conn.query(
+      `INSERT INTO booking_concessions (booking_id, concession_item_id, quantity, unit_price)
+       VALUES (?, ?, ?, ?)`,
+      [bookingId, item.concession_item_id, item.quantity, item.unit_price]
+    );
+  }
+
+  // 5. Cập nhật concession_amount vào bookings
+  await conn.query(
+    `UPDATE bookings SET concession_amount = ? WHERE id = ?`,
+    [totalConcessionAmount, bookingId]
+  );
+
+  return totalConcessionAmount;
 }
 
 /**
@@ -133,9 +234,10 @@ async function finalizeBookingTransaction({
       };
     }
 
-    // STT 22: Số tiền thực thu = total_amount - discount_amount
+    // STT 22: Số tiền thực thu = total_amount (vé) + concession_amount (bắp nước) - discount_amount (voucher)
     const discountAmount = Math.round(Number(booking.discount_amount || 0));
-    const payableAmount = Math.max(0, Math.round(Number(booking.total_amount)) - discountAmount);
+    const concessionAmount = Math.round(Number(booking.concession_amount || 0));
+    const payableAmount = calculateBookingPayable(booking);
 
     // 3. Nếu giao dịch thất bại hoặc người dùng hủy thanh toán (BR09)
     if (simulateFailure) {
@@ -208,9 +310,40 @@ async function finalizeBookingTransaction({
       [
         user.id || booking.customer_id || 1,
         'Đặt vé thành công!',
-        `Bạn đã thanh toán thành công ${booking.total_amount.toLocaleString('vi-VN')} VNĐ qua ${paymentMethod.toUpperCase()} cho ${generatedTickets.length} vé xem phim "${booking.movie_name}" lúc ${booking.start_time}.`,
+        `Bạn đã thanh toán thành công ${payableAmount.toLocaleString('vi-VN')} VNĐ qua ${paymentMethod.toUpperCase()} cho ${generatedTickets.length} vé xem phim "${booking.movie_name}" lúc ${booking.start_time}.`,
       ]
     );
+
+    // 5. Nếu đơn có bắp nước & combo, trong CÙNG TRANSACTION, tự động tạo đơn concession_orders & trừ kho BOM
+    const rawConcessions = await conn.query(
+      `SELECT bc.*, ci.name 
+       FROM booking_concessions bc
+       JOIN concession_items ci ON bc.concession_item_id = ci.id
+       WHERE bc.booking_id = ?`,
+      [bookingId]
+    );
+    const bookingConcessions = Array.isArray(rawConcessions) && Array.isArray(rawConcessions[0])
+      ? rawConcessions[0]
+      : (Array.isArray(rawConcessions) ? rawConcessions : []);
+
+    let concessionOrderResult = null;
+    if (bookingConcessions && bookingConcessions.length > 0) {
+      const concessionSaleItems = bookingConcessions.map((bc) => ({
+        id: bc.concession_item_id,
+        concession_item_id: bc.concession_item_id,
+        quantity: bc.quantity,
+      }));
+
+      concessionOrderResult = await executeConcessionSaleTransaction({
+        items: concessionSaleItems,
+        payment_method: paymentMethod,
+        staff_id: null,
+        notes: `Đơn đặt vé trực tuyến #${booking.booking_code}`,
+        idempotencyKey: booking.booking_code,
+        customerId: booking.customer_id || customerId,
+        existingConn: conn,
+      });
+    }
 
     return {
       paymentStatus: 'success',
@@ -219,6 +352,7 @@ async function finalizeBookingTransaction({
       transactionCode,
       paymentMethod,
       totalAmount: booking.total_amount,
+      concessionAmount,
       discountAmount,
       payableAmount,
       voucherCode: booking.voucher_code || null,
@@ -226,6 +360,8 @@ async function finalizeBookingTransaction({
       roomName: booking.room_name,
       screeningTime: booking.start_time,
       tickets: generatedTickets,
+      concessions: bookingConcessions || [],
+      concessionOrder: concessionOrderResult,
     };
   });
 }
@@ -243,13 +379,18 @@ async function processPayment(req, res, next) {
       });
     }
 
-    const { booking_id, payment_method = 'banking', simulate_failure = false, voucher_code } = req.body;
+    const { booking_id, payment_method = 'banking', simulate_failure = false, voucher_code, concessions } = req.body;
 
     if (!booking_id) {
       return res.status(400).json({
         success: false,
         message: 'Vui lòng cung cấp mã đơn đặt vé (booking_id).',
       });
+    }
+
+    // 1. Cập nhật và xác thực danh sách bắp nước nếu được gửi kèm
+    if (concessions !== undefined) {
+      await saveBookingConcessions(db, booking_id, concessions);
     }
 
     // STT 22: Xác thực và áp dụng voucher nếu có
@@ -299,13 +440,18 @@ async function processPayment(req, res, next) {
  */
 async function createMomoPayment(req, res, next) {
   try {
-    const { booking_id, request_type = 'captureWallet', voucher_code } = req.body;
+    const { booking_id, request_type = 'captureWallet', voucher_code, concessions } = req.body;
 
     if (!booking_id) {
       return res.status(400).json({
         success: false,
         message: 'Vui lòng cung cấp booking_id để khởi tạo giao dịch MoMo Sandbox.',
       });
+    }
+
+    // 1. Cập nhật và xác thực danh sách bắp nước nếu được gửi kèm
+    if (concessions !== undefined) {
+      await saveBookingConcessions(db, booking_id, concessions);
     }
 
     // Kiểm tra đơn đặt vé
@@ -347,6 +493,8 @@ async function createMomoPayment(req, res, next) {
         `UPDATE bookings SET voucher_code = ?, discount_amount = ? WHERE id = ?`,
         [voucherCode, discountAmount, booking.id]
       );
+      booking.voucher_code = voucherCode;
+      booking.discount_amount = discountAmount;
     }
 
     const config = getMomoConfig();
@@ -357,7 +505,7 @@ async function createMomoPayment(req, res, next) {
     const timestamp = Date.now();
     const orderId = `${partnerCode}_${booking.booking_code}_${timestamp}`;
     const requestId = `REQ_${timestamp}`;
-    const payableAmount = Math.max(0, Math.round(Number(booking.total_amount)) - discountAmount);
+    const payableAmount = calculateBookingPayable(booking);
     const amount = String(payableAmount);
     const orderInfo = `Thanh toan ve xem phim Night Movie - Ma don ${booking.booking_code}`;
     const redirectUrl = config.redirectUrl;
@@ -782,13 +930,13 @@ async function handleMomoIpn(req, res) {
     }
 
     if (bookingId) {
-      // STT 07 & STT 22: Đối chiếu số tiền IPN nhận được với số thực thu (total_amount - discount_amount)
-      const bookingRows = await db.query(`SELECT id, total_amount, discount_amount, voucher_code FROM bookings WHERE id = ?`, [bookingId]);
+      // STT 07 & STT 22: Đối chiếu số tiền IPN nhận được với số thực thu (total_amount + concession_amount - discount_amount)
+      const bookingRows = await db.query(`SELECT id, total_amount, concession_amount, discount_amount, voucher_code FROM bookings WHERE id = ?`, [bookingId]);
       const booking = Array.isArray(bookingRows) ? bookingRows[0] : bookingRows;
       if (!booking) {
         return res.status(404).json({ message: 'Booking not found' });
       }
-      const expectedPayable = Math.max(0, Math.round(Number(booking.total_amount)) - Math.round(Number(booking.discount_amount || 0)));
+      const expectedPayable = calculateBookingPayable(booking);
       if (Math.round(Number(amount)) !== expectedPayable) {
         console.warn(`[MoMo IPN] Số tiền không khớp! Nhận: ${amount}, Yêu cầu thực thu: ${expectedPayable}`);
         return res.status(400).json({ message: 'Payment amount mismatch' });
@@ -901,13 +1049,13 @@ async function verifyMomoReturn(req, res, next) {
       });
     }
 
-    // STT 07 & STT 22: Đối chiếu số tiền với số thực thu (total_amount - discount_amount)
-    const bookingRows = await db.query(`SELECT id, total_amount, discount_amount, voucher_code FROM bookings WHERE id = ?`, [targetBookingId]);
+    // STT 07 & STT 22: Đối chiếu số tiền với số thực thu (total_amount + concession_amount - discount_amount)
+    const bookingRows = await db.query(`SELECT id, total_amount, concession_amount, discount_amount, voucher_code FROM bookings WHERE id = ?`, [targetBookingId]);
     const booking = Array.isArray(bookingRows) ? bookingRows[0] : bookingRows;
     if (!booking) {
       return res.status(404).json({ success: false, message: 'Không tìm thấy đơn đặt vé.' });
     }
-    const expectedPayable = Math.max(0, Math.round(Number(booking.total_amount)) - Math.round(Number(booking.discount_amount || 0)));
+    const expectedPayable = calculateBookingPayable(booking);
     if (amount !== undefined && Math.round(Number(amount)) !== expectedPayable) {
       return res.status(400).json({
         success: false,
@@ -1097,4 +1245,6 @@ module.exports = {
   handleMomoIpn,
   verifyMomoReturn,
   refundPayment,
+  calculateBookingPayable,
+  saveBookingConcessions,
 };

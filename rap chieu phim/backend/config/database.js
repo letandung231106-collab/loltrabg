@@ -683,6 +683,27 @@ async function query(sql, params = []) {
   }
 
   // =========================================================================
+  // 7.1. BOOKING CONCESSIONS
+  // =========================================================================
+  if (normalized.includes('from booking_concessions')) {
+    let list = (memory.booking_concessions || []).map((bc) => {
+      const ci = (memory.concession_items || []).find((item) => item.id === bc.concession_item_id);
+      return {
+        ...bc,
+        name: ci?.name || '',
+        category: ci?.category || '',
+        image: ci?.image || '',
+        total_price: (bc.quantity || 1) * (bc.unit_price || 0),
+      };
+    });
+    if (normalized.includes('where booking_id = ?') || normalized.includes('where bc.booking_id = ?')) {
+      const bId = parseInt(params[0], 10);
+      return list.filter((bc) => bc.booking_id === bId);
+    }
+    return list;
+  }
+
+  // =========================================================================
   // 8. TICKETS
   // =========================================================================
   if (normalized.includes('from tickets')) {
@@ -2070,6 +2091,7 @@ async function query(sql, params = []) {
       screening_id: parseInt(params[1], 10),
       booking_code: params[2],
       total_amount: parseFloat(params[3]),
+      concession_amount: 0,
       voucher_code: null,
       discount_amount: 0,
       status: params[4] || 'pending',
@@ -2080,6 +2102,15 @@ async function query(sql, params = []) {
   }
 
   if (normalized.startsWith('update bookings')) {
+    if (normalized.includes('concession_amount = ?') && normalized.includes('where id = ?')) {
+      const cAmount = parseFloat(params[0]) || 0;
+      const id = parseInt(params[1], 10);
+      const b = memory.bookings.find((item) => item.id === id);
+      if (b) {
+        b.concession_amount = cAmount;
+      }
+      return { affectedRows: b ? 1 : 0 };
+    }
     if (normalized.includes('voucher_code') && normalized.includes('discount_amount')) {
       const vCode = params[0];
       const dAmount = parseFloat(params[1]) || 0;
@@ -2167,9 +2198,13 @@ async function query(sql, params = []) {
       });
       return { affectedRows: count };
     }
-    if (normalized.includes('hold_expire = ? where booking_id = ?')) {
-      const exp = params[0];
-      const bookingId = parseInt(params[1], 10);
+    if (normalized.includes('hold_expire =') && (normalized.includes('where booking_id = ?') || normalized.includes('where bs.booking_id = ?'))) {
+      const bookingId = parseInt(params[params.length - 1], 10);
+      let exp = params.length > 1 ? params[0] : null;
+      if (!exp) {
+        const match = normalized.match(/hold_expire\s*=\s*'([^']+)'/);
+        exp = match ? match[1] : '2020-01-01 00:00:00';
+      }
       memory.booking_seats.forEach((bs) => {
         if (bs.booking_id === bookingId) bs.hold_expire = exp;
       });
@@ -2217,6 +2252,51 @@ async function query(sql, params = []) {
         if (bs.booking_id === bookingId) bs.status = 'booked';
       });
       return { affectedRows: 1 };
+    }
+    return { affectedRows: 1 };
+  }
+
+  // L1. Booking Concessions Mutations
+  if (normalized.startsWith('insert into booking_concessions')) {
+    if (!memory.booking_concessions) memory.booking_concessions = [];
+    const rows = params[0];
+    if (Array.isArray(rows)) {
+      let lastId = 1;
+      for (const row of rows) {
+        if (Array.isArray(row)) {
+          const newId = memory.booking_concessions.length > 0 ? Math.max(...memory.booking_concessions.map((bc) => bc.id)) + 1 : 1;
+          memory.booking_concessions.push({
+            id: newId,
+            booking_id: parseInt(row[0], 10),
+            concession_item_id: parseInt(row[1], 10),
+            quantity: parseInt(row[2], 10) || 1,
+            unit_price: parseFloat(row[3]) || 0,
+            created_at: now.toISOString().replace('T', ' ').slice(0, 19),
+          });
+          lastId = newId;
+        }
+      }
+      return { insertId: lastId, affectedRows: rows.length };
+    } else {
+      const newId = memory.booking_concessions.length > 0 ? Math.max(...memory.booking_concessions.map((bc) => bc.id)) + 1 : 1;
+      memory.booking_concessions.push({
+        id: newId,
+        booking_id: parseInt(params[0], 10),
+        concession_item_id: parseInt(params[1], 10),
+        quantity: parseInt(params[2], 10) || 1,
+        unit_price: parseFloat(params[3]) || 0,
+        created_at: now.toISOString().replace('T', ' ').slice(0, 19),
+      });
+      return { insertId: newId, affectedRows: 1 };
+    }
+  }
+
+  if (normalized.startsWith('delete from booking_concessions')) {
+    if (normalized.includes('where booking_id = ?')) {
+      const bId = parseInt(params[0], 10);
+      const prevLen = (memory.booking_concessions || []).length;
+      memory.booking_concessions = (memory.booking_concessions || []).filter((bc) => bc.booking_id !== bId);
+      return { affectedRows: prevLen - memory.booking_concessions.length };
     }
     return { affectedRows: 1 };
   }
@@ -2445,6 +2525,7 @@ async function withTransaction(callback) {
     concession_order_items: JSON.parse(JSON.stringify(memory.concession_order_items || [])),
     bookings: JSON.parse(JSON.stringify(memory.bookings || [])),
     booking_seats: JSON.parse(JSON.stringify(memory.booking_seats || [])),
+    booking_concessions: JSON.parse(JSON.stringify(memory.booking_concessions || [])),
     tickets: JSON.parse(JSON.stringify(memory.tickets || [])),
     payments: JSON.parse(JSON.stringify(memory.payments || [])),
   };
@@ -2466,6 +2547,7 @@ async function withTransaction(callback) {
     if (memory.concession_order_items) memory.concession_order_items = snapshot.concession_order_items;
     if (memory.bookings) memory.bookings = snapshot.bookings;
     if (memory.booking_seats) memory.booking_seats = snapshot.booking_seats;
+    if (memory.booking_concessions) memory.booking_concessions = snapshot.booking_concessions;
     if (memory.tickets) memory.tickets = snapshot.tickets;
     if (memory.payments) memory.payments = snapshot.payments;
     throw error;

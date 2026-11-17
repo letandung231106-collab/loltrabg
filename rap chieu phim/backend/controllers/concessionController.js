@@ -15,10 +15,16 @@ async function getConcessions(req, res, next) {
       filtered = items.filter((item) => item.category === category);
     }
 
+    const normalizedItems = (filtered || []).map((item) => ({
+      ...item,
+      image: item.image || item.image_url || '',
+      image_url: item.image || item.image_url || '',
+    }));
+
     return res.status(200).json({
       success: true,
-      count: filtered.length,
-      data: filtered,
+      count: normalizedItems.length,
+      data: normalizedItems,
     });
   } catch (error) {
     next(error);
@@ -104,29 +110,35 @@ async function executeConcessionSaleTransaction({
   notes = '',
   idempotencyKey = null,
   customerId = null,
+  existingConn = null,
 }) {
   // 1. Kiểm tra dữ liệu đầu vào: Danh sách món
   if (!items || !Array.isArray(items) || items.length === 0) {
     throw new Error('Vui lòng chọn ít nhất một món bắp nước.');
   }
 
-  // 2. Kiểm tra số lượng từng món (phải là số nguyên > 0)
+  // 2. Kiểm tra số lượng từng món (phải là số nguyên > 0, tối đa 20)
   for (const item of items) {
+    const rawId = item.id || item.concession_item_id || item.item_id;
+    if (!rawId || isNaN(parseInt(rawId, 10))) {
+      throw new Error('ID món không hợp lệ.');
+    }
     const qty = Number(item.quantity);
     if (!Number.isInteger(qty) || qty <= 0) {
-      throw new Error(`Số lượng món '${item.name || item.id}' phải là số nguyên dương lớn hơn 0.`);
-    }
-    if (!item.id || isNaN(parseInt(item.id, 10))) {
-      throw new Error('ID món không hợp lệ.');
+      throw new Error(`Số lượng món '${item.name || rawId}' phải là số nguyên dương hợp lệ.`);
     }
   }
 
   // 3. Kiểm tra Idempotency Key (chống gửi trùng / trừ kho 2 lần)
+  const queryExecutor = existingConn || db;
   if (idempotencyKey) {
-    const existingOrders = await db.query(
+    const rawExisting = await queryExecutor.query(
       `SELECT * FROM concession_orders WHERE idempotency_key = ?`,
       [idempotencyKey]
     );
+    const existingOrders = Array.isArray(rawExisting) && Array.isArray(rawExisting[0])
+      ? rawExisting[0]
+      : (Array.isArray(rawExisting) ? rawExisting : []);
     if (existingOrders && existingOrders.length > 0) {
       return {
         alreadyProcessed: true,
@@ -138,10 +150,10 @@ async function executeConcessionSaleTransaction({
     }
   }
 
-  // 4. Thực thi toàn bộ quá trình tạo đơn và trừ kho trong Database Transaction
-  return await db.withTransaction(async (conn) => {
+  // 4. Logic tạo đơn và trừ kho BOM
+  const runTransactionLogic = async (conn) => {
     // 4.1. Lấy thông tin giá bán và trạng thái THỰC TẾ từ DB (không tin tưởng giá từ frontend)
-    const itemIds = items.map((i) => parseInt(i.id, 10));
+    const itemIds = items.map((i) => parseInt(i.id || i.concession_item_id || i.item_id, 10));
     const [dbItems] = await conn.query(
       `SELECT * FROM concession_items WHERE id IN (?)`,
       [itemIds]
@@ -151,9 +163,10 @@ async function executeConcessionSaleTransaction({
     const validatedItems = [];
 
     for (const orderItem of items) {
-      const found = (dbItems || []).find((d) => d.id === parseInt(orderItem.id, 10));
+      const currentId = parseInt(orderItem.id || orderItem.concession_item_id || orderItem.item_id, 10);
+      const found = (dbItems || []).find((d) => d.id === currentId);
       if (!found) {
-        throw new Error(`Sản phẩm F&B với ID ${orderItem.id} không tồn tại trong hệ thống.`);
+        throw new Error(`Sản phẩm F&B với ID ${currentId} không tồn tại trong hệ thống.`);
       }
       if (!found.is_active) {
         throw new Error(`Sản phẩm '${found.name}' hiện đang tạm ngừng kinh doanh.`);
@@ -198,7 +211,10 @@ async function executeConcessionSaleTransaction({
     }
 
     // 4.3. Tạo mã đơn hàng chuẩn và lưu vào bảng concession_orders
-    const orderCode = `ORD-POS-${Date.now().toString().slice(-8)}-${Math.floor(100 + Math.random() * 900)}`;
+    const orderCode = idempotencyKey
+      ? `ORD-${idempotencyKey}`
+      : `ORD-POS-${Date.now().toString().slice(-8)}-${Math.floor(100 + Math.random() * 900)}`;
+
     const [orderRes] = await conn.query(
       `INSERT INTO concession_orders (order_code, employee_id, customer_id, total_amount, payment_method, notes, idempotency_key, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -230,7 +246,7 @@ async function executeConcessionSaleTransaction({
       await conn.query(
         `INSERT INTO inventory_logs (ingredient_id, change_type, quantity, reason, employee_id)
          VALUES (?, ?, ?, ?, ?)`,
-        [ingId, 'usage', -requiredQty, `Bán đơn hàng POS #${orderCode}`, staff_id]
+        [ingId, 'usage', -requiredQty, `Bán đơn hàng #${orderCode}`, staff_id || 1]
       );
     }
 
@@ -243,7 +259,12 @@ async function executeConcessionSaleTransaction({
       items: validatedItems,
       created_at: new Date().toISOString(),
     };
-  });
+  };
+
+  if (existingConn) {
+    return await runTransactionLogic(existingConn);
+  }
+  return await db.withTransaction(runTransactionLogic);
 }
 
 async function sellConcessionOrder(req, res, next) {

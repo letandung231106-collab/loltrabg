@@ -1,6 +1,6 @@
 const db = require('../config/database');
 const { sepayConfig, getSepayQrUrl } = require('../config/sepay');
-const { finalizeBookingTransaction } = require('./paymentController');
+const { finalizeBookingTransaction, saveBookingConcessions } = require('./paymentController');
 const { executeConcessionSaleTransaction } = require('./concessionController');
 
 // Memory store cho các phiên chờ thanh toán SePay
@@ -69,10 +69,14 @@ async function registerPosSession(req, res) {
  */
 async function registerBookingSession(req, res) {
   try {
-    const { bookingId, bookingCode, totalAmount } = req.body;
+    const { bookingId, bookingCode, totalAmount, concessions } = req.body;
 
     if (!bookingId || !bookingCode) {
       return res.status(400).json({ success: false, message: 'Thiếu thông tin bookingId hoặc bookingCode.' });
+    }
+
+    if (concessions !== undefined && typeof saveBookingConcessions === 'function') {
+      await saveBookingConcessions(db, parseInt(bookingId, 10), concessions);
     }
 
     const normKey = normalizeCode(bookingCode);
