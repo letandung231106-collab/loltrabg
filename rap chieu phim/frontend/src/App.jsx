@@ -36,11 +36,50 @@ const InventoryManager = lazy(() => import('./pages/admin/InventoryManager').the
 const ShiftHandoverManager = lazy(() => import('./pages/admin/ShiftHandoverManager').then((m) => ({ default: m.ShiftHandoverManager })));
 const KdmProjectorManager = lazy(() => import('./pages/admin/KdmProjectorManager').then((m) => ({ default: m.KdmProjectorManager })));
 
+const ROLE_ALLOWED_TABS = {
+  admin: [
+    'dashboard', 'movies', 'concessions', 'inventory', 'handovers', 'kdm',
+    'rooms', 'schedules', 'tickets', 'equipment', 'incidents', 'maintenance',
+    'inspections', 'shifts', 'employees', 'customers', 'reports',
+  ],
+  manager: [
+    'dashboard', 'movies', 'concessions', 'inventory', 'handovers', 'kdm',
+    'rooms', 'schedules', 'tickets', 'equipment', 'incidents', 'maintenance',
+    'inspections', 'shifts', 'employees', 'customers', 'reports',
+  ],
+  staff: [
+    'tickets', 'concessions', 'inventory', 'handovers',
+    'rooms', 'inspections', 'incidents', 'shifts',
+  ],
+  technician: [
+    'equipment', 'incidents', 'maintenance', 'kdm', 'shifts',
+  ],
+};
+
+const ROLE_DEFAULT_TAB = {
+  admin: 'dashboard',
+  manager: 'dashboard',
+  staff: 'tickets',
+  technician: 'equipment',
+};
+
 function MainApp() {
   const { isAuthenticated, isManager, isStaff, isTechnician, user } = useAuth();
   const { resetBookingState } = useBooking();
   const [currentView, setCurrentView] = useState('home'); // 'home' | 'movies' | 'schedules' | 'booking-flow' | 'my-tickets' | 'admin-dashboard'
   const [adminTab, setAdminTab] = useState('dashboard');
+
+  const userRole = user?.role?.toLowerCase() || 'customer';
+  const allowedTabsForRole = ROLE_ALLOWED_TABS[userRole] || [];
+  const defaultTabForRole = ROLE_DEFAULT_TAB[userRole] || 'incidents';
+  const activeAdminTab = allowedTabsForRole.includes(adminTab) ? adminTab : defaultTabForRole;
+
+  // Đảm bảo khi chuyển đổi Role (ví dụ từ Admin sang Technician/Staff), tab quản trị tự động chuyển về đúng phân hệ được cấp quyền
+  useEffect(() => {
+    if (allowedTabsForRole.length > 0 && !allowedTabsForRole.includes(adminTab)) {
+      setAdminTab(defaultTabForRole);
+    }
+  }, [userRole, adminTab]);
   const [selectedScheduleId, setSelectedScheduleId] = useState(null);
   const [selectedMovieIdFilter, setSelectedMovieIdFilter] = useState('all');
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
@@ -209,24 +248,24 @@ function MainApp() {
               </div>
             }
           >
-            <AdminLayout currentTab={adminTab} onSelectTab={setAdminTab}>
-              {adminTab === 'dashboard' && <DashboardView onNavigateTab={setAdminTab} />}
-              {adminTab === 'movies' && <MoviesManager />}
-              {adminTab === 'concessions' && <ConcessionManager />}
-              {adminTab === 'inventory' && <InventoryManager />}
-              {adminTab === 'handovers' && <ShiftHandoverManager />}
-              {adminTab === 'kdm' && <KdmProjectorManager />}
-              {adminTab === 'rooms' && <RoomsManager />}
-              {adminTab === 'schedules' && <SchedulesManager />}
-              {adminTab === 'tickets' && <TicketsManager />}
-              {adminTab === 'equipment' && <EquipmentManager />}
-              {adminTab === 'incidents' && <IncidentsManager />}
-              {adminTab === 'maintenance' && <MaintenanceManager />}
-              {adminTab === 'inspections' && <InspectionsManager />}
-              {adminTab === 'shifts' && <ShiftsManager />}
-              {adminTab === 'employees' && <EmployeesManager />}
-              {adminTab === 'customers' && <CustomersManager />}
-              {adminTab === 'reports' && <ReportsManager />}
+            <AdminLayout currentTab={activeAdminTab} onSelectTab={setAdminTab}>
+              {activeAdminTab === 'dashboard' && isManager && <DashboardView onNavigateTab={setAdminTab} />}
+              {activeAdminTab === 'movies' && isManager && <MoviesManager />}
+              {activeAdminTab === 'concessions' && <ConcessionManager />}
+              {activeAdminTab === 'inventory' && <InventoryManager />}
+              {activeAdminTab === 'handovers' && <ShiftHandoverManager />}
+              {activeAdminTab === 'kdm' && <KdmProjectorManager />}
+              {activeAdminTab === 'rooms' && <RoomsManager />}
+              {activeAdminTab === 'schedules' && isManager && <SchedulesManager />}
+              {activeAdminTab === 'tickets' && <TicketsManager />}
+              {activeAdminTab === 'equipment' && <EquipmentManager />}
+              {activeAdminTab === 'incidents' && <IncidentsManager />}
+              {activeAdminTab === 'maintenance' && <MaintenanceManager />}
+              {activeAdminTab === 'inspections' && <InspectionsManager />}
+              {activeAdminTab === 'shifts' && <ShiftsManager />}
+              {activeAdminTab === 'employees' && isManager && <EmployeesManager />}
+              {activeAdminTab === 'customers' && isManager && <CustomersManager />}
+              {activeAdminTab === 'reports' && isManager && <ReportsManager />}
             </AdminLayout>
           </Suspense>
         )}

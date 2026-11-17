@@ -68,7 +68,7 @@ const CINEMATIC_TECHNOLOGIES = [
     specs: [
       { label: 'Cơ cấu chuyển động', value: 'Servo đa trục mô phỏng Heave, Pitch, Roll' },
       { label: 'Số lượng hiệu ứng', value: '21 hiệu ứng vật lý & thời tiết môi trường' },
-      { label: 'Công nghệ bảo vệ', value: 'Thuật toán AI cân bằng rung lắc chống say' },
+      { label: 'Công nghệ bảo vệ', value: 'Hệ thống cân bằng thủy lực chống mỏi tự động' },
       { label: 'Hiệu ứng mùi hương', value: '7 mùi tự nhiên: biển, rừng thông, thuốc súng...' },
     ],
   },

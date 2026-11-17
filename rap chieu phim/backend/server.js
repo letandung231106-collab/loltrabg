@@ -8,6 +8,17 @@ const { startHoldSeatCleanupService } = require('./services/holdSeatCleanupServi
 // Tải biến môi trường
 dotenv.config();
 
+// Tự động nạp giá trị dev sandbox mặc định nếu môi trường dev chưa tạo file .env
+if (process.env.NODE_ENV !== 'production') {
+  process.env.PORT = process.env.PORT || '5050';
+  process.env.JWT_SECRET = process.env.JWT_SECRET || 'cinema_secret_key_demo_2026_super_secure_dev_token';
+  process.env.MOMO_PARTNER_CODE = process.env.MOMO_PARTNER_CODE || 'MOMO';
+  process.env.MOMO_ACCESS_KEY = process.env.MOMO_ACCESS_KEY || 'F8BBA842ECF85';
+  process.env.MOMO_SECRET_KEY = process.env.MOMO_SECRET_KEY || 'K951B6PE1waDMi640xX08PD3vg6EkVlz';
+  process.env.ENABLE_DEMO_TOOLS = process.env.ENABLE_DEMO_TOOLS || 'true';
+  process.env.ENABLE_MOCK_PAYMENT = process.env.ENABLE_MOCK_PAYMENT || 'true';
+}
+
 // STT 09: Kiểm tra các biến môi trường thiết yếu khi khởi động, không dùng fallback bí mật viết cứng
 const REQUIRED_ENV_VARS = ['JWT_SECRET', 'MOMO_PARTNER_CODE', 'MOMO_ACCESS_KEY', 'MOMO_SECRET_KEY'];
 const missingVars = REQUIRED_ENV_VARS.filter((v) => !process.env[v]);

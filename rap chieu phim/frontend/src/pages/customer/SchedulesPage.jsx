@@ -122,11 +122,11 @@ export function SchedulesPage({ onSelectSchedule, initialMovieId = 'all' }) {
           </p>
         </div>
 
-        {/* AI Peak Indicator Pill */}
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-cinema-900 border border-cinema-700 text-xs">
-          <Zap className="w-4 h-4 text-amber-400 animate-pulse" />
-          <span className="text-slate-300 font-semibold">AI Predictor:</span>
-          <span className="text-rose-400 font-bold">18:00 - 21:00 Cao Điểm</span>
+        {/* Peak Hour Indicator Pill */}
+        <div className="flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-cinema-900 border border-cinema-700 text-xs">
+          <Zap className="w-4 h-4 text-amber-400" />
+          <span className="text-slate-300 font-semibold">Khung giờ cao điểm:</span>
+          <span className="text-rose-400 font-bold">18:00 - 21:00</span>
         </div>
       </div>
 
@@ -234,10 +234,10 @@ export function SchedulesPage({ onSelectSchedule, initialMovieId = 'all' }) {
 
                 {/* Showtimes Grid */}
                 <div>
-                  <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2.5">
+                  <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-3">
                     CÁC SUẤT CHIẾU KHẢ DỤNG:
                   </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5">
                     {group.schedules.map((s) => {
                       const safeStartStr = typeof s.start_time === 'string' ? s.start_time.replace(' ', 'T') : s.start_time;
                       const safeEndStr = typeof s.end_time === 'string' ? s.end_time.replace(' ', 'T') : s.end_time;
@@ -259,33 +259,41 @@ export function SchedulesPage({ onSelectSchedule, initialMovieId = 'all' }) {
                           key={s.id}
                           disabled={isPast}
                           onClick={() => onSelectSchedule(s.id)}
-                          className={`p-3 rounded-2xl border text-left transition-all flex flex-col justify-between relative group ${
+                          className={`p-3.5 rounded-2xl border text-left transition-all flex flex-col justify-between gap-2 relative group ${
                             isPast
                               ? 'bg-cinema-950/50 border-cinema-800 text-slate-600 cursor-not-allowed'
-                              : 'bg-cinema-900 hover:bg-ruby-600/20 border-cinema-700/70 hover:border-ruby-500 hover:scale-105'
+                              : 'bg-cinema-900 hover:bg-ruby-600/15 border-cinema-700/80 hover:border-ruby-500 hover:-translate-y-0.5 shadow-sm'
                           }`}
                         >
-                          {/* AI Peak / Hot Prediction Badge */}
-                          {prediction && !isPast && (
-                            <span
-                              className={`absolute -top-2.5 left-2 px-1.5 py-0.2 rounded-md text-[9px] font-bold border tracking-tighter ${prediction.badgeClass}`}
-                            >
-                              {prediction.label}
-                            </span>
-                          )}
+                          {/* Top Row: Time + Room Type + Optional Status Badge */}
+                          <div className="space-y-1.5">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-lg font-black text-white group-hover:text-ruby-400 font-mono leading-none">
+                                {startTimeStr}
+                              </span>
+                              <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-md bg-cinema-800 text-amber-400 border border-cinema-700 shrink-0">
+                                {s.room_type}
+                              </span>
+                            </div>
 
-                          <div className="flex items-center justify-between mb-1 mt-1">
-                            <span className="text-base font-black text-white group-hover:text-ruby-400 font-mono">
-                              {startTimeStr}
-                            </span>
-                            <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-cinema-800 text-amber-400">
-                              {s.room_type}
-                            </span>
+                            {prediction && !isPast && (
+                              <div>
+                                <span
+                                  className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold border leading-tight ${prediction.badgeClass}`}
+                                >
+                                  {prediction.label}
+                                </span>
+                              </div>
+                            )}
+
+                            <div className="text-xs text-slate-300 font-medium truncate" title={s.room_name}>
+                              {s.room_name}
+                            </div>
                           </div>
-                          <div className="text-[10px] text-slate-400 truncate">{s.room_name}</div>
-                          <div className="text-[10px] text-slate-500 mt-1 pt-1 border-t border-cinema-800 flex justify-between">
+
+                          <div className="text-[11px] text-slate-400 pt-2 border-t border-cinema-800/90 flex items-center justify-between">
                             <span>~{endTimeStr}</span>
-                            <span className="font-bold text-slate-300">
+                            <span className="font-extrabold text-amber-400 font-mono text-xs">
                               {parseFloat(s.ticket_price).toLocaleString('vi-VN')}đ
                             </span>
                           </div>
