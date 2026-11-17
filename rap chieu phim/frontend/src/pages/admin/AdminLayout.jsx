@@ -102,15 +102,23 @@ export function AdminLayout({ currentTab, onSelectTab, children }) {
         </div>
 
         {/* User Card */}
-        <div className="p-4 mx-3 my-3 rounded-2xl bg-cinema-850 border border-cinema-700/60 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-ruby-600 to-amber-500 flex items-center justify-center font-bold text-xs text-white">
-              {user?.name?.[0]?.toUpperCase() || 'U'}
+        <div className="p-3.5 mx-3 my-3 rounded-2xl bg-cinema-850 border border-cinema-700/60 space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-ruby-600 to-amber-500 flex items-center justify-center font-bold text-xs text-white shrink-0">
+                {user?.name?.[0]?.toUpperCase() || 'U'}
+              </div>
+              <div className="text-xs min-w-0">
+                <div className="font-bold text-white max-w-[125px] truncate">{user?.name}</div>
+                <div className="text-[10px] text-slate-400 truncate">{user?.position || user?.department || user?.role}</div>
+              </div>
             </div>
-            <div className="text-xs">
-              <div className="font-bold text-white max-w-[110px] truncate">{user?.name}</div>
-              <div className="text-[10px] text-slate-400">{user?.position || user?.department || user?.role}</div>
-            </div>
+          </div>
+          <div className="pt-2 border-t border-cinema-700/50 text-[10px] text-slate-400 leading-snug">
+            {userRole === 'admin' && '👑 Toàn quyền hệ thống, Doanh thu & Phân quyền'}
+            {userRole === 'manager' && '📊 Quản lý vận hành, Lịch chiếu, Nhân sự & Doanh thu'}
+            {userRole === 'technician' && '🔧 Kỹ thuật: Thiết bị, Sự cố, Bảo trì & KDM (Không xem Doanh thu)'}
+            {userRole === 'staff' && '🎟️ Nhân viên: Soát vé QR, POS Bắp nước, Két tiền & Kiểm phòng'}
           </div>
         </div>
 

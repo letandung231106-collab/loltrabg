@@ -99,10 +99,8 @@ export function PaymentModal({
     }
   }, [isOpen]);
 
-  if (!isOpen || !activeBooking) return null;
-
-  // Tính toán chi phí: vé + bắp nước - giảm giá voucher - trừ điểm loyalty
-  const ticketAmount = Number(activeBooking.totalAmount || 0);
+  // Tính toán chi phí: vé + bắp nước - giảm giá voucher - trừ điểm loyalty (tính trước các hook để không vi phạm Rules of Hooks)
+  const ticketAmount = Number(activeBooking?.totalAmount || 0);
   const concessionAmount = selectedConcessions.reduce(
     (sum, item) => sum + Number(item.price || 0) * (item.quantity || 1),
     0
@@ -126,6 +124,50 @@ export function PaymentModal({
   // Điểm thưởng loyalty tối đa có thể trừ: tối đa bằng số tiền còn lại và tối đa bằng availablePoints
   const loyaltyDeduction = useLoyaltyPoints ? Math.min(amountAfterVoucher, availablePoints) : 0;
   const finalTotalAmount = Math.max(0, amountAfterVoucher - loyaltyDeduction);
+
+  // SePay Automated Bank Transfer Hook for Movie Booking (đặt trước early return để đảm bảo thứ tự Hooks của React)
+  useEffect(() => {
+    if (!isOpen || !activeBooking || paymentMethod !== 'vietqr') return;
+
+    let isMounted = true;
+    setSepayStatus('waiting');
+
+    // Đăng ký phiên booking với SePay backend
+    api.registerSepayBookingSession({
+      bookingId: activeBooking.bookingId,
+      bookingCode: activeBooking.bookingCode,
+      totalAmount: finalTotalAmount,
+    }).catch((err) => {
+      console.warn('[SePay Register Booking]:', err.message);
+    });
+
+    const interval = setInterval(async () => {
+      if (!isMounted) return;
+      try {
+        const res = await api.checkSepayStatus(activeBooking.bookingCode);
+        if (res && res.isPaid && isMounted) {
+          clearInterval(interval);
+          setSepayStatus('paid');
+          confetti({
+            particleCount: 140,
+            spread: 90,
+            origin: { y: 0.6 },
+          });
+          await handlePaymentSuccessPostActions('vietqr');
+          onSuccess(res.data);
+        }
+      } catch (e) {
+        // Polling error silently handled
+      }
+    }, 2000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [isOpen, activeBooking?.bookingId, activeBooking?.bookingCode, paymentMethod, finalTotalAmount]);
+
+  if (!isOpen || !activeBooking) return null;
 
   const handleApplyVoucher = async (codeToApply) => {
     const code = (codeToApply || voucherInput || '').trim().toUpperCase();
@@ -293,48 +335,6 @@ export function PaymentModal({
       setLoading(false);
     }
   };
-
-  // SePay Automated Bank Transfer Hook for Movie Booking
-  useEffect(() => {
-    if (!isOpen || !activeBooking || paymentMethod !== 'vietqr') return;
-
-    let isMounted = true;
-    setSepayStatus('waiting');
-
-    // Đăng ký phiên booking với SePay backend
-    api.registerSepayBookingSession({
-      bookingId: activeBooking.bookingId,
-      bookingCode: activeBooking.bookingCode,
-      totalAmount: finalTotalAmount,
-    }).catch((err) => {
-      console.warn('[SePay Register Booking]:', err.message);
-    });
-
-    const interval = setInterval(async () => {
-      if (!isMounted) return;
-      try {
-        const res = await api.checkSepayStatus(activeBooking.bookingCode);
-        if (res && res.isPaid && isMounted) {
-          clearInterval(interval);
-          setSepayStatus('paid');
-          confetti({
-            particleCount: 140,
-            spread: 90,
-            origin: { y: 0.6 },
-          });
-          await handlePaymentSuccessPostActions('vietqr');
-          onSuccess(res.data);
-        }
-      } catch (e) {
-        // Polling error silently handled
-      }
-    }, 2000);
-
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-    };
-  }, [isOpen, activeBooking?.bookingId, activeBooking?.bookingCode, paymentMethod, finalTotalAmount]);
 
   const handleSimulateSepay = async () => {
     if (!activeBooking) return;

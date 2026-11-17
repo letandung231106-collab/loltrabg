@@ -156,6 +156,23 @@ async function verifyTicket(req, res, next) {
       });
     }
 
+    // Hỗ trợ giải mã nếu quét mã QR trả về chuỗi JSON (ví dụ: {"ticketCode":"TCK-..."})
+    let normalizedCode = String(ticket_code).trim();
+    if (normalizedCode.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(normalizedCode);
+        if (parsed.ticketCode || parsed.ticket_code) {
+          normalizedCode = String(parsed.ticketCode || parsed.ticket_code).trim();
+        }
+      } catch (e) {
+        // fallback regex
+      }
+    }
+    const tckMatch = normalizedCode.match(/TCK-[A-Za-z0-9-]+/);
+    if (tckMatch) {
+      normalizedCode = tckMatch[0];
+    }
+
     const tickets = await db.query(
       `SELECT t.*, 
               m.name AS movie_name,
@@ -172,7 +189,7 @@ async function verifyTicket(req, res, next) {
        JOIN customers c ON t.customer_id = c.id
        JOIN bookings b ON t.booking_id = b.id
        WHERE t.ticket_code = ?`,
-      [ticket_code]
+      [normalizedCode]
     );
 
     if (!tickets || tickets.length === 0) {
