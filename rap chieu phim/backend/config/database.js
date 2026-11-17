@@ -1,3 +1,16 @@
+let pg = null;
+try {
+  pg = require('pg');
+  if (pg && pg.types) {
+    // Parse NUMERIC / DECIMAL (type ID 1700) as Float
+    pg.types.setTypeParser(1700, (val) => (val === null ? null : parseFloat(val)));
+    // Parse BIGINT / INT8 (type ID 20, returned by COUNT) as Integer
+    pg.types.setTypeParser(20, (val) => (val === null ? null : parseInt(val, 10)));
+  }
+} catch (err) {
+  // pg driver không có sẵn
+}
+
 let mysql = null;
 try {
   mysql = require('mysql2/promise');
@@ -8,6 +21,24 @@ const dotenv = require('dotenv');
 const memory = require('./memoryStore');
 
 dotenv.config();
+
+function getSanitizedDatabaseUrl() {
+  let raw = (process.env.DATABASE_URL || '').trim();
+  if (!raw) return null;
+  if (raw.includes(':[') && raw.includes(']@')) {
+    raw = raw.replace(/:\[(.*?)\]@/, (m, pwd) => `:${encodeURIComponent(pwd)}@`);
+  } else if (raw.includes(':') && raw.includes('@')) {
+    try {
+      new URL(raw);
+    } catch {
+      const match = raw.match(/^(postgresql:\/\/[^:]+:)(.*)@([^@]+)$/);
+      if (match) {
+        raw = `${match[1]}${encodeURIComponent(match[2])}@${match[3]}`;
+      }
+    }
+  }
+  return raw;
+}
 
 const dbConfig = {
   host: process.env.DB_HOST || 'localhost',
@@ -23,14 +54,181 @@ const dbConfig = {
   timezone: '+07:00',
 };
 
+let pgPool = null;
 let pool = null;
 let isConnected = false;
+let isSupabase = false;
+
+function getPgPool() {
+  if (!pg) return null;
+  if (!pgPool) {
+    const connStr = getSanitizedDatabaseUrl();
+    if (!connStr) return null;
+    pgPool = new pg.Pool({
+      connectionString: connStr,
+      ssl: { rejectUnauthorized: false },
+      max: 20,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 10000,
+    });
+    pgPool.on('error', (err) => {
+      console.error('[Supabase PostgreSQL Pool Error]', err.message);
+    });
+  }
+  return pgPool;
+}
+
+function translateSql(rawSql, rawParams = []) {
+  let sql = String(rawSql);
+  let params = [...rawParams];
+
+  // 1. Backticks `column` -> "column"
+  sql = sql.replace(/\`([a-zA-Z0-9_]+)\`/g, '"$1"');
+
+  // 2. GROUP_CONCAT(expr SEPARATOR ', ') -> STRING_AGG((expr)::text, ', ')
+  sql = sql.replace(/GROUP_CONCAT\s*\(\s*(.*?)\s+SEPARATOR\s+(['"][^'"]*['"])\s*\)/gi, (match, expr, sep) => {
+    const cleanSep = "'" + sep.slice(1, -1).replace(/'/g, "''") + "'";
+    return `STRING_AGG((${expr})::text, ${cleanSep})`;
+  });
+  sql = sql.replace(/GROUP_CONCAT\s*\(\s*(.*?)\s*\)/gi, (match, expr) => {
+    return `STRING_AGG((${expr})::text, ', ')`;
+  });
+
+  // 3. INTERVAL n DAY -> INTERVAL 'n DAY'
+  sql = sql.replace(/INTERVAL\s+(\d+)\s+([A-Za-z]+)/gi, "INTERVAL '$1 $2'");
+
+  // 4. INSERT IGNORE INTO -> INSERT INTO ... ON CONFLICT DO NOTHING
+  if (/^\s*INSERT\s+IGNORE\s+INTO/i.test(sql)) {
+    sql = sql.replace(/^\s*INSERT\s+IGNORE\s+INTO/i, 'INSERT INTO');
+    if (!/ON\s+CONFLICT/i.test(sql)) {
+      sql += ' ON CONFLICT DO NOTHING';
+    }
+  }
+
+  // 5. Expand placeholders (?) for scalar values, 1D arrays (IN (?)), and 2D arrays (VALUES ?)
+  let paramIdx = 0;
+  let newParams = [];
+  let inString = false;
+  let stringChar = '';
+  let translatedSql = '';
+
+  for (let i = 0; i < sql.length; i++) {
+    const char = sql[i];
+    if (!inString && (char === "'" || char === '"')) {
+      inString = true;
+      stringChar = char;
+      translatedSql += char;
+    } else if (inString && char === stringChar) {
+      if (sql[i + 1] === stringChar) {
+        translatedSql += char + sql[i + 1];
+        i++;
+      } else {
+        inString = false;
+        translatedSql += char;
+      }
+    } else if (!inString && char === '?') {
+      const val = params[paramIdx++];
+      if (Array.isArray(val)) {
+        if (val.length === 0) {
+          translatedSql += 'NULL';
+        } else if (Array.isArray(val[0])) {
+          // 2D Array: Bulk INSERT VALUES ?
+          const rowPhs = val.map(row => '(' + row.map(v => {
+            newParams.push(v);
+            return '$' + newParams.length;
+          }).join(', ') + ')');
+          translatedSql += rowPhs.join(', ');
+        } else {
+          // 1D Array: WHERE id IN (?)
+          const phs = val.map(v => {
+            newParams.push(v);
+            return '$' + newParams.length;
+          });
+          translatedSql += phs.join(', ');
+        }
+      } else {
+        newParams.push(val);
+        translatedSql += `$${newParams.length}`;
+      }
+    } else {
+      translatedSql += char;
+    }
+  }
+  sql = translatedSql;
+  params = newParams;
+
+  const isInsert = /^\s*INSERT\s+INTO/i.test(sql);
+  const isSelect = /^\s*SELECT/i.test(sql);
+
+  if (isInsert && !/RETURNING/i.test(sql)) {
+    sql += ' RETURNING *';
+  }
+
+  return { sql, params, isInsert, isSelect };
+}
+
+async function executePgQuery(clientOrPool, rawSql, rawParams = []) {
+  const { sql, params, isInsert, isSelect } = translateSql(rawSql, rawParams);
+  const res = await clientOrPool.query(sql, params);
+
+  if (isSelect) {
+    const rows = res.rows || [];
+    rows.affectedRows = res.rowCount || 0;
+    rows.rowCount = res.rowCount || 0;
+    return [rows, res.fields];
+  }
+
+  if (isInsert) {
+    const firstRow = res.rows?.[0] || {};
+    const insertId = firstRow.id ?? firstRow.item_id ?? 0;
+    const resultObj = {
+      insertId: Number(insertId) || 0,
+      affectedRows: res.rowCount || 0,
+      rowCount: res.rowCount || 0,
+      rows: res.rows || [],
+      length: res.rows?.length || 0,
+      ...firstRow,
+    };
+    return [resultObj, res.fields];
+  }
+
+  const resultObj = {
+    affectedRows: res.rowCount || 0,
+    rowCount: res.rowCount || 0,
+    changedRows: res.rowCount || 0,
+    insertId: 0,
+    rows: res.rows || [],
+    length: res.rows?.length || 0,
+  };
+  return [resultObj, res.fields];
+}
 
 function getPool() {
+  if (isSupabase || (pg && getSanitizedDatabaseUrl())) {
+    const p = getPgPool();
+    if (p) {
+      return {
+        query: async (sql, params) => executePgQuery(p, sql, params),
+        execute: async (sql, params) => executePgQuery(p, sql, params),
+        getConnection: async () => {
+          const client = await p.connect();
+          return {
+            query: async (sql, params) => executePgQuery(client, sql, params),
+            execute: async (sql, params) => executePgQuery(client, sql, params),
+            beginTransaction: async () => client.query('BEGIN'),
+            commit: async () => client.query('COMMIT'),
+            rollback: async () => client.query('ROLLBACK'),
+            release: () => client.release(),
+          };
+        },
+        end: async () => p.end(),
+      };
+    }
+  }
+
   if (!mysql) return null;
   if (!pool) {
     pool = mysql.createPool(dbConfig);
-    // Đảm bảo mỗi kết nối trong pool luôn đặt múi giờ Việt Nam (+07:00) cho MySQL Server
     pool.on('connection', (connection) => {
       connection.query("SET time_zone = '+07:00'");
     });
@@ -39,40 +237,60 @@ function getPool() {
 }
 
 async function testConnection() {
-  if (!mysql) {
-    console.warn(`[MySQL Auto-Fallback] Không có driver mysql2, kích hoạt bộ nhớ đệm In-Memory Seed Data!`);
-    isConnected = false;
-    return false;
-  }
-  try {
-    const p = getPool();
-    if (!p) throw new Error('MySQL driver not initialized');
-    const conn = await p.getConnection();
-    console.log(`[MySQL] Kết nối thành công đến database: ${dbConfig.database} trên ${dbConfig.host}:${dbConfig.port}`);
-    isConnected = true;
-    conn.release();
-    return true;
-  } catch (error) {
-    console.warn(`[MySQL Notice] Chưa thể kết nối MySQL trực tiếp (${error.message}).`);
-    if (process.env.NODE_ENV === 'production' && process.env.ENABLE_IN_MEMORY_DEMO !== 'true') {
-      console.error(`[CRITICAL DATABASE ERROR] Môi trường Production bắt buộc phải kết nối cơ sở dữ liệu MySQL thật.`);
-      console.error(`Hệ thống từ chối khởi động và không được phép âm thầm chuyển sang bộ nhớ RAM In-Memory trong Production.`);
-      throw new Error(`Production Database Connection Failed: Không thể kết nối tới MySQL host ${dbConfig.host}:${dbConfig.port} (${error.message}).`);
+  const dbUrl = getSanitizedDatabaseUrl();
+  if (dbUrl && pg) {
+    try {
+      const p = getPgPool();
+      if (!p) throw new Error('Không thể khởi tạo pg.Pool cho Supabase');
+      const res = await p.query('SELECT NOW() as now, version() as version;');
+      console.log(`[Supabase PostgreSQL] Kết nối thành công đến database Supabase! (${res.rows[0].version.split(' ')[0]} ${res.rows[0].version.split(' ')[1] || ''})`);
+      isConnected = true;
+      isSupabase = true;
+      return true;
+    } catch (pgError) {
+      console.warn(`[Supabase Notice] Chưa thể kết nối Supabase trực tiếp (${pgError.message}).`);
     }
-    console.warn(`[MySQL Auto-Fallback] Đã kích hoạt bộ nhớ đệm In-Memory Seed Data để Web App hoạt động ngay lập tức!`);
-    console.warn(`[MySQL Guide] Bạn có thể mở MySQL Workbench và import 'cinema_management.sql' bất kỳ lúc nào.`);
-    isConnected = false;
-    return false;
   }
+
+  if (mysql) {
+    try {
+      const p = getPool();
+      if (p && p.getConnection) {
+        const conn = await p.getConnection();
+        console.log(`[MySQL] Kết nối thành công đến database: ${dbConfig.database} trên ${dbConfig.host}:${dbConfig.port}`);
+        isConnected = true;
+        isSupabase = false;
+        conn.release();
+        return true;
+      }
+    } catch (error) {
+      console.warn(`[MySQL Notice] Chưa thể kết nối MySQL trực tiếp (${error.message}).`);
+    }
+  }
+
+  if (process.env.NODE_ENV === 'production' && process.env.ENABLE_IN_MEMORY_DEMO !== 'true') {
+    console.error(`[CRITICAL DATABASE ERROR] Môi trường Production bắt buộc phải kết nối cơ sở dữ liệu thật.`);
+    console.error(`Hệ thống từ chối khởi động và không được phép âm thầm chuyển sang bộ nhớ RAM In-Memory trong Production.`);
+    throw new Error(`Production Database Connection Failed.`);
+  }
+
+  console.warn(`[Database Auto-Fallback] Đã kích hoạt bộ nhớ đệm In-Memory Seed Data để Web App hoạt động ngay lập tức!`);
+  isConnected = false;
+  isSupabase = false;
+  return false;
 }
 
 /**
  * Thực thi câu truy vấn SQL thông thường
- * - Khi MySQL kết nối thành công: Thực thi trực tiếp trên MySQL, ném lỗi nghiệp vụ/cú pháp nếu có.
- * - Khi chưa kết nối MySQL (!isConnected): Sử dụng bộ giả lập RAM (In-Memory Fallback).
+ * - Khi Supabase/MySQL kết nối thành công: Thực thi trực tiếp trên DB, ném lỗi nghiệp vụ/cú pháp nếu có.
+ * - Khi chưa kết nối DB (!isConnected): Sử dụng bộ giả lập RAM (In-Memory Fallback).
  */
 async function query(sql, params = []) {
   if (isConnected) {
+    if (isSupabase) {
+      const [results] = await executePgQuery(getPgPool(), sql, params);
+      return results;
+    }
     const p = getPool();
     const [results] = await p.query(sql, params);
     return results;
@@ -2494,25 +2712,58 @@ async function query(sql, params = []) {
  */
 async function withTransaction(callback) {
   if (isConnected) {
-    let connection = null;
-    try {
-      const p = getPool();
-      connection = await p.getConnection();
-    } catch (connErr) {
-      console.warn(`[MySQL Transaction Fallback] ${connErr.message}.`);
-    }
-
-    if (connection) {
+    if (isSupabase) {
+      const p = getPgPool();
+      let client = null;
       try {
-        await connection.beginTransaction();
-        const result = await callback(connection);
-        await connection.commit();
-        return result;
-      } catch (error) {
-        await connection.rollback();
-        throw error;
-      } finally {
-        connection.release();
+        client = await p.connect();
+      } catch (connErr) {
+        console.warn(`[Supabase Transaction Fallback] ${connErr.message}.`);
+      }
+
+      if (client) {
+        const connectionWrapper = {
+          query: async (sql, params = []) => executePgQuery(client, sql, params),
+          execute: async (sql, params = []) => executePgQuery(client, sql, params),
+          beginTransaction: async () => client.query('BEGIN'),
+          commit: async () => client.query('COMMIT'),
+          rollback: async () => client.query('ROLLBACK'),
+          release: () => client.release(),
+        };
+
+        try {
+          await connectionWrapper.beginTransaction();
+          const result = await callback(connectionWrapper);
+          await connectionWrapper.commit();
+          return result;
+        } catch (error) {
+          await connectionWrapper.rollback();
+          throw error;
+        } finally {
+          connectionWrapper.release();
+        }
+      }
+    } else {
+      let connection = null;
+      try {
+        const p = getPool();
+        connection = await p.getConnection();
+      } catch (connErr) {
+        console.warn(`[MySQL Transaction Fallback] ${connErr.message}.`);
+      }
+
+      if (connection) {
+        try {
+          await connection.beginTransaction();
+          const result = await callback(connection);
+          await connection.commit();
+          return result;
+        } catch (error) {
+          await connection.rollback();
+          throw error;
+        } finally {
+          connection.release();
+        }
       }
     }
   }
@@ -2561,4 +2812,5 @@ module.exports = {
   withTransaction,
   dbConfig,
   getIsConnected: () => isConnected,
+  getIsSupabase: () => isSupabase,
 };

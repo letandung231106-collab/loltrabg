@@ -294,87 +294,65 @@ export function SeatMap({ scheduleData, onProceedToPayment, onCancelHold }) {
         </div>
       </div>
 
-      {/* Seat Legend (Bảng Chú Thích Ghế Chuẩn 7 Loại Trạng Thái) */}
-      <div className="w-full max-w-4xl mt-8 pt-6 border-t border-cinema-700/60">
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 text-xs text-slate-300">
-          {/* 1. Ghế Thường */}
-          <div className="flex items-center gap-2 p-2 rounded-xl bg-cinema-900/50 border border-cinema-800">
-            <div className="w-7 h-6 rounded-md bg-slate-800 border border-slate-600/70 text-slate-300 flex items-center justify-center text-[10px] font-bold font-mono">
-              A1
+      {/* Seat Legend (Minimalist Cinema Legend Bar - Chuẩn CGV / IMAX) */}
+      <div className="w-full max-w-4xl mt-7 pt-4 border-t border-white/[0.08]">
+        <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-3 px-4 py-2">
+          {/* Nhóm 1 — Loại ghế */}
+          <div className="flex items-center gap-5 sm:gap-6">
+            {/* Ghế Thường */}
+            <div className="flex items-center gap-2" title="Ghế Thường (Standard)">
+              <div className="w-[22px] h-[22px] rounded-[6px] bg-slate-800 border border-slate-600/70 shrink-0" />
+              <span className="text-[13px] font-medium text-slate-300 whitespace-nowrap">Ghế Thường</span>
             </div>
-            <div>
-              <div className="font-bold text-white text-[11px]">Ghế Thường</div>
-              <div className="text-[10px] text-slate-400">A1–C12 (Xanh xám)</div>
+
+            {/* Ghế VIP */}
+            <div className="flex items-center gap-2" title="Ghế VIP (Vị trí trung tâm góc nhìn đẹp nhất)">
+              <div className="w-[22px] h-[22px] rounded-[6px] bg-amber-950/70 border border-amber-500/80 shadow-[0_0_8px_rgba(245,158,11,0.2)] shrink-0" />
+              <span className="text-[13px] font-medium text-slate-300 whitespace-nowrap">Ghế VIP</span>
+            </div>
+
+            {/* Ghế Couple */}
+            <div className="flex items-center gap-2" title="Ghế Đôi Couple (2 người ngồi)">
+              <div className="w-[30px] h-[22px] rounded-[6px] bg-pink-950/70 border border-pink-500/80 shadow-[0_0_8px_rgba(236,72,153,0.2)] shrink-0" />
+              <span className="text-[13px] font-medium text-slate-300 whitespace-nowrap">Ghế Couple</span>
             </div>
           </div>
 
-          {/* 2. Ghế VIP */}
-          <div className="flex items-center gap-2 p-2 rounded-xl bg-cinema-900/50 border border-cinema-800">
-            <div className="w-7 h-6 rounded-md bg-amber-950/70 border border-amber-500/70 text-amber-300 flex items-center justify-center text-[10px] font-bold font-mono">
-              D1
-            </div>
-            <div>
-              <div className="font-bold text-amber-300 text-[11px] flex items-center gap-1">
-                <Crown className="w-3 h-3" /> Ghế VIP
+          {/* Đường gạch dọc ngăn cách giữa 2 nhóm */}
+          <div className="hidden sm:block w-px h-[18px] bg-white/[0.12] mx-1 shrink-0" aria-hidden="true" />
+
+          {/* Nhóm 2 — Trạng thái */}
+          <div className="flex items-center gap-5 sm:gap-6">
+            {/* Đang chọn */}
+            <div className="flex items-center gap-2" title="Ghế bạn đang chọn">
+              <div className="w-[22px] h-[22px] rounded-[6px] bg-gradient-to-t from-orange-600 via-amber-500 to-amber-400 border border-amber-300 shadow-[0_0_8px_rgba(245,158,11,0.4)] shrink-0 flex items-center justify-center text-cinema-950">
+                <Check className="w-3 h-3 stroke-[3]" />
               </div>
-              <div className="text-[10px] text-slate-400">D1–E12 (Vàng)</div>
+              <span className="text-[13px] font-medium text-slate-300 whitespace-nowrap">Đang chọn</span>
             </div>
-          </div>
 
-          {/* 3. Ghế Đôi Couple */}
-          <div className="flex items-center gap-2 p-2 rounded-xl bg-cinema-900/50 border border-cinema-800">
-            <div className="w-9 h-6 rounded-md bg-pink-950/70 border border-pink-500/70 text-pink-300 flex items-center justify-center text-[10px] font-bold font-mono">
-              F1
-            </div>
-            <div>
-              <div className="font-bold text-pink-300 text-[11px] flex items-center gap-1">
-                Ghế Couple
+            {/* Đang giữ */}
+            <div className="flex items-center gap-2" title="Ghế đang được khách khác giữ tạm thời trong 10 phút">
+              <div className="w-[22px] h-[22px] rounded-[6px] bg-blue-950 border border-blue-500/80 shrink-0 flex items-center justify-center text-[10px] text-blue-400 font-bold">
+                🔒
               </div>
-              <div className="text-[10px] text-slate-400">F1-F12 (2 chỗ)</div>
+              <span className="text-[13px] font-medium text-slate-300 whitespace-nowrap">Đang giữ</span>
             </div>
-          </div>
 
-          {/* 4. Ghế Đang Chọn */}
-          <div className="flex items-center gap-2 p-2 rounded-xl bg-cinema-900/50 border border-cinema-800">
-            <div className="w-7 h-6 rounded-md bg-gradient-to-t from-orange-600 via-amber-500 to-amber-400 text-cinema-950 font-black flex items-center justify-center text-[10px]">
-              ✓
+            {/* Đã bán */}
+            <div className="flex items-center gap-2" title="Ghế đã được thanh toán">
+              <div className="w-[22px] h-[22px] rounded-[6px] bg-rose-950/90 border border-rose-800/80 shrink-0 relative flex items-center justify-center text-rose-500/80 text-[10px] font-bold select-none">
+                ✕
+              </div>
+              <span className="text-[13px] font-medium text-slate-300 whitespace-nowrap">Đã bán</span>
             </div>
-            <div>
-              <div className="font-bold text-amber-400 text-[11px]">Đang Chọn</div>
-              <div className="text-[10px] text-slate-400">Màu cam</div>
-            </div>
-          </div>
 
-          {/* 5. Ghế Đang Giữ */}
-          <div className="flex items-center gap-2 p-2 rounded-xl bg-cinema-900/50 border border-cinema-800">
-            <div className="w-7 h-6 rounded-md bg-blue-950 border border-blue-500/80 text-blue-400 flex items-center justify-center text-[10px] font-bold animate-pulse">
-              🔒
-            </div>
-            <div>
-              <div className="font-bold text-blue-400 text-[11px]">Đang Giữ</div>
-              <div className="text-[10px] text-slate-400">10 phút (Xanh)</div>
-            </div>
-          </div>
-
-          {/* 6. Ghế Đã Bán */}
-          <div className="flex items-center gap-2 p-2 rounded-xl bg-cinema-900/50 border border-cinema-800">
-            <div className="w-7 h-6 rounded-md bg-rose-950 border border-rose-800/80 text-rose-500 flex items-center justify-center text-[10px] font-bold">
-              ✕
-            </div>
-            <div>
-              <div className="font-bold text-rose-400 text-[11px]">Đã Bán</div>
-              <div className="text-[10px] text-slate-400">Màu đỏ</div>
-            </div>
-          </div>
-
-          {/* 7. Ghế Bảo Trì */}
-          <div className="flex items-center gap-2 p-2 rounded-xl bg-cinema-900/50 border border-cinema-800">
-            <div className="w-7 h-6 rounded-md bg-zinc-900/80 border border-zinc-800 text-zinc-600 flex items-center justify-center text-[10px]">
-              —
-            </div>
-            <div>
-              <div className="font-bold text-zinc-500 text-[11px]">Bảo Trì</div>
-              <div className="text-[10px] text-slate-400">Xám tối</div>
+            {/* Bảo trì */}
+            <div className="flex items-center gap-2" title="Ghế đang bảo trì kỹ thuật">
+              <div className="w-[22px] h-[22px] rounded-[6px] bg-zinc-900 border border-zinc-800 shrink-0 flex items-center justify-center text-zinc-600 text-[10px]">
+                —
+              </div>
+              <span className="text-[13px] font-medium text-slate-300 whitespace-nowrap">Bảo trì</span>
             </div>
           </div>
         </div>

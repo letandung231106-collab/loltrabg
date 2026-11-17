@@ -152,13 +152,22 @@ async function runAuditTests() {
   );
 
   // 2.4. Phát hiện trùng phòng (BR01) & Phòng bảo trì (BR02)
+  const sched2Res = await request('/schedules/2', 'GET');
+  const sched2 = sched2Res.body?.data;
+  let conflictStartTime = '2026-11-19 18:30:00';
+  if (sched2 && sched2.start_time) {
+    const d = new Date(sched2.start_time);
+    d.setMinutes(d.getMinutes() + 30);
+    const pad = (n) => String(n).padStart(2, '0');
+    conflictStartTime = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
+  }
   const conflictRes = await request(
     '/schedules',
     'POST',
     {
       movie_id: 1,
       room_id: 4,
-      start_time: '2026-11-17 18:30:00', // Trùng suất 2 phòng 4 (18:00 - 20:50)
+      start_time: conflictStartTime, // Trùng suất 2 phòng 4
       ticket_price: 90000,
     },
     adminToken
