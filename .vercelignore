@@ -1,0 +1,11 @@
+.git
+.github
+.vercel
+.env
+.env.*
+!.env.example
+**/node_modules
+**/dist
+*.pptx
+generate_ppt.js
+.DS_Store

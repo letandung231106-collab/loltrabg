@@ -2747,6 +2747,9 @@ async function withTransaction(callback) {
       let client = null;
       try {
         client = await p.connect();
+        client.on('error', (err) => {
+          console.error('[Supabase Transaction Client Error]', err.message);
+        });
       } catch (connErr) {
         console.warn(`[Supabase Transaction Fallback] ${connErr.message}.`);
       }
