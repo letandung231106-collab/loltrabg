@@ -119,10 +119,10 @@ async function registerBookingSession(req, res) {
 async function handleWebhook(req, res) {
   try {
     const apiKey = req.headers['authorization'] || req.headers['x-api-key'] || req.query?.api_key;
-    if (sepayConfig.apiKey && apiKey) {
-      const token = apiKey.replace(/^Apikey\s+/i, '').trim();
-      if (token !== sepayConfig.apiKey) {
-        return res.status(401).json({ success: false, message: 'Mã API Key SePay không khớp.' });
+    if (sepayConfig.apiKey) {
+      const token = String(apiKey || '').replace(/^Apikey\s+/i, '').trim();
+      if (!token || token !== sepayConfig.apiKey) {
+        return res.status(401).json({ success: false, message: 'Thiếu hoặc sai mã API Key SePay.' });
       }
     }
 
@@ -216,39 +216,73 @@ async function handleWebhook(req, res) {
       txLog.matchedCode = matchedSession.bookingCode;
     }
 
-    // Nếu chưa đăng ký trước nhưng nội dung có chứa mã đơn BK-...
+    // Không phụ thuộc Map RAM (hỗ trợ Vercel Serverless cold instance): tra cứu trực tiếp bảng bookings trong DB
     else {
+      let targetBooking = null;
       const bkMatch = fullText.match(/BK-[A-Za-z0-9\-]+/i);
       if (bkMatch) {
         const foundBkCode = bkMatch[0];
         const bookings = await db.query(
-          `SELECT id, booking_code, total_amount, status FROM bookings WHERE booking_code = ?`,
+          `SELECT id, booking_code, total_amount, concession_amount, discount_amount, status FROM bookings WHERE booking_code = ?`,
           [foundBkCode]
         );
-
         if (bookings && bookings.length > 0) {
-          const b = bookings[0];
-          processingResult = await finalizeBookingTransaction({
-            bookingId: b.id,
-            paymentMethod: 'sepay',
-            transactionCode: txLog.referenceCode,
-            user: { role: 'admin' },
-          });
+          targetBooking = bookings[0];
+        }
+      }
 
-          txLog.processed = true;
-          txLog.matchedType = 'booking';
-          txLog.matchedCode = foundBkCode;
+      // Fallback khi ngân hàng loại bỏ dấu gạch ngang trong nội dung chuyển khoản (ví dụ: BK35308066861)
+      if (!targetBooking && normText.includes('BK')) {
+        const pendingBookings = await db.query(
+          `SELECT id, booking_code, total_amount, concession_amount, discount_amount, status FROM bookings WHERE status = 'pending'`
+        );
+        if (Array.isArray(pendingBookings)) {
+          targetBooking = pendingBookings.find((b) => normText.includes(normalizeCode(b.booking_code))) || null;
+        }
+      }
 
-          pendingSepaySessions.set(normalizeCode(foundBkCode), {
-            type: 'booking',
-            bookingId: b.id,
-            bookingCode: foundBkCode,
-            status: 'paid',
-            paidAt: new Date().toISOString(),
-            transaction: txLog,
-            bookingResult: processingResult,
+      if (targetBooking) {
+        const expectedPayable = Math.max(
+          0,
+          Math.round(
+            Number(targetBooking.total_amount || 0) +
+              Number(targetBooking.concession_amount || 0) -
+              Number(targetBooking.discount_amount || 0)
+          )
+        );
+        if (expectedPayable > 0 && txLog.transferAmount < expectedPayable) {
+          return res.status(200).json({
+            success: true,
+            message: `Số tiền chuyển khoản (${txLog.transferAmount}) chưa đủ số tiền phải thu (${expectedPayable}).`,
+            data: {
+              matched: false,
+              reason: 'insufficient_amount',
+              expectedPayable,
+              receivedAmount: txLog.transferAmount,
+            },
           });
         }
+
+        processingResult = await finalizeBookingTransaction({
+          bookingId: targetBooking.id,
+          paymentMethod: 'sepay',
+          transactionCode: txLog.referenceCode,
+          user: { role: 'admin' },
+        });
+
+        txLog.processed = true;
+        txLog.matchedType = 'booking';
+        txLog.matchedCode = targetBooking.booking_code;
+
+        pendingSepaySessions.set(normalizeCode(targetBooking.booking_code), {
+          type: 'booking',
+          bookingId: targetBooking.id,
+          bookingCode: targetBooking.booking_code,
+          status: 'paid',
+          paidAt: new Date().toISOString(),
+          transaction: txLog,
+          bookingResult: processingResult,
+        });
       }
     }
 

@@ -8,9 +8,36 @@ const { executeConcessionSaleTransaction } = require('./concessionController');
 const pendingMomoOrders = new Map();
 
 /**
+ * Xác định URL cơ sở của Frontend/Backend động theo môi trường deploy (Vercel / Production / Local)
+ */
+function getFrontendBaseUrl(req = null) {
+  if (process.env.FRONTEND_URL) return process.env.FRONTEND_URL.replace(/\/+$/, '');
+  if (process.env.DEPLOY_DOMAIN) return process.env.DEPLOY_DOMAIN.replace(/\/+$/, '');
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+  if (req && req.get('host')) {
+    const proto = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+    return `${proto}://${req.get('host')}`;
+  }
+  return 'http://localhost:5173';
+}
+
+function getBackendBaseUrl(req = null) {
+  if (process.env.BACKEND_URL) return process.env.BACKEND_URL.replace(/\/+$/, '');
+  if (process.env.DEPLOY_DOMAIN) return process.env.DEPLOY_DOMAIN.replace(/\/+$/, '');
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+  if (req && req.get('host')) {
+    const proto = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+    return `${proto}://${req.get('host')}`;
+  }
+  return 'http://localhost:5050';
+}
+
+/**
  * Cấu hình MoMo Sandbox v2 (từ biến môi trường hoặc thông số Sandbox tiêu chuẩn của MoMo)
  */
-function getMomoConfig() {
+function getMomoConfig(req = null) {
   const partnerCode = process.env.MOMO_PARTNER_CODE;
   const accessKey = process.env.MOMO_ACCESS_KEY;
   const secretKey = process.env.MOMO_SECRET_KEY;
@@ -24,8 +51,8 @@ function getMomoConfig() {
     accessKey,
     secretKey,
     endpoint: process.env.MOMO_ENDPOINT || 'https://test-payment.momo.vn/v2/gateway/api/create',
-    redirectUrl: process.env.MOMO_REDIRECT_URL || 'http://localhost:5173',
-    ipnUrl: process.env.MOMO_IPN_URL || 'http://localhost:5050/api/payments/momo/ipn',
+    redirectUrl: process.env.MOMO_REDIRECT_URL || getFrontendBaseUrl(req),
+    ipnUrl: process.env.MOMO_IPN_URL || `${getBackendBaseUrl(req)}/api/payments/momo/ipn`,
   };
 }
 
@@ -497,7 +524,7 @@ async function createMomoPayment(req, res, next) {
       booking.discount_amount = discountAmount;
     }
 
-    const config = getMomoConfig();
+    const config = getMomoConfig(req);
     const partnerCode = config.partnerCode;
     const accessKey = config.accessKey;
     const secretKey = config.secretKey;
@@ -577,10 +604,8 @@ async function createMomoPayment(req, res, next) {
     };
     pendingMomoOrders.set(orderId, sessionData);
 
-    // Đường dẫn Cổng MoMo Sandbox nội bộ (phục vụ môi trường dev/test hoặc khi key demo công cộng bị giới hạn)
-    const protocol = req.protocol || 'http';
-    const host = req.get('host') || 'localhost:5050';
-    const localSandboxUrl = `${protocol}://${host}/api/payments/momo/sandbox-checkout?orderId=${encodeURIComponent(orderId)}`;
+    // Đường dẫn Cổng MoMo Sandbox nội bộ (tự nhận diện HTTPS trên Vercel/Production)
+    const localSandboxUrl = `${getBackendBaseUrl(req)}/api/payments/momo/sandbox-checkout?orderId=${encodeURIComponent(orderId)}`;
 
     let momoApiResponse = null;
     let payUrl = localSandboxUrl;
@@ -659,7 +684,7 @@ async function renderMomoSandboxGateway(req, res) {
         <div style="background:white;padding:32px;border-radius:16px;box-shadow:0 10px 25px rgba(0,0,0,0.1);text-align:center;max-width:420px;">
           <h2 style="color:#a50064;margin-top:0;">Phiên giao dịch MoMo đã hết hạn</h2>
           <p style="color:#475569;font-size:14px;">Không tìm thấy mã đơn hàng <b>${orderId || ''}</b> trên cổng MoMo Sandbox.</p>
-          <a href="http://localhost:5173" style="display:inline-block;margin-top:16px;padding:10px 20px;background:#a50064;color:white;text-decoration:none;border-radius:8px;font-weight:bold;">Quay về Rạp Night Movie</a>
+          <a href="${getFrontendBaseUrl(req)}" style="display:inline-block;margin-top:16px;padding:10px 20px;background:#a50064;color:white;text-decoration:none;border-radius:8px;font-weight:bold;">Quay về Rạp Night Movie</a>
         </div>
       </body>
       </html>
@@ -893,7 +918,7 @@ async function handleMomoIpn(req, res) {
       return res.status(400).json({ message: 'Missing signature' });
     }
 
-    const config = getMomoConfig();
+    const config = getMomoConfig(req);
     const rawSignature =
       `accessKey=${config.accessKey}` +
       `&amount=${amount}` +
@@ -982,7 +1007,7 @@ async function verifyMomoReturn(req, res, next) {
       booking_id,
     } = req.body;
 
-    const config = getMomoConfig();
+    const config = getMomoConfig(req);
     let signatureVerified = false;
 
     // Kiểm tra chữ ký HMAC-SHA256 nếu có tham số Return URL từ MoMo

@@ -1,12 +1,23 @@
 const db = require('../config/database');
 
-/**
- * Service định kỳ quét và giải phóng ghế giữ quá 10 phút chưa thanh toán (BR06, BR07)
- */
-function startHoldSeatCleanupService(intervalMs = 15000) {
-  console.log(`[HoldSeat Service] Khởi động tiến trình giải phóng ghế hết hạn định kỳ (${intervalMs / 1000}s/lần)...`);
+let lastCleanupAt = 0;
+let activeCleanupPromise = null;
 
-  const cleanup = async () => {
+/**
+ * Quét và giải phóng ghế giữ quá 10 phút chưa thanh toán (BR06, BR07)
+ * Hỗ trợ chạy cả trong tiến trình nền standalone và gọi lười (throttled) trên Vercel Serverless.
+ */
+async function cleanupExpiredSeats(minIntervalMs = 0) {
+  const now = Date.now();
+  if (minIntervalMs > 0 && now - lastCleanupAt < minIntervalMs) {
+    return;
+  }
+  if (activeCleanupPromise) {
+    return activeCleanupPromise;
+  }
+
+  lastCleanupAt = now;
+  activeCleanupPromise = (async () => {
     try {
       await db.withTransaction(async (conn) => {
         // 1. Tìm các booking_seats đã hết hạn giữ (hold_expire < NOW() AND status = 'holding')
@@ -38,14 +49,26 @@ function startHoldSeatCleanupService(intervalMs = 15000) {
       if (db.getIsConnected()) {
         console.error('[HoldSeat Service Error]', err.message);
       }
+    } finally {
+      activeCleanupPromise = null;
     }
-  };
+  })();
+
+  return activeCleanupPromise;
+}
+
+/**
+ * Service định kỳ quét và giải phóng ghế giữ quá 10 phút chưa thanh toán (BR06, BR07)
+ */
+function startHoldSeatCleanupService(intervalMs = 15000) {
+  console.log(`[HoldSeat Service] Khởi động tiến trình giải phóng ghế hết hạn định kỳ (${intervalMs / 1000}s/lần)...`);
 
   // Chạy ngay lần đầu
-  cleanup();
-  return setInterval(cleanup, intervalMs);
+  cleanupExpiredSeats(0);
+  return setInterval(() => cleanupExpiredSeats(0), intervalMs);
 }
 
 module.exports = {
   startHoldSeatCleanupService,
+  cleanupExpiredSeats,
 };

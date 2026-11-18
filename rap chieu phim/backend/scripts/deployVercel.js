@@ -3,8 +3,8 @@ const path = require('path');
 const https = require('https');
 
 const VERCEL_TOKEN = process.env.VERCEL_TOKEN || '';
-const TEAM_ID = 'team_ijiA50Uot8pCYNt9t3Ov4eZV';
-const PROJECT_NAME = 'night-movie';
+const TEAM_ID = process.env.VERCEL_TEAM_ID || '';
+const PROJECT_NAME = process.env.VERCEL_PROJECT_NAME || 'night-movie';
 
 function getAllFiles(dirPath, arrayOfFiles = [], baseDir = dirPath) {
   const files = fs.readdirSync(dirPath);

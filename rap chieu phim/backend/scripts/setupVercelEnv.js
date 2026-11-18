@@ -1,20 +1,19 @@
 const https = require('https');
 
 const VERCEL_TOKEN = process.env.VERCEL_TOKEN || '';
-const TEAM_ID = 'team_ijiA50Uot8pCYNt9t3Ov4eZV';
-const PROJECT_ID = 'prj_c9ZTlnxYZy5OitG1WeOZN4OJCD8b';
+const TEAM_ID = process.env.VERCEL_TEAM_ID || '';
+const PROJECT_ID = process.env.VERCEL_PROJECT_ID || '';
 
+// Đọc tất cả giá trị nhạy cảm từ biến môi trường cục bộ, tuyệt đối không viết cứng secret trong source code
 const envVars = [
-  { key: 'JWT_SECRET', value: 'cinema_ooad_secret_jwt_key_2026_super_secure', type: 'encrypted', target: ['production', 'preview', 'development'] },
-  { key: 'MOMO_PARTNER_CODE', value: 'MOMO', type: 'plain', target: ['production', 'preview', 'development'] },
-  { key: 'MOMO_ACCESS_KEY', value: 'F8BBA842ECF85', type: 'plain', target: ['production', 'preview', 'development'] },
-  { key: 'MOMO_SECRET_KEY', value: 'K951B6PE1waDMi640xX08PD3vg6EkVlz', type: 'encrypted', target: ['production', 'preview', 'development'] },
-  { key: 'SEPAY_ACCOUNT_NUMBER', value: '8813341949', type: 'plain', target: ['production', 'preview', 'development'] },
-  { key: 'SEPAY_BANK_NAME', value: 'BIDV', type: 'plain', target: ['production', 'preview', 'development'] },
-  { key: 'SEPAY_ACCOUNT_HOLDER', value: 'LE TAN DUNG', type: 'plain', target: ['production', 'preview', 'development'] },
-  { key: 'ENABLE_IN_MEMORY_DEMO', value: 'true', type: 'plain', target: ['production', 'preview', 'development'] },
+  { key: 'JWT_SECRET', value: process.env.JWT_SECRET || '', type: 'encrypted', target: ['production', 'preview', 'development'] },
+  { key: 'DATABASE_URL', value: process.env.DATABASE_URL || '', type: 'encrypted', target: ['production', 'preview', 'development'] },
+  { key: 'SUPABASE_URL', value: process.env.SUPABASE_URL || '', type: 'plain', target: ['production', 'preview', 'development'] },
+  { key: 'MOMO_PARTNER_CODE', value: process.env.MOMO_PARTNER_CODE || '', type: 'plain', target: ['production', 'preview', 'development'] },
+  { key: 'MOMO_ACCESS_KEY', value: process.env.MOMO_ACCESS_KEY || '', type: 'plain', target: ['production', 'preview', 'development'] },
+  { key: 'MOMO_SECRET_KEY', value: process.env.MOMO_SECRET_KEY || '', type: 'encrypted', target: ['production', 'preview', 'development'] },
   { key: 'NODE_ENV', value: 'production', type: 'plain', target: ['production', 'preview', 'development'] },
-];
+].filter((item) => Boolean(item.value));
 
 function sendEnv(item) {
   return new Promise((resolve) => {

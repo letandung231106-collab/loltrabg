@@ -94,6 +94,18 @@ function translateSql(rawSql, rawParams = []) {
     return `STRING_AGG((${expr})::text, ', ')`;
   });
 
+  // 2b. DATE_FORMAT(expr, '%Y-%m') -> TO_CHAR(expr, 'YYYY-MM')
+  sql = sql.replace(/DATE_FORMAT\s*\(\s*([^,]+?)\s*,\s*'([^']+)'\s*\)/gi, (match, expr, fmt) => {
+    const pgFmt = fmt
+      .replace(/%Y/g, 'YYYY')
+      .replace(/%m/g, 'MM')
+      .replace(/%d/g, 'DD')
+      .replace(/%H/g, 'HH24')
+      .replace(/%i/g, 'MI')
+      .replace(/%s/g, 'SS');
+    return `TO_CHAR(${expr.trim()}, '${pgFmt}')`;
+  });
+
   // 3. INTERVAL n DAY -> INTERVAL 'n DAY'
   sql = sql.replace(/INTERVAL\s+(\d+)\s+([A-Za-z]+)/gi, "INTERVAL '$1 $2'");
 
@@ -403,10 +415,15 @@ async function query(sql, params = []) {
   }
 
   // Analytics: Daily Revenue
-  if ((normalized.includes('date(p.payment_time) as date') || normalized.includes('date(payment_time) as sale_date')) && normalized.includes('from payments')) {
+  if (
+    (normalized.includes('date(p.payment_time) as date') ||
+      normalized.includes('p_daily.pay_date') ||
+      normalized.includes('date(payment_time) as sale_date')) &&
+    normalized.includes('from payments')
+  ) {
     const grouped = {};
     (memory.payments || [])
-      .filter((p) => p.status === 'success')
+      .filter((p) => ['success', 'refunded'].includes(p.status))
       .forEach((p) => {
         const dStr = String(p.payment_time || todayStr).slice(0, 10);
         if (!grouped[dStr]) {
@@ -416,16 +433,26 @@ async function query(sql, params = []) {
             transaction_count: 0,
             total_transactions: 0,
             tickets_count: 0,
+            gross_revenue: 0,
+            refunded_amount: 0,
+            net_revenue: 0,
             total_revenue: 0,
           };
         }
-        grouped[dStr].transaction_count += 1;
-        grouped[dStr].total_transactions += 1;
-        const relatedTickets = (memory.tickets || []).filter(
-          (t) => t.booking_id === p.booking_id && ['active', 'used'].includes(t.status)
-        );
-        grouped[dStr].tickets_count += Math.max(1, relatedTickets.length);
-        grouped[dStr].total_revenue += parseFloat(p.amount || 0);
+        const amt = parseFloat(p.amount || 0);
+        grouped[dStr].gross_revenue += amt;
+        if (p.status === 'refunded') {
+          grouped[dStr].refunded_amount += amt;
+        } else {
+          grouped[dStr].transaction_count += 1;
+          grouped[dStr].total_transactions += 1;
+          const relatedTickets = (memory.tickets || []).filter(
+            (t) => t.booking_id === p.booking_id && ['active', 'used'].includes(t.status)
+          );
+          grouped[dStr].tickets_count += Math.max(1, relatedTickets.length);
+          grouped[dStr].net_revenue += amt;
+          grouped[dStr].total_revenue += amt;
+        }
       });
     return Object.values(grouped);
   }
