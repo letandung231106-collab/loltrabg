@@ -2,12 +2,7 @@ const db = require('../config/database');
 const { sepayConfig, getSepayQrUrl } = require('../config/sepay');
 const { finalizeBookingTransaction, saveBookingConcessions } = require('./paymentController');
 const { executeConcessionSaleTransaction } = require('./concessionController');
-
-// Memory store cho các phiên chờ thanh toán SePay
-const pendingSepaySessions = new Map();
-
-// Memory store lưu lịch sử giao dịch SePay webhook đã nhận
-const sepayTransactionsLog = [];
+const sessionStore = require('../services/paymentGatewaySessionStore');
 
 /**
  * Chuẩn hóa mã đơn / mã chuyển khoản để tìm kiếm không phụ thuộc khoảng trắng và viết hoa
@@ -44,7 +39,13 @@ async function registerPosSession(req, res) {
       orderResult: null,
     };
 
-    pendingSepaySessions.set(normKey, sessionData);
+    await sessionStore.saveSession({
+      provider: 'sepay',
+      key: normKey,
+      sessionType: sessionData.type,
+      status: 'pending',
+      payload: sessionData,
+    });
 
     return res.status(200).json({
       success: true,
@@ -93,7 +94,13 @@ async function registerBookingSession(req, res) {
       bookingResult: null,
     };
 
-    pendingSepaySessions.set(normKey, sessionData);
+    await sessionStore.saveSession({
+      provider: 'sepay',
+      key: normKey,
+      sessionType: sessionData.type,
+      status: 'pending',
+      payload: sessionData,
+    });
 
     return res.status(200).json({
       success: true,
@@ -160,20 +167,13 @@ async function handleWebhook(req, res) {
       receivedAt: new Date().toISOString(),
       processed: false,
     };
-    sepayTransactionsLog.unshift(txLog);
-
     const fullText = `${content || ''} ${description || ''} ${code || ''}`;
     const normText = normalizeCode(fullText);
 
-    let matchedSession = null;
-
-    // Tìm kiếm trong các phiên đã đăng ký
-    for (const [key, session] of pendingSepaySessions.entries()) {
-      if (normText.includes(key)) {
-        matchedSession = session;
-        break;
-      }
-    }
+    // Tra cứu phiên đang chờ từ bảng payment_gateway_sessions dùng chung (không phụ thuộc RAM instance)
+    const foundPending = await sessionStore.findPendingSessionInText('sepay', normText);
+    const matchedKey = foundPending?.key || null;
+    const matchedSession = foundPending?.session || null;
 
     let processingResult = null;
 
@@ -196,6 +196,14 @@ async function handleWebhook(req, res) {
       txLog.processed = true;
       txLog.matchedType = 'pos';
       txLog.matchedCode = matchedSession.orderCode;
+
+      await sessionStore.saveSession({
+        provider: 'sepay',
+        key: matchedKey || normalizeCode(matchedSession.orderCode),
+        sessionType: 'pos',
+        status: 'paid',
+        payload: matchedSession,
+      });
     }
 
     // Xử lý đơn đặt vé xem phim
@@ -214,6 +222,14 @@ async function handleWebhook(req, res) {
       txLog.processed = true;
       txLog.matchedType = 'booking';
       txLog.matchedCode = matchedSession.bookingCode;
+
+      await sessionStore.saveSession({
+        provider: 'sepay',
+        key: matchedKey || normalizeCode(matchedSession.bookingCode),
+        sessionType: 'booking',
+        status: 'paid',
+        payload: matchedSession,
+      });
     }
 
     // Không phụ thuộc Map RAM (hỗ trợ Vercel Serverless cold instance): tra cứu trực tiếp bảng bookings trong DB
@@ -274,14 +290,20 @@ async function handleWebhook(req, res) {
         txLog.matchedType = 'booking';
         txLog.matchedCode = targetBooking.booking_code;
 
-        pendingSepaySessions.set(normalizeCode(targetBooking.booking_code), {
-          type: 'booking',
-          bookingId: targetBooking.id,
-          bookingCode: targetBooking.booking_code,
+        await sessionStore.saveSession({
+          provider: 'sepay',
+          key: normalizeCode(targetBooking.booking_code),
+          sessionType: 'booking',
           status: 'paid',
-          paidAt: new Date().toISOString(),
-          transaction: txLog,
-          bookingResult: processingResult,
+          payload: {
+            type: 'booking',
+            bookingId: targetBooking.id,
+            bookingCode: targetBooking.booking_code,
+            status: 'paid',
+            paidAt: new Date().toISOString(),
+            transaction: txLog,
+            bookingResult: processingResult,
+          },
         });
       }
     }
@@ -315,7 +337,7 @@ async function checkPaymentStatus(req, res) {
     }
 
     const normKey = normalizeCode(orderCode);
-    const session = pendingSepaySessions.get(normKey);
+    const session = await sessionStore.getSession('sepay', normKey);
 
     if (session) {
       if (session.status === 'paid') {

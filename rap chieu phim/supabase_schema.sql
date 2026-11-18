@@ -610,3 +610,17 @@ CREATE TABLE IF NOT EXISTS movie_reviews (
 );
 CREATE INDEX IF NOT EXISTS idx_reviews_movie ON movie_reviews (movie_id);
 CREATE INDEX IF NOT EXISTS idx_reviews_user ON movie_reviews (user_id);
+
+-- --------------------------------------------------------------------
+-- 35. PAYMENT GATEWAY SESSIONS (Serverless-safe shared session store cho SePay & MoMo)
+-- --------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS payment_gateway_sessions (
+  session_key VARCHAR(160) PRIMARY KEY,
+  provider VARCHAR(30) NOT NULL,
+  session_type VARCHAR(30) NOT NULL,
+  status VARCHAR(30) NOT NULL DEFAULT 'pending',
+  payload_json TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_pg_sessions_provider_status ON payment_gateway_sessions (provider, status, created_at DESC);

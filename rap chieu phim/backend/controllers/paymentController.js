@@ -3,9 +3,7 @@ const db = require('../config/database');
 const { validateAndCalculateVoucher } = require('../config/vouchers');
 const { badRequest, forbidden, notFound } = require('../utils/httpError');
 const { executeConcessionSaleTransaction } = require('./concessionController');
-
-// Bộ nhớ tạm lưu phiên giao dịch MoMo Sandbox để đối chiếu IPN & Return URL
-const pendingMomoOrders = new Map();
+const sessionStore = require('../services/paymentGatewaySessionStore');
 
 /**
  * Xác định URL cơ sở của Frontend/Backend động theo môi trường deploy (Vercel / Production / Local)
@@ -602,7 +600,13 @@ async function createMomoPayment(req, res, next) {
       user: req.user,
       createdAt: new Date().toISOString(),
     };
-    pendingMomoOrders.set(orderId, sessionData);
+    await sessionStore.saveSession({
+      provider: 'momo',
+      key: orderId,
+      sessionType: 'booking',
+      status: 'pending',
+      payload: sessionData,
+    });
 
     // Đường dẫn Cổng MoMo Sandbox nội bộ (tự nhận diện HTTPS trên Vercel/Production)
     const localSandboxUrl = `${getBackendBaseUrl(req)}/api/payments/momo/sandbox-checkout?orderId=${encodeURIComponent(orderId)}`;
@@ -673,7 +677,7 @@ async function createMomoPayment(req, res, next) {
  */
 async function renderMomoSandboxGateway(req, res) {
   const { orderId } = req.query;
-  const session = pendingMomoOrders.get(orderId);
+  const session = await sessionStore.getSession('momo', orderId);
 
   if (!session) {
     return res.status(404).send(`
@@ -940,7 +944,7 @@ async function handleMomoIpn(req, res) {
       return res.status(400).json({ message: 'Invalid signature' });
     }
 
-    const session = pendingMomoOrders.get(orderId);
+    const session = await sessionStore.getSession('momo', orderId);
     let bookingId = session?.bookingId;
     let user = session?.user || {};
 
@@ -1039,7 +1043,7 @@ async function verifyMomoReturn(req, res, next) {
       });
     }
 
-    const session = pendingMomoOrders.get(orderId);
+    const session = await sessionStore.getSession('momo', orderId);
     let targetBookingId = booking_id || session?.bookingId;
     let user = req.user || session?.user || {};
 
@@ -1100,7 +1104,17 @@ async function verifyMomoReturn(req, res, next) {
     });
 
     if (orderId) {
-      pendingMomoOrders.delete(orderId);
+      await sessionStore.saveSession({
+        provider: 'momo',
+        key: orderId,
+        sessionType: 'booking',
+        status: result.paymentStatus === 'success' ? 'paid' : 'failed',
+        payload: {
+          ...(session || { orderId, bookingId: targetBookingId }),
+          status: result.paymentStatus === 'success' ? 'paid' : 'failed',
+          completedAt: new Date().toISOString(),
+        },
+      });
     }
 
     return res.status(200).json({
