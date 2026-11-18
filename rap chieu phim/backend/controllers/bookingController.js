@@ -1,6 +1,7 @@
 const db = require('../config/database');
 const { validateAllSeatsGap } = require('../utils/seatGapValidator');
-const { badRequest, notFound, conflict } = require('../utils/httpError');
+const { badRequest, forbidden, notFound, conflict } = require('../utils/httpError');
+const { resolveAuthenticatedCustomerId, isOwnedByCustomer } = require('../utils/ownershipHelper');
 
 const SEAT_HOLD_MINUTES = parseInt(process.env.SEAT_HOLD_MINUTES || '10', 10);
 
@@ -11,7 +12,15 @@ const SEAT_HOLD_MINUTES = parseInt(process.env.SEAT_HOLD_MINUTES || '10', 10);
 async function holdSeats(req, res, next) {
   try {
     const { screening_id, seat_ids } = req.body;
-    const customerId = req.user.customerId || req.user.id;
+    const resolvedCustomerId = await resolveAuthenticatedCustomerId(req.user);
+    if (req.user.role === 'customer' && !resolvedCustomerId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Tài khoản khách hàng chưa có hồ sơ hợp lệ để đặt vé.',
+      });
+    }
+    // Nhân viên/Admin giữ ghế tại quầy (khi không có hồ sơ customer riêng) mặc định gán khách lẻ hệ thống (id = 1)
+    const customerId = resolvedCustomerId || 1;
 
     if (!screening_id || !Array.isArray(seat_ids) || seat_ids.length === 0) {
       return res.status(400).json({
@@ -217,7 +226,15 @@ async function holdSeats(req, res, next) {
 async function releaseSeatHold(req, res, next) {
   try {
     const { booking_id } = req.body;
-    const customerId = req.user.customerId || req.user.id;
+    const isPrivileged = ['admin', 'manager', 'staff'].includes(req.user.role);
+    const resolvedCustomerId = await resolveAuthenticatedCustomerId(req.user);
+
+    if (!isPrivileged && !resolvedCustomerId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Bạn không có quyền hủy giữ ghế.',
+      });
+    }
 
     if (!booking_id) {
       return res.status(400).json({
@@ -227,10 +244,12 @@ async function releaseSeatHold(req, res, next) {
     }
 
     await db.withTransaction(async (conn) => {
-      const [bookings] = await conn.query(
-        `SELECT id, status FROM bookings WHERE id = ? AND customer_id = ? FOR UPDATE`,
-        [booking_id, customerId]
-      );
+      const [bookings] = isPrivileged
+        ? await conn.query(`SELECT id, status, customer_id FROM bookings WHERE id = ? FOR UPDATE`, [booking_id])
+        : await conn.query(
+            `SELECT id, status, customer_id FROM bookings WHERE id = ? AND customer_id = ? FOR UPDATE`,
+            [booking_id, resolvedCustomerId]
+          );
 
       if (!bookings || bookings.length === 0) {
         throw notFound('Không tìm thấy đơn đặt hoặc bạn không có quyền hủy đơn này.');
@@ -279,17 +298,14 @@ async function getBookingById(req, res, next) {
     }
 
     const booking = bookings[0];
-    const customerId = req.user.customerId || req.user.id;
-    if (
-      req.user.role === 'customer' &&
-      booking.customer_id &&
-      Number(booking.customer_id) !== Number(customerId) &&
-      Number(booking.customer_id) !== Number(req.user.id)
-    ) {
-      return res.status(403).json({
-        success: false,
-        message: 'Bạn không có quyền truy cập vào thông tin đơn đặt vé này.',
-      });
+    if (req.user.role === 'customer') {
+      const resolvedCustomerId = await resolveAuthenticatedCustomerId(req.user);
+      if (!isOwnedByCustomer(booking.customer_id, resolvedCustomerId)) {
+        return res.status(403).json({
+          success: false,
+          message: 'Bạn không có quyền truy cập vào thông tin đơn đặt vé này.',
+        });
+      }
     }
 
     // Lấy danh sách ghế
@@ -332,7 +348,10 @@ async function getBookingById(req, res, next) {
  */
 async function getMyBookings(req, res, next) {
   try {
-    const customerId = req.user.customerId || req.user.id;
+    const customerId = await resolveAuthenticatedCustomerId(req.user);
+    if (!customerId) {
+      return res.status(200).json({ success: true, data: [] });
+    }
 
     const bookings = await db.query(
       `SELECT b.*, 
@@ -348,7 +367,7 @@ async function getMyBookings(req, res, next) {
        LEFT JOIN booking_seats bs ON bs.booking_id = b.id
        LEFT JOIN seats st ON bs.seat_id = st.id
        WHERE b.customer_id = ?
-       GROUP BY b.id
+       GROUP BY b.id, m.id, m.name, m.poster, s.id, s.start_time, s.end_time, r.id, r.name
        ORDER BY b.booking_time DESC`,
       [customerId]
     );

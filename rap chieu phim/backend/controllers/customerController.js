@@ -10,14 +10,12 @@ async function getCustomers(req, res, next) {
     let sql = `
       SELECT c.*, 
              u.username, u.status AS user_status,
-             COUNT(DISTINCT b.id) AS total_bookings,
-             COUNT(DISTINCT t.id) AS total_tickets,
-             COALESCE(SUM(CASE WHEN b.status = 'paid' THEN b.total_amount ELSE 0 END), 0) AS total_spent,
-             SUM(CASE WHEN b.status = 'cancelled' THEN 1 ELSE 0 END) AS total_cancelled
+             COALESCE((SELECT COUNT(*) FROM bookings b WHERE b.customer_id = c.id), 0) AS total_bookings,
+             COALESCE((SELECT COUNT(*) FROM tickets t WHERE t.customer_id = c.id), 0) AS total_tickets,
+             COALESCE((SELECT SUM(p.amount) FROM payments p JOIN bookings b2 ON p.booking_id = b2.id WHERE b2.customer_id = c.id AND p.status = 'success'), 0) AS total_spent,
+             COALESCE((SELECT COUNT(*) FROM bookings b3 WHERE b3.customer_id = c.id AND b3.status = 'cancelled'), 0) AS total_cancelled
       FROM customers c
       JOIN users u ON c.user_id = u.id
-      LEFT JOIN bookings b ON b.customer_id = c.id
-      LEFT JOIN tickets t ON t.customer_id = c.id
       WHERE 1=1
     `;
     const params = [];
@@ -32,7 +30,7 @@ async function getCustomers(req, res, next) {
       params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
     }
 
-    sql += ` GROUP BY c.id ORDER BY total_spent DESC`;
+    sql += ` ORDER BY total_spent DESC`;
 
     const customers = await db.query(sql, params);
 

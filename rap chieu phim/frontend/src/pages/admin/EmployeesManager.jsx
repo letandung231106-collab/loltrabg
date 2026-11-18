@@ -27,7 +27,7 @@ export function EmployeesManager() {
 
   const [formData, setFormData] = useState({
     username: '',
-    password: 'password123',
+    password: '',
     name: '',
     phone: '',
     email: '',
@@ -60,7 +60,7 @@ export function EmployeesManager() {
     setEditingEmployee(null);
     setFormData({
       username: `staff_${Date.now().toString().slice(-4)}`,
-      password: 'password123',
+      password: '',
       name: '',
       phone: '',
       email: '',
@@ -276,9 +276,10 @@ export function EmployeesManager() {
                 <input
                   type="password"
                   required
+                  minLength={8}
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  placeholder="password123"
+                  placeholder="Tối thiểu 8 ký tự (chữ + số)"
                   className="w-full px-3 py-2 rounded-xl bg-cinema-850 border border-cinema-700 text-white focus:outline-none focus:border-ruby-500"
                 />
               </div>

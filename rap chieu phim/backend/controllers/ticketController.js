@@ -1,4 +1,5 @@
 const db = require('../config/database');
+const { resolveAuthenticatedCustomerId, isOwnedByCustomer } = require('../utils/ownershipHelper');
 
 /**
  * Lấy danh sách tất cả vé (Admin / Manager)
@@ -66,7 +67,10 @@ async function getAllTickets(req, res, next) {
  */
 async function getMyTickets(req, res, next) {
   try {
-    const customerId = req.user.customerId || req.user.id;
+    const customerId = await resolveAuthenticatedCustomerId(req.user);
+    if (!customerId) {
+      return res.status(200).json({ success: true, data: [] });
+    }
 
     const tickets = await db.query(
       `SELECT t.*, 
@@ -125,10 +129,10 @@ async function getTicketById(req, res, next) {
     }
 
     const ticket = tickets[0];
-    // STT 10: Chống lỗ hổng IDOR - Customer chỉ được xem vé của chính mình
+    // Chống lỗ hổng IDOR - Customer chỉ được xem vé của chính mình (so sánh chặt với customerId từ JWT, KHÔNG so với users.id)
     if (req.user?.role === 'customer') {
-      const currentCustomerId = req.user.customerId || req.user.id;
-      if (Number(ticket.customer_id) !== Number(currentCustomerId) && Number(ticket.customer_id) !== Number(req.user.id)) {
+      const resolvedCustomerId = await resolveAuthenticatedCustomerId(req.user);
+      if (!isOwnedByCustomer(ticket.customer_id, resolvedCustomerId)) {
         return res.status(403).json({
           success: false,
           message: 'Bạn không có quyền truy cập vào thông tin vé xem phim này.',
@@ -271,7 +275,7 @@ async function cancelTicket(req, res, next) {
   try {
     const { id } = req.params;
     const userRole = req.user.role;
-    const customerId = req.user.customerId || req.user.id;
+    const resolvedCustomerId = await resolveAuthenticatedCustomerId(req.user);
 
     const tickets = await db.query(
       `SELECT t.*, s.start_time, b.id AS booking_id
@@ -288,9 +292,9 @@ async function cancelTicket(req, res, next) {
 
     const ticket = tickets[0];
 
-    // Nếu là customer, kiểm tra quyền sở hữu và thời gian hủy
+    // Nếu là customer, kiểm tra quyền sở hữu chặt chẽ (KHÔNG so với users.id) và thời gian hủy
     if (userRole === 'customer') {
-      if (ticket.customer_id !== customerId && ticket.customer_id !== req.user.id) {
+      if (!isOwnedByCustomer(ticket.customer_id, resolvedCustomerId)) {
         return res.status(403).json({ success: false, message: 'Bạn không có quyền hủy vé này.' });
       }
 

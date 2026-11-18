@@ -6,3 +6,5 @@ dist
 .DS_Store
 .vercel
 .env*
+backups/
+rap chieu phim/backend/backups/

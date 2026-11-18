@@ -5,6 +5,8 @@ const { authenticateToken } = require('../middlewares/authMiddleware');
 
 router.post('/login', authController.login);
 router.post('/register', authController.register);
+router.post('/supabase-exchange', authController.supabaseExchange);
+router.post('/link-supabase', authenticateToken, authController.linkSupabaseAccount);
 router.post('/switch-role', authController.fastSwitchRole);
 router.get('/me', authenticateToken, authController.getMe);
 router.put('/profile', authenticateToken, authController.updateProfile);

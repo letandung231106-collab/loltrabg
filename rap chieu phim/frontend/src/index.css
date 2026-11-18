@@ -5,12 +5,18 @@
 /* CSS Variables for Dark & Light Themes */
 :root,
 .dark {
-  --color-cinema-950: 7 9 14;     /* #07090e */
-  --color-cinema-900: 13 17 23;   /* #0d1117 */
-  --color-cinema-850: 19 24 34;   /* #131822 */
-  --color-cinema-800: 26 34 50;   /* #1a2232 */
-  --color-cinema-700: 38 49 69;   /* #263145 */
-  --color-cinema-600: 56 70 97;   /* #384661 */
+  --color-cinema-950: 7 9 14;
+  /* #07090e */
+  --color-cinema-900: 13 17 23;
+  /* #0d1117 */
+  --color-cinema-850: 19 24 34;
+  /* #131822 */
+  --color-cinema-800: 26 34 50;
+  /* #1a2232 */
+  --color-cinema-700: 38 49 69;
+  /* #263145 */
+  --color-cinema-600: 56 70 97;
+  /* #384661 */
   --cinema-border-base: #263145;
   --cinema-body-bg: #07090e;
   --cinema-body-color: #f1f5f9;
@@ -18,12 +24,18 @@
 }
 
 html.light {
-  --color-cinema-950: 248 250 252; /* slate-50 canvas */
-  --color-cinema-900: 255 255 255; /* pure white card surfaces */
-  --color-cinema-850: 241 245 249; /* slate-100 sub-panels */
-  --color-cinema-800: 226 232 240; /* slate-200 chips & subtle hovers */
-  --color-cinema-700: 203 213 225; /* slate-300 borders & dividers */
-  --color-cinema-600: 148 163 184; /* slate-400 prominent outlines */
+  --color-cinema-950: 248 250 252;
+  /* slate-50 canvas */
+  --color-cinema-900: 255 255 255;
+  /* pure white card surfaces */
+  --color-cinema-850: 241 245 249;
+  /* slate-100 sub-panels */
+  --color-cinema-800: 226 232 240;
+  /* slate-200 chips & subtle hovers */
+  --color-cinema-700: 203 213 225;
+  /* slate-300 borders & dividers */
+  --color-cinema-600: 148 163 184;
+  /* slate-400 prominent outlines */
   --cinema-border-base: #cbd5e1;
   --cinema-body-bg: #f8fafc;
   --cinema-body-color: #0f172a;
@@ -34,9 +46,11 @@ html.light {
   * {
     border-color: var(--cinema-border-base);
   }
+
   html {
     transition: background-color 0.25s ease, color 0.25s ease;
   }
+
   body {
     background-color: var(--cinema-body-bg);
     color: var(--cinema-body-color);
@@ -49,13 +63,16 @@ html.light {
   width: 8px;
   height: 8px;
 }
+
 ::-webkit-scrollbar-track {
   background: #0d1117;
 }
+
 ::-webkit-scrollbar-thumb {
   background: #263145;
   border-radius: 4px;
 }
+
 ::-webkit-scrollbar-thumb:hover {
   background: #e50914;
 }
@@ -63,9 +80,11 @@ html.light {
 html.light ::-webkit-scrollbar-track {
   background: #f1f5f9;
 }
+
 html.light ::-webkit-scrollbar-thumb {
   background: #cbd5e1;
 }
+
 html.light ::-webkit-scrollbar-thumb:hover {
   background: #e50914;
 }
@@ -74,7 +93,7 @@ html.light ::-webkit-scrollbar-thumb:hover {
 .cinema-screen-curve {
   position: relative;
   height: 18px;
-  background: linear-gradient(180deg, rgba(255,255,255,0.9) 0%, rgba(229,9,20,0.4) 50%, transparent 100%);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.9) 0%, rgba(229, 9, 20, 0.4) 50%, transparent 100%);
   border-radius: 50% / 100% 100% 0 0;
   box-shadow: 0 10px 30px rgba(229, 9, 20, 0.4);
 }
@@ -94,6 +113,7 @@ html.light ::-webkit-scrollbar-thumb:hover {
 .glass-panel-hover {
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
+
 .glass-panel-hover:hover {
   background: rgba(26, 34, 50, 0.85);
   border-color: rgba(229, 9, 20, 0.35);
@@ -137,6 +157,7 @@ html.light textarea {
   color: #0f172a !important;
   background-color: #ffffff !important;
 }
+
 html.light input::placeholder,
 html.light textarea::placeholder {
   color: #94a3b8 !important;
@@ -146,12 +167,15 @@ html.light textarea::placeholder {
 html.light .text-slate-100:not(.keep-white):not([class*="bg-ruby"]):not([class*="bg-emerald"]):not([class*="bg-blue"]):not([class*="from-ruby"]) {
   color: #0f172a;
 }
+
 html.light .text-slate-200:not(.keep-white):not([class*="bg-ruby"]):not([class*="bg-emerald"]):not([class*="bg-blue"]):not([class*="from-ruby"]) {
   color: #1e293b;
 }
+
 html.light .text-slate-300:not(.keep-white):not([class*="bg-ruby"]):not([class*="bg-emerald"]):not([class*="bg-blue"]):not([class*="from-ruby"]) {
   color: #334155;
 }
+
 html.light .text-slate-400:not(.keep-white):not([class*="bg-ruby"]):not([class*="bg-emerald"]):not([class*="bg-blue"]):not([class*="from-ruby"]):not([class*="bg-cinema-850"]) {
   color: #64748b;
 }
@@ -212,6 +236,7 @@ html.light .cinematic-dark-overlay .text-slate-400,
   0% {
     transform: scale(1.02);
   }
+
   100% {
     transform: scale(1.10);
   }
@@ -225,6 +250,7 @@ html.light .cinematic-dark-overlay .text-slate-400,
   0% {
     width: 0%;
   }
+
   100% {
     width: 100%;
   }
@@ -242,6 +268,7 @@ html.light .cinematic-dark-overlay .text-slate-400,
     opacity: 0;
     transform: translateY(8px);
   }
+
   100% {
     opacity: 1;
     transform: none;
@@ -253,6 +280,7 @@ html.light .cinematic-dark-overlay .text-slate-400,
     opacity: 0;
     transform: scale(0.95);
   }
+
   100% {
     opacity: 1;
     transform: none;
@@ -264,6 +292,7 @@ html.light .cinematic-dark-overlay .text-slate-400,
     opacity: 0;
     transform: scale(0.96) translateY(6px);
   }
+
   100% {
     opacity: 1;
     transform: none;

@@ -62,10 +62,12 @@ CREATE TABLE IF NOT EXISTS users (
   username VARCHAR(100) NOT NULL UNIQUE,
   password VARCHAR(255) NOT NULL,
   role_id INT NOT NULL,
+  auth_user_id UUID NULL,
   status VARCHAR(20) DEFAULT 'active',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_users_roles FOREIGN KEY (role_id) REFERENCES roles (id) ON DELETE RESTRICT ON UPDATE CASCADE
 );
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_auth_user_id_unique ON users (auth_user_id) WHERE auth_user_id IS NOT NULL;
 
 -- --------------------------------------------------------------------
 -- 3. CUSTOMERS

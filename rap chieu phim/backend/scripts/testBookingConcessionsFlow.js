@@ -76,6 +76,7 @@ async function runConcessionFlowTests() {
   console.log('================================================================\n');
 
   const customerToken = await login('customer1');
+  const staffToken = await login('staff1');
 
   // Tìm một suất chiếu hợp lệ trong tương lai để test
   const schRes = await request('/schedules', 'GET', null, customerToken);
@@ -233,8 +234,8 @@ async function runConcessionFlowTests() {
   // ---------------------------------------------------------------------------
   console.log('\n--- CASE 3: Tạo đơn F&B, trừ kho BOM và chống trừ kho 2 lần (Idempotency) ---');
 
-  // Lấy tồn kho trước khi thanh toán của Hạt ngô (ID 1), Bơ (ID 2), Phô mai (ID 3), Hộp bắp L (ID 8)
-  const ingResBefore = await request('/inventory/ingredients', 'GET', null, customerToken);
+  // Lấy tồn kho trước khi thanh toán của Hạt ngô (ID 1), Bơ (ID 2), Phô mai (ID 3), Hộp bắp L (ID 8) bằng quyền staff
+  const ingResBefore = await request('/inventory/ingredients', 'GET', null, staffToken);
   const getIngStock = (id, list) => (list || []).find((i) => i.id === id)?.stock_quantity || 0;
   const cornBefore = getIngStock(1, ingResBefore.body?.data);
 
@@ -248,8 +249,8 @@ async function runConcessionFlowTests() {
   assert(payConcessionRes.status === 200 && payConcessionRes.body.success, 'Thanh toán đơn kèm bắp nước thành công');
   assert(payConcessionRes.body.data?.concessionOrder !== null, 'Tạo thành công đơn hàng F&B concession_orders trong cùng transaction');
 
-  // Kiểm tra tồn kho sau thanh toán
-  const ingResAfter = await request('/inventory/ingredients', 'GET', null, customerToken);
+  // Kiểm tra tồn kho sau thanh toán bằng quyền staff
+  const ingResAfter = await request('/inventory/ingredients', 'GET', null, staffToken);
   const cornAfter = getIngStock(1, ingResAfter.body?.data);
   const cornDeducted = parseFloat((cornBefore - cornAfter).toFixed(3));
   assert(
@@ -266,7 +267,7 @@ async function runConcessionFlowTests() {
   }, customerToken);
 
   assert(repeatPayRes.status === 200 && repeatPayRes.body.data?.alreadyPaid === true, 'Gọi lại thanh toán đơn đã trả: phản hồi alreadyPaid = true');
-  const ingResAfterRepeat = await request('/inventory/ingredients', 'GET', null, customerToken);
+  const ingResAfterRepeat = await request('/inventory/ingredients', 'GET', null, staffToken);
   const cornAfterRepeat = getIngStock(1, ingResAfterRepeat.body?.data);
   assert(
     cornAfterRepeat === cornBeforeRepeat,

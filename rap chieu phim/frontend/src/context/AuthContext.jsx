@@ -1,17 +1,71 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { api } from '../services/api';
+import {
+  isSupabaseAuthConfigured,
+  startGoogleOAuthLogin,
+  resolveOAuthCallbackSession,
+  signOutSupabase,
+} from '../services/supabaseAuth';
 
 const AuthContext = createContext();
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
-    const saved = localStorage.getItem('user');
-    return saved ? JSON.parse(saved) : null;
+    try {
+      const saved = localStorage.getItem('user');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      localStorage.removeItem('user');
+      return null;
+    }
   });
   const [token, setToken] = useState(() => localStorage.getItem('token') || '');
   const [loading, setLoading] = useState(false);
+  const [oauthNotice, setOauthNotice] = useState(null);
   const [notifications, setNotifications] = useState([]);
   const [unreadNotifCount, setUnreadNotifCount] = useState(0);
+  const callbackHandledRef = useRef(false);
+
+  // Xử lý tự động Google OAuth Callback tại /auth/callback (Hybrid Token Exchange -> Backend JWT)
+  useEffect(() => {
+    if (typeof window === 'undefined' || callbackHandledRef.current) return;
+    const isCallbackPath = window.location.pathname === '/auth/callback';
+    const params = new URLSearchParams(window.location.search);
+    const hasOAuthParams = params.has('code') || params.has('error') || window.location.hash.includes('access_token=');
+
+    if (!isCallbackPath && !hasOAuthParams) return;
+    callbackHandledRef.current = true;
+
+    (async () => {
+      setLoading(true);
+      try {
+        const sbSession = await resolveOAuthCallbackSession();
+        const res = await api.exchangeSupabaseToken(sbSession.access_token);
+        if (res.success && res.token && res.user) {
+          setToken(res.token);
+          setUser(res.user);
+          localStorage.setItem('token', res.token);
+          localStorage.setItem('user', JSON.stringify(res.user));
+          setOauthNotice({
+            type: 'success',
+            text: res.message || 'Đăng nhập Google thành công!',
+          });
+        } else {
+          throw new Error(res.message || 'Không thể trao đổi phiên đăng nhập với máy chủ NIGHT MOVIE.');
+        }
+      } catch (err) {
+        await signOutSupabase();
+        setOauthNotice({
+          type: 'error',
+          text: err.message || 'Đăng nhập Google thất bại. Vui lòng thử lại.',
+        });
+      } finally {
+        // Làm sạch đường dẫn /auth/callback về '/' để tránh redirect vòng lặp khi F5
+        window.history.replaceState({}, document.title, '/');
+        setLoading(false);
+      }
+    })();
+  }, []);
 
   // Load user profile and poll notifications periodically
   useEffect(() => {
@@ -125,6 +179,18 @@ export function AuthProvider({ children }) {
     }
   };
 
+  const loginWithGoogle = async () => {
+    setLoading(true);
+    try {
+      await startGoogleOAuthLogin();
+      return { success: true };
+    } catch (err) {
+      return { success: false, message: err.message };
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const logout = () => {
     setUser(null);
     setToken('');
@@ -132,6 +198,7 @@ export function AuthProvider({ children }) {
     setUnreadNotifCount(0);
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    signOutSupabase();
   };
 
   /**
@@ -165,6 +232,10 @@ export function AuthProvider({ children }) {
         unreadNotifCount,
         markAsRead,
         login,
+        loginWithGoogle,
+        isGoogleAuthReady: isSupabaseAuthConfigured(),
+        oauthNotice,
+        clearOauthNotice: () => setOauthNotice(null),
         register,
         logout,
         switchRole,

@@ -2,7 +2,8 @@ const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
 const sepayController = require('../controllers/sepayController');
-const { JWT_SECRET } = require('../middlewares/authMiddleware');
+const { authenticateToken, JWT_SECRET } = require('../middlewares/authMiddleware');
+const { authorizeRoles } = require('../middlewares/roleMiddleware');
 
 function optionalAuth(req, res, next) {
   const authHeader = req.headers['authorization'];
@@ -32,7 +33,7 @@ router.post('/register-booking-session', optionalAuth, sepayController.registerB
 // 5. Lấy thông tin tài khoản ngân hàng thụ hưởng SePay
 router.get('/info', sepayController.getSepayInfo);
 
-// 6. Giả lập thanh toán SePay (Dành cho QA / Sandbox / Test tự động không cần chuyển tiền thật)
-router.post('/simulate-payment', sepayController.simulatePayment);
+// 6. Giả lập thanh toán SePay (CHỈ hoạt động ở môi trường phát triển, bị chặn tuyệt đối trong Production)
+router.post('/simulate-payment', authenticateToken, authorizeRoles('admin', 'manager', 'staff'), sepayController.simulatePayment);
 
 module.exports = router;

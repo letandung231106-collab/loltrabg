@@ -34,7 +34,7 @@ async function getEmployees(req, res, next) {
       params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
     }
 
-    sql += ` GROUP BY e.id ORDER BY e.id ASC`;
+    sql += ` GROUP BY e.id, u.id, u.username, r.id, r.name ORDER BY e.id ASC`;
 
     const employees = await db.query(sql, params);
 
@@ -78,10 +78,25 @@ async function getTechnicians(req, res, next) {
  */
 async function createEmployee(req, res, next) {
   try {
-    const { username, password = 'password123', name, phone, email, position, department = 'Vận Hành Rạp', role = 'staff' } = req.body;
+    const { username, password, name, phone, email, position, department = 'Vận Hành Rạp', role = 'staff' } = req.body || {};
 
     if (!username || !name) {
       return res.status(400).json({ success: false, message: 'Vui lòng cung cấp username và họ tên nhân viên.' });
+    }
+
+    // Bắt buộc mật khẩu đủ mạnh, loại bỏ hoàn toàn mật khẩu mặc định password123
+    const WEAK_PASSWORDS = new Set(['password123', 'admin123', '12345678', '123456', 'password', 'qwerty123']);
+    if (typeof password !== 'string' || password.trim().length < 8) {
+      return res.status(400).json({
+        success: false,
+        message: 'Bắt buộc nhập mật khẩu nhân viên tối thiểu 8 ký tự (không sử dụng mật khẩu mặc định).',
+      });
+    }
+    if (WEAK_PASSWORDS.has(password.trim().toLowerCase()) || !(/[A-Za-z]/.test(password) && /\d/.test(password))) {
+      return res.status(400).json({
+        success: false,
+        message: 'Mật khẩu quá yếu. Vui lòng nhập tối thiểu 8 ký tự bao gồm cả chữ cái và chữ số (không dùng password123/admin123).',
+      });
     }
 
     const existingUser = await db.query(`SELECT id FROM users WHERE username = ?`, [username]);

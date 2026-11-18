@@ -40,7 +40,7 @@ const DEMO_ACCOUNTS = [
 ];
 
 export function LoginModal({ isOpen, onClose }) {
-  const { login, register, loading } = useAuth();
+  const { login, loginWithGoogle, isGoogleAuthReady, register, loading } = useAuth();
   const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [isForgotMode, setIsForgotMode] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -356,6 +356,41 @@ export function LoginModal({ isOpen, onClose }) {
             {loading ? 'Đang xử lý...' : isForgotMode ? 'Khôi Phục Mật Khẩu' : isRegisterMode ? 'Đăng Ký Ngay' : 'Đăng Nhập'}
           </button>
         </form>
+
+        {/* Google OAuth via Supabase Auth (Hybrid Token Exchange) */}
+        {!isForgotMode && (
+          <div className="mt-4">
+            <div className="relative flex items-center justify-center my-3">
+              <div className="w-full border-t border-cinema-700/70" />
+              <span className="px-3 text-[11px] uppercase tracking-wider text-slate-400 bg-cinema-900/90 whitespace-nowrap">
+                Hoặc tiếp tục với
+              </span>
+              <div className="w-full border-t border-cinema-700/70" />
+            </div>
+            <button
+              type="button"
+              disabled={loading}
+              onClick={async () => {
+                setErrorMsg('');
+                setSuccessMsg('');
+                const res = await loginWithGoogle();
+                if (!res?.success && res?.message) {
+                  setErrorMsg(res.message);
+                }
+              }}
+              className="w-full py-2.5 px-4 rounded-xl bg-white hover:bg-slate-100 text-slate-900 font-semibold text-sm flex items-center justify-center gap-2.5 transition-all border border-slate-200 shadow-sm disabled:opacity-50 cursor-pointer"
+              title={isGoogleAuthReady ? 'Đăng nhập nhanh bằng tài khoản Google' : 'Cần cấu hình VITE_SUPABASE_URL & VITE_SUPABASE_ANON_KEY'}
+            >
+              <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
+                <path fill="#4285F4" d="M23.49 12.27c0-.79-.07-1.54-.2-2.27H12v4.3h6.44a5.51 5.51 0 0 1-2.39 3.62v3h3.87c2.26-2.08 3.57-5.15 3.57-8.65z" />
+                <path fill="#34A853" d="M12 24c3.24 0 5.95-1.07 7.93-2.91l-3.87-3c-1.07.72-2.44 1.15-4.06 1.15-3.12 0-5.77-2.11-6.72-4.95H1.29v3.1A12 12 0 0 0 12 24z" />
+                <path fill="#FBBC05" d="M5.28 14.29A7.2 7.2 0 0 1 4.9 12c0-.79.14-1.56.38-2.29v-3.1H1.29A12 12 0 0 0 0 12c0 1.94.46 3.77 1.29 5.39l3.99-3.1z" />
+                <path fill="#EA4335" d="M12 4.77c1.76 0 3.34.61 4.58 1.8l3.44-3.44C17.95 1.19 15.24 0 12 0A12 12 0 0 0 1.29 6.61l3.99 3.1c.95-2.84 3.6-4.94 6.72-4.94z" />
+              </svg>
+              <span>Đăng nhập bằng Google</span>
+            </button>
+          </div>
+        )}
 
         {/* Demo Accounts Quick Fill */}
         {!isRegisterMode && !isForgotMode && (

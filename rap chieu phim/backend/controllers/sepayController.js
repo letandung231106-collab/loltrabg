@@ -3,6 +3,7 @@ const { sepayConfig, getSepayQrUrl } = require('../config/sepay');
 const { finalizeBookingTransaction, saveBookingConcessions } = require('./paymentController');
 const { executeConcessionSaleTransaction } = require('./concessionController');
 const sessionStore = require('../services/paymentGatewaySessionStore');
+const { resolveAuthenticatedCustomerId, isOwnedByCustomer } = require('../utils/ownershipHelper');
 
 /**
  * Chuẩn hóa mã đơn / mã chuyển khoản để tìm kiếm không phụ thuộc khoảng trắng và viết hoa
@@ -74,6 +75,18 @@ async function registerBookingSession(req, res) {
 
     if (!bookingId || !bookingCode) {
       return res.status(400).json({ success: false, message: 'Thiếu thông tin bookingId hoặc bookingCode.' });
+    }
+
+    if (req.user?.role === 'customer') {
+      const bookingRows = await db.query(`SELECT id, customer_id FROM bookings WHERE id = ?`, [parseInt(bookingId, 10)]);
+      const bk = Array.isArray(bookingRows) ? bookingRows[0] : null;
+      const resolvedCustomerId = await resolveAuthenticatedCustomerId(req.user);
+      if (!bk || !isOwnedByCustomer(bk.customer_id, resolvedCustomerId)) {
+        return res.status(403).json({
+          success: false,
+          message: 'Bạn không có quyền đăng ký phiên thanh toán cho đơn đặt vé này.',
+        });
+      }
     }
 
     if (concessions !== undefined && typeof saveBookingConcessions === 'function') {
@@ -406,6 +419,14 @@ async function checkPaymentStatus(req, res) {
  */
 async function simulatePayment(req, res) {
   try {
+    // Tuyệt đối chặn giả lập thanh toán trong môi trường Production hoặc khi tắt demo tools
+    if (process.env.NODE_ENV === 'production' || process.env.ENABLE_DEMO_TOOLS === 'false') {
+      return res.status(403).json({
+        success: false,
+        message: 'Chức năng giả lập thanh toán SePay đã bị khóa vĩnh viễn trong môi trường Production.',
+      });
+    }
+
     const { orderCode, amount = 100000 } = req.body;
     if (!orderCode) {
       return res.status(400).json({ success: false, message: 'Thiếu mã đơn orderCode để giả lập thanh toán.' });

@@ -526,7 +526,9 @@ async function query(sql, params = []) {
     if (params.length > 0) {
       const param0 = params[0];
       let foundUser = null;
-      if (normalized.includes('where r.name = ?')) {
+      if (normalized.includes('where u.auth_user_id = ?')) {
+        foundUser = memory.users.find((u) => u.auth_user_id && u.auth_user_id === param0);
+      } else if (normalized.includes('where r.name = ?')) {
         const targetRole = memory.roles.find((r) => r.name === param0);
         foundUser = memory.users.find((u) => u.role_id === targetRole?.id && u.status === 'active');
       } else if (normalized.includes('where u.id = ?') || normalized.includes('where id = ?')) {
@@ -548,11 +550,33 @@ async function query(sql, params = []) {
         customer_email: cust?.email,
         employee_id: emp?.id,
         employee_name: emp?.name,
+        employee_email: emp?.email,
         position: emp?.position,
         department: emp?.department,
       }];
     }
     return memory.users;
+  }
+
+  // Supabase OAuth email lookup in employees / customers
+  if (normalized.startsWith('select') && normalized.includes('from employees e') && normalized.includes('lower(e.email) = lower(?)')) {
+    const email = String(params[0] || '').toLowerCase();
+    const emp = memory.employees.find((e) => String(e.email || '').toLowerCase() === email);
+    if (!emp) return [];
+    const u = memory.users.find((item) => item.id === emp.user_id);
+    if (!u) return [];
+    const role = memory.roles.find((r) => r.id === u.role_id)?.name || 'staff';
+    return [{ ...u, role, employee_id: emp.id, employee_name: emp.name, employee_email: emp.email }];
+  }
+
+  if (normalized.startsWith('select') && normalized.includes('from customers c') && normalized.includes('lower(c.email) = lower(?)')) {
+    const email = String(params[0] || '').toLowerCase();
+    const cust = memory.customers.find((c) => String(c.email || '').toLowerCase() === email);
+    if (!cust) return [];
+    const u = memory.users.find((item) => item.id === cust.user_id);
+    if (!u) return [];
+    const role = memory.roles.find((r) => r.id === u.role_id)?.name || 'customer';
+    return [{ ...u, role, customer_id: cust.id, customer_name: cust.name, customer_email: cust.email }];
   }
 
   // =========================================================================
@@ -875,7 +899,7 @@ async function query(sql, params = []) {
   // =========================================================================
   // 7. BOOKINGS
   // =========================================================================
-  if (normalized.includes('from bookings')) {
+  if (normalized.includes('from bookings') && !normalized.includes('from customers c')) {
     let list = memory.bookings.map((b) => {
       const s = memory.schedules.find((item) => item.id === b.screening_id);
       const m = memory.movies.find((item) => item.id === s?.movie_id);
@@ -954,7 +978,7 @@ async function query(sql, params = []) {
   // =========================================================================
   // 8. TICKETS
   // =========================================================================
-  if (normalized.includes('from tickets')) {
+  if (normalized.includes('from tickets') && !normalized.includes('from customers c')) {
     let list = memory.tickets.map((t) => {
       const b = memory.bookings.find((item) => item.id === t.booking_id);
       const s = memory.schedules.find((item) => item.id === t.screening_id);
@@ -1065,7 +1089,7 @@ async function query(sql, params = []) {
   }
 
   // 8.1 Payments
-  if (normalized.includes('from payments')) {
+  if (normalized.includes('from payments') && !normalized.includes('from customers c')) {
     const allPayments = (memory.payments || []).map((p) => {
       const b = (memory.bookings || []).find((item) => item.id === p.booking_id);
       return {
@@ -1592,12 +1616,20 @@ async function query(sql, params = []) {
 
   // A0. Users & Customers Registration
   if (normalized.startsWith('insert into users')) {
+    const hasAuthUuid = normalized.includes('auth_user_id');
+    const authUserId = hasAuthUuid ? params[2] : null;
+    if (authUserId && memory.users.some((u) => u.auth_user_id === authUserId)) {
+      const dupErr = new Error('duplicate key value violates unique constraint "idx_users_auth_user_id_unique"');
+      dupErr.code = '23505';
+      throw dupErr;
+    }
     const newId = memory.users.length > 0 ? Math.max(...memory.users.map((u) => u.id)) + 1 : 1;
     memory.users.push({
       id: newId,
       username: params[0],
-      password: params[1] || 'password123',
-      role_id: parseInt(params[2], 10) || 5,
+      password: params[1] || '',
+      role_id: hasAuthUuid ? 5 : (parseInt(params[2], 10) || 5),
+      auth_user_id: authUserId,
       status: 'active',
       created_at: now.toISOString().replace('T', ' ').slice(0, 19),
     });
@@ -1806,18 +1838,20 @@ async function query(sql, params = []) {
   }
 
   if (normalized.startsWith('update customers')) {
-    const id = parseInt(params[params.length - 1], 10);
-    const cust = memory.customers.find((c) => c.id === id || c.user_id === id);
+    const targetId = parseInt(params[params.length - 1], 10);
+    const cust = normalized.includes('where user_id = ?')
+      ? memory.customers.find((c) => c.user_id === targetId)
+      : memory.customers.find((c) => c.id === targetId);
     if (cust) {
       if (normalized.includes('membership_level = ?')) {
-        if (params[0] !== undefined) cust.name = params[0];
-        if (params[1] !== undefined) cust.email = params[1];
-        if (params[2] !== undefined) cust.phone = params[2];
-        if (params[3] !== undefined) cust.membership_level = params[3];
+        if (params[0] !== undefined && params[0] !== null) cust.name = params[0];
+        if (params[1] !== undefined && params[1] !== null) cust.email = params[1];
+        if (params[2] !== undefined && params[2] !== null) cust.phone = params[2];
+        if (params[3] !== undefined && params[3] !== null) cust.membership_level = params[3];
       } else {
-        if (params[0] !== undefined) cust.name = params[0];
-        if (params[1] !== undefined) cust.email = params[1];
-        if (params[2] !== undefined) cust.phone = params[2];
+        if (params[0] !== undefined && params[0] !== null) cust.name = params[0];
+        if (params[1] !== undefined && params[1] !== null) cust.email = params[1];
+        if (params[2] !== undefined && params[2] !== null) cust.phone = params[2];
       }
     }
     return { affectedRows: cust ? 1 : 0 };
@@ -1827,10 +1861,23 @@ async function query(sql, params = []) {
     const id = parseInt(params[params.length - 1], 10);
     const u = memory.users.find((user) => user.id === id);
     if (u) {
-      if (normalized.includes('password = ?')) {
+      if (normalized.includes('auth_user_id = ?')) {
+        const newUuid = params[0];
+        if (normalized.includes('and auth_user_id is null') && u.auth_user_id) {
+          return { affectedRows: 0 };
+        }
+        if (newUuid && memory.users.some((other) => other.id !== u.id && other.auth_user_id === newUuid)) {
+          const dupErr = new Error('duplicate key value violates unique constraint "idx_users_auth_user_id_unique"');
+          dupErr.code = '23505';
+          throw dupErr;
+        }
+        u.auth_user_id = newUuid;
+      } else if (normalized.includes('password = ?')) {
         u.password = params[0];
       } else if (normalized.includes('role_id = ?')) {
         u.role_id = parseInt(params[0], 10);
+      } else if (normalized.includes('status = ?')) {
+        u.status = params[0];
       }
     }
     return { affectedRows: u ? 1 : 0 };
@@ -1854,15 +1901,23 @@ async function query(sql, params = []) {
   }
 
   if (normalized.startsWith('update employees')) {
-    const id = parseInt(params[params.length - 1], 10);
-    const emp = memory.employees.find((e) => e.id === id || e.user_id === id);
+    const targetId = parseInt(params[params.length - 1], 10);
+    const emp = normalized.includes('where user_id = ?')
+      ? memory.employees.find((e) => e.user_id === targetId)
+      : memory.employees.find((e) => e.id === targetId);
     if (emp) {
-      if (params[0] !== undefined) emp.name = params[0];
-      if (params[1] !== undefined) emp.phone = params[1];
-      if (params[2] !== undefined) emp.email = params[2];
-      if (params[3] !== undefined) emp.position = params[3];
-      if (params[4] !== undefined) emp.department = params[4];
-      if (params[5] !== undefined) emp.status = params[5];
+      if (normalized.includes('where user_id = ?')) {
+        if (params[0] !== undefined && params[0] !== null) emp.name = params[0];
+        if (params[1] !== undefined && params[1] !== null) emp.email = params[1];
+        if (params[2] !== undefined && params[2] !== null) emp.phone = params[2];
+      } else {
+        if (params[0] !== undefined && params[0] !== null) emp.name = params[0];
+        if (params[1] !== undefined && params[1] !== null) emp.phone = params[1];
+        if (params[2] !== undefined && params[2] !== null) emp.email = params[2];
+        if (params[3] !== undefined && params[3] !== null) emp.position = params[3];
+        if (params[4] !== undefined && params[4] !== null) emp.department = params[4];
+        if (params[5] !== undefined && params[5] !== null) emp.status = params[5];
+      }
     }
     return { affectedRows: emp ? 1 : 0 };
   }

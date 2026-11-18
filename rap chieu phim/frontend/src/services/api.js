@@ -60,6 +60,13 @@ export const api = {
   // Auth
   login: (credentials) => request('/auth/login', { method: 'POST', body: JSON.stringify(credentials) }),
   register: (userData) => request('/auth/register', { method: 'POST', body: JSON.stringify(userData) }),
+  exchangeSupabaseToken: (accessToken) =>
+    request('/auth/supabase-exchange', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({ accessToken }),
+    }),
+  linkSupabaseAccount: (data) => request('/auth/link-supabase', { method: 'POST', body: JSON.stringify(data) }),
   getMe: () => request('/auth/me'),
   switchRole: (targetRole) => request('/auth/switch-role', { method: 'POST', body: JSON.stringify({ targetRole }) }),
   updateProfile: (data) => request('/auth/profile', { method: 'PUT', body: JSON.stringify(data) }),

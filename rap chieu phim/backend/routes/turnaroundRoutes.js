@@ -4,7 +4,7 @@ const turnaroundController = require('../controllers/turnaroundController');
 const { authenticateToken } = require('../middlewares/authMiddleware');
 const { authorizeRoles } = require('../middlewares/roleMiddleware');
 
-router.get('/', turnaroundController.getTurnaroundChecklists);
+router.get('/', authenticateToken, authorizeRoles('admin', 'manager', 'staff', 'technician'), turnaroundController.getTurnaroundChecklists);
 router.post('/', authenticateToken, authorizeRoles('admin', 'manager', 'staff'), turnaroundController.submitTurnaround);
 
 module.exports = router;

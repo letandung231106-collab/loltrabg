@@ -64,7 +64,7 @@ const ROLE_DEFAULT_TAB = {
 };
 
 function MainApp() {
-  const { isAuthenticated, isManager, isStaff, isTechnician, user } = useAuth();
+  const { isAuthenticated, isManager, isStaff, isTechnician, user, oauthNotice, clearOauthNotice } = useAuth();
   const { resetBookingState } = useBooking();
   const [currentView, setCurrentView] = useState('home'); // 'home' | 'movies' | 'schedules' | 'booking-flow' | 'my-tickets' | 'admin-dashboard'
   const [adminTab, setAdminTab] = useState('dashboard');
@@ -172,6 +172,27 @@ function MainApp() {
           currentView={currentView}
           onOpenInSeatDelivery={() => setIsInSeatDeliveryOpen(true)}
         />
+
+        {/* Supabase Google OAuth Notification Banner */}
+        {oauthNotice && (
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
+            <div
+              className={`p-3.5 rounded-2xl border flex items-center justify-between text-xs sm:text-sm font-semibold ${
+                oauthNotice.type === 'success'
+                  ? 'bg-emerald-950/80 border-emerald-500 text-emerald-200'
+                  : 'bg-rose-950/80 border-rose-500 text-rose-200'
+              }`}
+            >
+              <span>{oauthNotice.text}</span>
+              <button
+                onClick={clearOauthNotice}
+                className="ml-4 px-2.5 py-1 rounded-lg bg-black/30 hover:bg-black/50 text-white text-xs"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* MoMo Sandbox Return Notification Banner */}
         {momoReturnBanner && (

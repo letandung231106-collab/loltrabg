@@ -24,6 +24,12 @@ async function ensureSessionTable() {
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )`
       )
+      .then(() =>
+        db.query(
+          `CREATE INDEX IF NOT EXISTS idx_pg_sessions_provider_status
+           ON payment_gateway_sessions (provider, status, created_at DESC)`
+        )
+      )
       .then(() => {
         tableEnsured = true;
       })

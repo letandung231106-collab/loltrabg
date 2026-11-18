@@ -4,6 +4,7 @@ const { validateAndCalculateVoucher } = require('../config/vouchers');
 const { badRequest, forbidden, notFound } = require('../utils/httpError');
 const { executeConcessionSaleTransaction } = require('./concessionController');
 const sessionStore = require('../services/paymentGatewaySessionStore');
+const { resolveAuthenticatedCustomerId, isOwnedByCustomer } = require('../utils/ownershipHelper');
 
 /**
  * Xác định URL cơ sở của Frontend/Backend động theo môi trường deploy (Vercel / Production / Local)
@@ -171,7 +172,7 @@ async function finalizeBookingTransaction({
   simulateFailure = false,
   user = {},
 }) {
-  const customerId = user.customerId || user.id || 1;
+  const resolvedCustomerId = user.role === 'customer' ? await resolveAuthenticatedCustomerId(user) : null;
 
   return await db.withTransaction(async (conn) => {
     // 1. Kiểm tra thông tin đơn đặt vé
@@ -192,15 +193,12 @@ async function finalizeBookingTransaction({
 
     const booking = bookings[0];
 
-    // Kiểm tra quyền sở hữu nếu có thông tin user customer
-    if (
-      user.role === 'customer' &&
-      booking.customer_id &&
-      booking.customer_id !== customerId &&
-      booking.customer_id !== user.id
-    ) {
+    // Kiểm tra quyền sở hữu chặt chẽ (KHÔNG so booking.customer_id với user.id)
+    if (user.role === 'customer' && !isOwnedByCustomer(booking.customer_id, resolvedCustomerId)) {
       throw forbidden('Bạn không có quyền thanh toán đơn đặt vé này.');
     }
+
+    const customerId = booking.customer_id || resolvedCustomerId || 1;
 
     // Idempotent: Nếu đơn đã được thanh toán (ví dụ do IPN đã xử lý trước khi Return URL gọi về)
     if (booking.status === 'paid') {
@@ -413,6 +411,22 @@ async function processPayment(req, res, next) {
       });
     }
 
+    // Kiểm tra quyền sở hữu TRƯỚC KHI ghi bắp nước / voucher (chống IDOR)
+    const ownerCheckRows = await db.query(`SELECT id, customer_id, total_amount FROM bookings WHERE id = ?`, [booking_id]);
+    const ownerBooking = Array.isArray(ownerCheckRows) ? ownerCheckRows[0] : ownerCheckRows;
+    if (!ownerBooking) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy đơn đặt vé.' });
+    }
+    if (req.user?.role === 'customer') {
+      const resolvedCustomerId = await resolveAuthenticatedCustomerId(req.user);
+      if (!isOwnedByCustomer(ownerBooking.customer_id, resolvedCustomerId)) {
+        return res.status(403).json({
+          success: false,
+          message: 'Bạn không có quyền thanh toán đơn đặt vé này.',
+        });
+      }
+    }
+
     // 1. Cập nhật và xác thực danh sách bắp nước nếu được gửi kèm
     if (concessions !== undefined) {
       await saveBookingConcessions(db, booking_id, concessions);
@@ -420,12 +434,7 @@ async function processPayment(req, res, next) {
 
     // STT 22: Xác thực và áp dụng voucher nếu có
     if (voucher_code) {
-      const bookingRows = await db.query(`SELECT * FROM bookings WHERE id = ?`, [booking_id]);
-      const booking = Array.isArray(bookingRows) ? bookingRows[0] : bookingRows;
-      if (!booking) {
-        return res.status(404).json({ success: false, message: 'Không tìm thấy đơn đặt vé.' });
-      }
-      const vResult = validateAndCalculateVoucher(voucher_code, booking.total_amount);
+      const vResult = validateAndCalculateVoucher(voucher_code, ownerBooking.total_amount);
       if (!vResult.valid) {
         return res.status(400).json({ success: false, message: vResult.error });
       }
@@ -474,12 +483,7 @@ async function createMomoPayment(req, res, next) {
       });
     }
 
-    // 1. Cập nhật và xác thực danh sách bắp nước nếu được gửi kèm
-    if (concessions !== undefined) {
-      await saveBookingConcessions(db, booking_id, concessions);
-    }
-
-    // Kiểm tra đơn đặt vé
+    // Kiểm tra đơn đặt vé & quyền sở hữu TRƯỚC KHI ghi nhận bắp nước / voucher (chống IDOR)
     const bookings = await db.query(`SELECT * FROM bookings WHERE id = ?`, [booking_id]);
     if (!bookings || bookings.length === 0) {
       return res.status(404).json({
@@ -489,6 +493,16 @@ async function createMomoPayment(req, res, next) {
     }
 
     const booking = bookings[0];
+    if (req.user?.role === 'customer') {
+      const resolvedCustomerId = await resolveAuthenticatedCustomerId(req.user);
+      if (!isOwnedByCustomer(booking.customer_id, resolvedCustomerId)) {
+        return res.status(403).json({
+          success: false,
+          message: 'Bạn không có quyền khởi tạo thanh toán cho đơn đặt vé này.',
+        });
+      }
+    }
+
     if (booking.status === 'paid') {
       return res.status(400).json({
         success: false,
@@ -500,6 +514,12 @@ async function createMomoPayment(req, res, next) {
         success: false,
         message: 'Đơn đặt vé đã hết hạn hoặc bị hủy. Vui lòng chọn ghế lại.',
       });
+    }
+
+    // 1. Cập nhật và xác thực danh sách bắp nước sau khi đã xác minh chủ sở hữu đơn
+    if (concessions !== undefined) {
+      const totalConcessionAmount = await saveBookingConcessions(db, booking_id, concessions);
+      booking.concession_amount = totalConcessionAmount;
     }
 
     // STT 22: Xác thực và áp dụng voucher nếu có
