@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import { ClipboardList, Plus, CheckCircle, Clock, AlertTriangle, X } from 'lucide-react';
+import { ModalPortal } from '../../components/common/ModalPortal';
 
 export function MaintenanceManager() {
   const [maintenances, setMaintenances] = useState([]);
@@ -120,12 +121,12 @@ export function MaintenanceManager() {
                 <th className="p-4">Mã & Nội Dung</th>
                 <th className="p-4">Thiết bị</th>
                 <th className="p-4">Phòng chiếu</th>
-                <th className="p-4">Loại bảo trì</th>
-                <th className="p-4">Ngày dự kiến</th>
-                <th className="p-4">Kỹ thuật viên</th>
-                <th className="p-4">Chi phí</th>
-                <th className="p-4">Trạng thái</th>
-                <th className="p-4 text-right">Thao tác</th>
+                <th className="p-4 whitespace-nowrap">Loại bảo trì</th>
+                <th className="p-4 whitespace-nowrap">Ngày dự kiến</th>
+                <th className="p-4 whitespace-nowrap">Kỹ thuật viên</th>
+                <th className="p-4 whitespace-nowrap">Chi phí</th>
+                <th className="p-4 whitespace-nowrap">Trạng thái</th>
+                <th className="p-4 text-right whitespace-nowrap">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-cinema-800">
@@ -150,14 +151,23 @@ export function MaintenanceManager() {
                   <td className="p-4 font-mono font-bold text-emerald-400">
                     {parseFloat(m.cost) > 0 ? `${parseFloat(m.cost).toLocaleString('vi-VN')}đ` : '0đ'}
                   </td>
-                  <td className="p-4">
-                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${
-                      m.status === 'completed' ? 'bg-emerald-950 text-emerald-400 border border-emerald-600' :
-                      m.status === 'in_progress' ? 'bg-blue-950 text-blue-400 border border-blue-600 animate-pulse' :
-                      'bg-amber-950 text-amber-400 border border-amber-600'
-                    }`}>
-                      {m.status}
-                    </span>
+                  <td className="p-4 whitespace-nowrap">
+                    {m.status === 'completed' ? (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 whitespace-nowrap">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+                        Hoàn tất
+                      </span>
+                    ) : m.status === 'in_progress' ? (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-sky-500/15 text-sky-300 border border-sky-500/30 whitespace-nowrap">
+                        <span className="w-2 h-2 rounded-full bg-sky-400 shrink-0 animate-pulse" />
+                        Đang bảo trì
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30 whitespace-nowrap">
+                        <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
+                        Chờ bảo trì
+                      </span>
+                    )}
                   </td>
                   <td className="p-4 text-right">
                     {m.status !== 'completed' && (
@@ -176,102 +186,97 @@ export function MaintenanceManager() {
         </div>
       </div>
 
-      {/* Modal Lập Phiếu Bảo Trì */}
-      {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-fade-in">
-          <div className="relative w-full max-w-lg glass-panel rounded-3xl p-6 shadow-2xl border border-cinema-600">
-            <div className="flex items-center justify-between pb-3 border-b border-cinema-700">
-              <h3 className="font-black text-sm text-white">Lập Kế Hoạch Bảo Trì Thiết Bị</h3>
-              <button onClick={() => setModalOpen(false)} className="p-1 text-slate-400 hover:text-white">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleCreate} className="space-y-4 mt-3 text-xs">
-              <div>
-                <label className="block font-bold text-slate-300 mb-1">Chọn Thiết bị *</label>
-                <select
-                  required
-                  value={formData.equipment_id}
-                  onChange={(e) => setFormData({ ...formData, equipment_id: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
-                >
-                  {equipmentList.map((eq) => (
-                    <option key={eq.id} value={eq.id}>{eq.name} ({eq.room_name || 'Chung'})</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-300 mb-1">Loại bảo trì</label>
-                  <select
-                    value={formData.type}
-                    onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
-                  >
-                    <option value="periodic">Bảo trì định kỳ</option>
-                    <option value="emergency">Bảo trì đột xuất</option>
-                    <option value="repair">Sửa chữa lớn</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-300 mb-1">Ngày thực hiện *</label>
-                  <input
-                    type="date"
-                    required
-                    value={formData.scheduled_date}
-                    onChange={(e) => setFormData({ ...formData, scheduled_date: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-300 mb-1">Phân công Kỹ thuật viên</label>
-                <select
-                  value={formData.employee_id}
-                  onChange={(e) => setFormData({ ...formData, employee_id: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
-                >
-                  <option value="">-- Chọn kỹ thuật viên --</option>
-                  {technicians.map((t) => (
-                    <option key={t.id} value={t.id}>{t.name} ({t.position})</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-300 mb-1">Nội dung công việc bảo trì *</label>
-                <textarea
-                  rows={3}
-                  required
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  placeholder="Mô tả các hạng mục kiểm tra, thay dầu, đo đạc quang thông..."
-                  className="w-full px-3 py-2 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
-                />
-              </div>
-
-              <div className="flex justify-end gap-3 pt-3 border-t border-cinema-700">
-                <button
-                  type="button"
-                  onClick={() => setModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-cinema-800 text-slate-300 hover:bg-cinema-700"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  className="px-6 py-2 rounded-xl bg-ruby-600 hover:bg-ruby-500 text-white font-bold shadow-glow-red"
-                >
-                  Lưu Phiếu Bảo Trì
-                </button>
-              </div>
-            </form>
+      {/* Modal Lập Phiếu Bảo Trì - Đưa ra document.body qua ModalPortal */}
+      <ModalPortal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title="Lập Kế Hoạch Bảo Trì Thiết Bị"
+        subtitle="Phân công kỹ thuật viên và lên lịch bảo dưỡng định kỳ / đột xuất"
+        maxWidth="max-w-lg"
+      >
+        <form onSubmit={handleCreate} className="space-y-4 text-xs">
+          <div>
+            <label className="block font-bold text-slate-300 mb-1">Chọn Thiết bị *</label>
+            <select
+              required
+              value={formData.equipment_id}
+              onChange={(e) => setFormData({ ...formData, equipment_id: e.target.value })}
+              className="w-full px-3 py-2 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
+            >
+              {equipmentList.map((eq) => (
+                <option key={eq.id} value={eq.id}>{eq.name} ({eq.room_name || 'Chung'})</option>
+              ))}
+            </select>
           </div>
-        </div>
-      )}
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block font-bold text-slate-300 mb-1">Loại bảo trì</label>
+              <select
+                value={formData.type}
+                onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                className="w-full px-3 py-2 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
+              >
+                <option value="periodic">Bảo trì định kỳ</option>
+                <option value="emergency">Bảo trì đột xuất</option>
+                <option value="repair">Sửa chữa lớn</option>
+              </select>
+            </div>
+            <div>
+              <label className="block font-bold text-slate-300 mb-1">Ngày thực hiện *</label>
+              <input
+                type="date"
+                required
+                value={formData.scheduled_date}
+                onChange={(e) => setFormData({ ...formData, scheduled_date: e.target.value })}
+                className="w-full px-3 py-2 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block font-bold text-slate-300 mb-1">Phân công Kỹ thuật viên</label>
+            <select
+              value={formData.employee_id}
+              onChange={(e) => setFormData({ ...formData, employee_id: e.target.value })}
+              className="w-full px-3 py-2 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
+            >
+              <option value="">-- Chọn kỹ thuật viên --</option>
+              {technicians.map((t) => (
+                <option key={t.id} value={t.id}>{t.name} ({t.position})</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block font-bold text-slate-300 mb-1">Nội dung công việc bảo trì *</label>
+            <textarea
+              rows={3}
+              required
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              placeholder="Mô tả các hạng mục kiểm tra, thay dầu, đo đạc quang thông..."
+              className="w-full px-3 py-2 rounded-xl bg-cinema-900 border border-cinema-700 text-white focus:outline-none"
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-3 border-t border-cinema-700">
+            <button
+              type="button"
+              onClick={() => setModalOpen(false)}
+              className="px-4 py-2 rounded-xl bg-cinema-800 text-slate-300 hover:bg-cinema-700 cursor-pointer"
+            >
+              Hủy
+            </button>
+            <button
+              type="submit"
+              className="px-6 py-2 rounded-xl bg-ruby-600 hover:bg-ruby-500 text-white font-bold shadow-glow-red cursor-pointer"
+            >
+              Lưu Phiếu Bảo Trì
+            </button>
+          </div>
+        </form>
+      </ModalPortal>
     </div>
   );
 }

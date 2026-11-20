@@ -15,31 +15,43 @@ function buildQueryString(params = {}) {
 }
 
 /**
- * Fetch wrapper có tự động đính kèm JWT Bearer Token
+ * Fetch wrapper có tự động đính kèm JWT Bearer Token & phân tích JSON an toàn tuyệt đối cho Safari macOS
  */
 async function request(endpoint, options = {}) {
   const token = localStorage.getItem('token');
+  const isValidToken = token && typeof token === 'string' && token !== 'null' && token !== 'undefined' && token.trim() !== '';
+
   const headers = {
     'Content-Type': 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(isValidToken ? { Authorization: `Bearer ${token.trim()}` } : {}),
     ...options.headers,
   };
 
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  const url = `${API_BASE_URL}${cleanEndpoint}`;
+
   try {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    const response = await fetch(url, {
       ...options,
       headers,
     });
 
-    const data = await response.json();
+    const rawText = await response.text();
+    let data = {};
+    try {
+      data = rawText ? JSON.parse(rawText) : {};
+    } catch (parseErr) {
+      console.warn(`[API JSON Parse Warning] ${cleanEndpoint}:`, parseErr.message);
+      throw new Error(`Server phản hồi không hợp lệ (HTTP ${response.status}). Vui lòng kiểm tra kết nối API.`);
+    }
 
     if (!response.ok) {
-      throw new Error(data.message || `Lỗi yêu cầu (${response.status})`);
+      throw new Error(data.message || data.error || `Lỗi yêu cầu máy chủ (${response.status})`);
     }
 
     return data;
   } catch (error) {
-    console.error(`[API Error] ${endpoint}:`, error.message);
+    console.error(`[API Error] ${cleanEndpoint}:`, error.message);
     throw error;
   }
 }
@@ -48,12 +60,23 @@ export const api = {
   // Auth
   login: (credentials) => request('/auth/login', { method: 'POST', body: JSON.stringify(credentials) }),
   register: (userData) => request('/auth/register', { method: 'POST', body: JSON.stringify(userData) }),
+  exchangeSupabaseToken: (accessToken) =>
+    request('/auth/supabase-exchange', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({ accessToken }),
+    }),
+  linkSupabaseAccount: (data) => request('/auth/link-supabase', { method: 'POST', body: JSON.stringify(data) }),
   getMe: () => request('/auth/me'),
   switchRole: (targetRole) => request('/auth/switch-role', { method: 'POST', body: JSON.stringify({ targetRole }) }),
+  updateProfile: (data) => request('/auth/profile', { method: 'PUT', body: JSON.stringify(data) }),
+  forgotPassword: (data) => request('/auth/forgot-password', { method: 'POST', body: JSON.stringify(data) }),
 
   // Movies
   getMovies: (params = {}) => request(`/movies${buildQueryString(params)}`),
   getMovieById: (id) => request(`/movies/${id}`),
+  getMovieReviews: (id) => request(`/movies/${id}/reviews`),
+  addMovieReview: (id, data) => request(`/movies/${id}/reviews`, { method: 'POST', body: JSON.stringify(data) }),
   createMovie: (data) => request('/movies', { method: 'POST', body: JSON.stringify(data) }),
   updateMovie: (id, data) => request(`/movies/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteMovie: (id) => request(`/movies/${id}`, { method: 'DELETE' }),
@@ -64,11 +87,14 @@ export const api = {
   updateRoomStatus: (id, status, description) =>
     request(`/rooms/${id}/status`, { method: 'PUT', body: JSON.stringify({ status, description }) }),
   createRoom: (data) => request('/rooms', { method: 'POST', body: JSON.stringify(data) }),
+  updateRoom: (id, data) => request(`/rooms/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteRoom: (id) => request(`/rooms/${id}`, { method: 'DELETE' }),
 
   // Schedules
   getSchedules: (params = {}) => request(`/schedules${buildQueryString(params)}`),
   getScheduleSeatMap: (id) => request(`/schedules/${id}/seats`),
   createSchedule: (data) => request('/schedules', { method: 'POST', body: JSON.stringify(data) }),
+  updateSchedule: (id, data) => request(`/schedules/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   cancelSchedule: (id) => request(`/schedules/${id}`, { method: 'DELETE' }),
 
   // Bookings & Hold Seats
@@ -83,9 +109,13 @@ export const api = {
   processPayment: (paymentData) => request('/payments/process', { method: 'POST', body: JSON.stringify(paymentData) }),
   createMomoPayment: (data) => request('/payments/momo/create', { method: 'POST', body: JSON.stringify(data) }),
   verifyMomoReturn: (data) => request('/payments/momo/momo-return', { method: 'POST', body: JSON.stringify(data) }),
+  getVouchers: () => request('/vouchers'),
+  validateVoucher: (data) => request('/vouchers/validate', { method: 'POST', body: JSON.stringify(data) }),
   getAllTickets: (params = {}) => request(`/tickets${buildQueryString(params)}`),
   getMyTickets: () => request('/tickets/my-tickets'),
   getTicketById: (id) => request(`/tickets/${id}`),
+  verifyTicket: (ticket_code) =>
+    request('/tickets/verify', { method: 'POST', body: JSON.stringify({ ticket_code }) }),
   verifyTicketQr: (ticket_code) =>
     request('/tickets/verify', { method: 'POST', body: JSON.stringify({ ticket_code }) }),
   cancelTicket: (id, reason) =>
@@ -102,9 +132,11 @@ export const api = {
   updateEquipment: (id, data) => request(`/equipment/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   getMaintenanceAlerts: () => request('/equipment/maintenance-alerts'),
   getEquipmentTypes: () => request('/equipment/types'),
-  getMaintenances: () => request('/equipment/maintenances/list'),
+  getMaintenances: (params = {}) => request(`/maintenances${buildQueryString(params)}`),
   createMaintenance: (data) =>
-    request('/equipment/maintenances', { method: 'POST', body: JSON.stringify(data) }),
+    request('/maintenances', { method: 'POST', body: JSON.stringify(data) }),
+  updateMaintenance: (id, data) =>
+    request(`/maintenances/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
 
   // Incidents
   getIncidents: (params = {}) => request(`/incidents${buildQueryString(params)}`),
@@ -119,22 +151,31 @@ export const api = {
   getInspections: (params = {}) => request(`/inspections${buildQueryString(params)}`),
   getInspectionById: (id) => request(`/inspections/${id}`),
   createInspection: (data) => request('/inspections', { method: 'POST', body: JSON.stringify(data) }),
+  submitInspection: (data) => request('/inspections', { method: 'POST', body: JSON.stringify(data) }),
 
   // Shifts & Staff
   getShifts: (params = {}) => request(`/shifts${buildQueryString(params)}`),
   createShift: (data) => request('/shifts', { method: 'POST', body: JSON.stringify(data) }),
   updateShiftStatus: (id, status) =>
     request(`/shifts/${id}/status`, { method: 'PUT', body: JSON.stringify({ status }) }),
-  getShiftHandovers: () => request('/shifts/handovers/list'),
-  createShiftHandover: (data) => request('/shifts/handovers', { method: 'POST', body: JSON.stringify(data) }),
+  checkInShift: (id, status) =>
+    request(`/shifts/${id}/status`, { method: 'PUT', body: JSON.stringify({ status }) }),
+  getHandovers: () => request('/handovers'),
+  createHandover: (data) => request('/handovers', { method: 'POST', body: JSON.stringify(data) }),
+  approveHandover: (id, data = {}) => request(`/handovers/${id}/approve`, { method: 'PUT', body: JSON.stringify(data) }),
+  getShiftHandovers: () => request('/handovers'),
+  createShiftHandover: (data) => request('/handovers', { method: 'POST', body: JSON.stringify(data) }),
   approveShiftHandover: (id, status, notes) =>
-    request(`/shifts/handovers/${id}/status`, { method: 'PUT', body: JSON.stringify({ status, notes }) }),
+    request(`/handovers/${id}/approve`, { method: 'PUT', body: JSON.stringify({ status, notes }) }),
   getEmployees: (params = {}) => request(`/employees${buildQueryString(params)}`),
   getTechnicians: () => request('/employees/technicians'),
+  createEmployee: (data) => request('/employees', { method: 'POST', body: JSON.stringify(data) }),
+  updateEmployee: (id, data) => request(`/employees/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
 
   // Customers (CRM)
   getCustomers: (params = {}) => request(`/customers${buildQueryString(params)}`),
   getCustomerById: (id) => request(`/customers/${id}`),
+  updateCustomer: (id, data) => request(`/customers/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   updateCustomerMembership: (id, membership_level) =>
     request(`/customers/${id}/membership`, { method: 'PUT', body: JSON.stringify({ membership_level }) }),
 
@@ -144,9 +185,13 @@ export const api = {
   updateConcession: (id, data) => request(`/concessions/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteConcession: (id) => request(`/concessions/${id}`, { method: 'DELETE' }),
   sellConcessions: (orderData) => request('/concessions/sell', { method: 'POST', body: JSON.stringify(orderData) }),
-  getInventory: () => request('/inventory'),
+  sellConcessionOrder: (orderData) => request('/concessions/sell', { method: 'POST', body: JSON.stringify(orderData) }),
+  getInventory: () => request('/inventory/ingredients'),
+  getIngredients: () => request('/inventory/ingredients'),
+  createIngredient: (data) => request('/inventory/ingredients', { method: 'POST', body: JSON.stringify(data) }),
   getInventoryLogs: () => request('/inventory/logs'),
-  importInventory: (data) => request('/inventory/import', { method: 'POST', body: JSON.stringify(data) }),
+  createInventoryLog: (data) => request('/inventory/logs', { method: 'POST', body: JSON.stringify(data) }),
+  importInventory: (data) => request('/inventory/logs', { method: 'POST', body: JSON.stringify(data) }),
 
   // KDM & Projector Lamps
   getKdmLicenses: () => request('/kdm/licenses'),
@@ -157,9 +202,25 @@ export const api = {
 
   // Turnaround Quick Clean
   getTurnaroundChecklists: (params = {}) => request(`/turnaround${buildQueryString(params)}`),
+  submitTurnaround: (data) => request('/turnaround', { method: 'POST', body: JSON.stringify(data) }),
   createTurnaroundChecklist: (data) => request('/turnaround', { method: 'POST', body: JSON.stringify(data) }),
 
   // Notifications
   getNotifications: () => request('/notifications'),
   markNotificationAsRead: (id) => request(`/notifications/${id}/read`, { method: 'PUT' }),
+
+  // Chatbot Assistant (CinemaBot AI)
+  sendChatMessage: (message, options = {}) =>
+    request('/chat', {
+      method: 'POST',
+      body: JSON.stringify({ message }),
+      signal: options.signal,
+    }),
+
+  // SePay Automated Bank Transfer Gateway
+  getSepayInfo: () => request('/sepay/info'),
+  registerSepayPosSession: (data) => request('/sepay/register-pos-session', { method: 'POST', body: JSON.stringify(data) }),
+  registerSepayBookingSession: (data) => request('/sepay/register-booking-session', { method: 'POST', body: JSON.stringify(data) }),
+  checkSepayStatus: (orderCode) => request(`/sepay/status/${encodeURIComponent(orderCode)}`),
+  simulateSepayPayment: (data) => request('/sepay/simulate-payment', { method: 'POST', body: JSON.stringify(data) }),
 };

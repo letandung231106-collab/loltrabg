@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { api } from '../../services/api';
 import { useBooking } from '../../context/BookingContext';
 import { useAuth } from '../../context/AuthContext';
 import { SeatMap } from '../../components/customer/SeatMap';
-import { PaymentModal } from '../../components/customer/PaymentModal';
 import { ConcessionSelectionModal } from '../../components/customer/ConcessionSelectionModal';
+import { PaymentModal } from '../../components/customer/PaymentModal';
 import { TicketCard } from '../../components/customer/TicketCard';
 import { ArrowLeft, Clock, Calendar, Film, MapPin, AlertTriangle, CheckCircle, RefreshCw } from 'lucide-react';
 
@@ -15,7 +15,7 @@ export function BookingFlowPage({
   onOpenAuth,
   initialIssuedTickets = null,
 }) {
-  const { setSelectedSchedule, proceedToHoldSeats, cancelHold, activeBooking, isHolding, resetBookingState } = useBooking();
+  const { setSelectedSchedule, selectedSeats, proceedToHoldSeats, cancelHold, activeBooking, isHolding, resetBookingState } = useBooking();
   const { isAuthenticated } = useAuth();
 
   const [scheduleData, setScheduleData] = useState(null);
@@ -33,14 +33,39 @@ export function BookingFlowPage({
     }
   }, [initialIssuedTickets]);
 
+  const isModalOpenRef = useRef(false);
+  isModalOpenRef.current = isPaymentOpen || isConcessionOpen;
+
+  // Tự động đóng các modal và cảnh báo khi hết thời gian giữ ghế
   useEffect(() => {
-    if (scheduleId && !initialIssuedTickets) {
-      fetchSeatMap();
+    if (!isHolding && (isConcessionOpen || isPaymentOpen)) {
+      setIsConcessionOpen(false);
+      setIsPaymentOpen(false);
     }
-    return () => {
-      // Don't auto reset if user is in active hold session
-    };
-  }, [scheduleId]);
+  }, [isHolding, isConcessionOpen, isPaymentOpen]);
+
+  useEffect(() => {
+    if (!scheduleId || initialIssuedTickets) return;
+
+    fetchSeatMap();
+
+    // Auto-refresh sơ đồ ghế thời gian thực mỗi 4s để cập nhật ghế giữ/đã đặt
+    // Tự động tạm ngưng khi tab trình duyệt bị ẩn hoặc đang mở modal thanh toán
+    const interval = setInterval(() => {
+      if (document.hidden || isModalOpenRef.current) return;
+
+      api.getScheduleSeatMap(scheduleId)
+        .then((res) => {
+          if (res.success && res.data) {
+            setScheduleData(res.data);
+            setSelectedSchedule(res.data.schedule);
+          }
+        })
+        .catch(() => {});
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [scheduleId, initialIssuedTickets]);
 
   const fetchSeatMap = async () => {
     try {
@@ -56,7 +81,7 @@ export function BookingFlowPage({
     }
   };
 
-  // Tiến hành giữ ghế và mở modal thanh toán
+  // Tiến hành giữ ghế và mở bước chọn bắp nước & combo
   const handleProceedToPayment = async () => {
     if (!isAuthenticated) {
       alert('Vui lòng đăng nhập tài khoản để tiếp tục giữ ghế và thanh toán.');
@@ -70,11 +95,9 @@ export function BookingFlowPage({
         await proceedToHoldSeats();
       }
       setIsConcessionOpen(true);
-      // Refresh seat map to show updated holding state
       fetchSeatMap();
     } catch (err) {
       setErrorMsg(err.message || 'Lỗi khi giữ ghế.');
-      // Refresh seat map to see which seat was conflicted
       fetchSeatMap();
     }
   };
@@ -101,6 +124,24 @@ export function BookingFlowPage({
       <div className="max-w-4xl mx-auto py-20 text-center">
         <div className="w-12 h-12 border-4 border-ruby-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
         <p className="text-slate-400 text-sm">Đang tải sơ đồ ghế thời gian thực...</p>
+      </div>
+    );
+  }
+
+  if (!scheduleId && !issuedTickets) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-20 text-center space-y-5 animate-fade-in">
+        <Film className="w-16 h-16 text-slate-600 mx-auto" />
+        <h3 className="text-xl font-black text-white">Chưa Chọn Suất Chiếu</h3>
+        <p className="text-slate-400 text-xs sm:text-sm">
+          Vui lòng chọn phim và suất chiếu bạn muốn thưởng thức trước khi vào sơ đồ chọn ghế.
+        </p>
+        <button
+          onClick={onBack}
+          className="px-6 py-3 rounded-xl bg-ruby-600 hover:bg-ruby-500 text-white font-bold text-xs shadow-glow-red transition-all inline-flex items-center gap-2"
+        >
+          <Calendar className="w-4 h-4" /> Xem Danh Sách Lịch Chiếu
+        </button>
       </div>
     );
   }
@@ -178,24 +219,29 @@ export function BookingFlowPage({
             <span>•</span>
             <div className="flex items-center gap-1.5 font-bold text-white">
               <Calendar className="w-3.5 h-3.5 text-ruby-400" />
-              {new Date(schedule.start_time).toLocaleDateString('vi-VN')}
+              {new Date(typeof schedule.start_time === 'string' ? schedule.start_time.replace(' ', 'T') : schedule.start_time).toLocaleDateString('vi-VN')}
             </div>
             <span>•</span>
             <div className="flex items-center gap-1.5 font-bold text-white">
               <Clock className="w-3.5 h-3.5 text-ruby-400" />
-              {new Date(schedule.start_time).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+              {new Date(typeof schedule.start_time === 'string' ? schedule.start_time.replace(' ', 'T') : schedule.start_time).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
             </div>
           </div>
         )}
 
-        {/* Refresh Live Seat Map Button */}
-        <button
-          onClick={fetchSeatMap}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cinema-800 hover:bg-cinema-700 text-slate-300 text-xs font-medium border border-cinema-700 transition-colors"
-          title="Tải lại trạng thái ghế mới nhất"
-        >
-          <RefreshCw className="w-3.5 h-3.5" /> Làm mới sơ đồ
-        </button>
+        {/* Live Seat Map Status & Refresh Button */}
+        <div className="flex items-center gap-2.5">
+          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[11px] font-semibold">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" /> Live Realtime
+          </span>
+          <button
+            onClick={fetchSeatMap}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cinema-800 hover:bg-cinema-700 text-slate-300 text-xs font-medium border border-cinema-700 transition-colors"
+            title="Tải lại trạng thái ghế mới nhất"
+          >
+            <RefreshCw className="w-3.5 h-3.5" /> Làm mới
+          </button>
+        </div>
       </div>
 
       {/* Error Alert (e.g. Concurrency conflict: Ghế vừa được người khác giữ) */}
@@ -218,12 +264,12 @@ export function BookingFlowPage({
         onCancelHold={handleCancelHoldSeats}
       />
 
-      {/* Payment Simulator Modal */}
+      {/* Concession & Combo Selection Modal */}
       <ConcessionSelectionModal
         isOpen={isConcessionOpen}
         onClose={() => handleConcessionProceed([])}
         onProceed={handleConcessionProceed}
-        selectedSeatsCount={scheduleData?.seats?.length || 1}
+        selectedSeatsCount={selectedSeats?.length || activeBooking?.seats?.length || 1}
       />
 
       <PaymentModal

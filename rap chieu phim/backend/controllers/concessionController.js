@@ -15,10 +15,16 @@ async function getConcessions(req, res, next) {
       filtered = items.filter((item) => item.category === category);
     }
 
+    const normalizedItems = (filtered || []).map((item) => ({
+      ...item,
+      image: item.image || item.image_url || '',
+      image_url: item.image || item.image_url || '',
+    }));
+
     return res.status(200).json({
       success: true,
-      count: filtered.length,
-      data: filtered,
+      count: normalizedItems.length,
+      data: normalizedItems,
     });
   } catch (error) {
     next(error);
@@ -95,50 +101,207 @@ async function deleteConcession(req, res, next) {
 
 /**
  * Bán bắp nước tại quầy (Tự động trừ kho theo định lượng BOM)
+ * Bảo mật: Xác thực nhân viên, lấy giá từ DB, kiểm tra tồn kho, dùng Transaction và Idempotency
  */
-async function sellConcessionOrder(req, res, next) {
-  try {
-    const { items, payment_method = 'cash', staff_id = 1, notes = '' } = req.body;
+async function executeConcessionSaleTransaction({
+  items,
+  payment_method = 'cash',
+  staff_id = 1,
+  notes = '',
+  idempotencyKey = null,
+  customerId = null,
+  existingConn = null,
+}) {
+  // 1. Kiểm tra dữ liệu đầu vào: Danh sách món
+  if (!items || !Array.isArray(items) || items.length === 0) {
+    throw new Error('Vui lòng chọn ít nhất một món bắp nước.');
+  }
 
-    if (!items || !Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Vui lòng chọn ít nhất một món bắp nước.',
+  // 2. Kiểm tra số lượng từng món (phải là số nguyên > 0, tối đa 20)
+  for (const item of items) {
+    const rawId = item.id || item.concession_item_id || item.item_id;
+    if (!rawId || isNaN(parseInt(rawId, 10))) {
+      throw new Error('ID món không hợp lệ.');
+    }
+    const qty = Number(item.quantity);
+    if (!Number.isInteger(qty) || qty <= 0) {
+      throw new Error(`Số lượng món '${item.name || rawId}' phải là số nguyên dương hợp lệ.`);
+    }
+  }
+
+  // 3. Kiểm tra Idempotency Key (chống gửi trùng / trừ kho 2 lần)
+  const queryExecutor = existingConn || db;
+  if (idempotencyKey) {
+    const rawExisting = await queryExecutor.query(
+      `SELECT * FROM concession_orders WHERE idempotency_key = ?`,
+      [idempotencyKey]
+    );
+    const existingOrders = Array.isArray(rawExisting) && Array.isArray(rawExisting[0])
+      ? rawExisting[0]
+      : (Array.isArray(rawExisting) ? rawExisting : []);
+    if (existingOrders && existingOrders.length > 0) {
+      return {
+        alreadyProcessed: true,
+        order_id: existingOrders[0].id,
+        order_code: existingOrders[0].order_code,
+        total_amount: existingOrders[0].total_amount,
+        ...existingOrders[0],
+      };
+    }
+  }
+
+  // 4. Logic tạo đơn và trừ kho BOM
+  const runTransactionLogic = async (conn) => {
+    // 4.1. Lấy thông tin giá bán và trạng thái THỰC TẾ từ DB (không tin tưởng giá từ frontend)
+    const itemIds = items.map((i) => parseInt(i.id || i.concession_item_id || i.item_id, 10));
+    const [dbItems] = await conn.query(
+      `SELECT * FROM concession_items WHERE id IN (?)`,
+      [itemIds]
+    );
+
+    let totalAmount = 0;
+    const validatedItems = [];
+
+    for (const orderItem of items) {
+      const currentId = parseInt(orderItem.id || orderItem.concession_item_id || orderItem.item_id, 10);
+      const found = (dbItems || []).find((d) => d.id === currentId);
+      if (!found) {
+        throw new Error(`Sản phẩm F&B với ID ${currentId} không tồn tại trong hệ thống.`);
+      }
+      if (!found.is_active) {
+        throw new Error(`Sản phẩm '${found.name}' hiện đang tạm ngừng kinh doanh.`);
+      }
+
+      const realUnitPrice = parseFloat(found.price);
+      const qty = parseInt(orderItem.quantity, 10);
+      const lineTotal = realUnitPrice * qty;
+      totalAmount += lineTotal;
+
+      validatedItems.push({
+        item_id: found.id,
+        name: found.name,
+        quantity: qty,
+        unit_price: realUnitPrice,
+        total_price: lineTotal,
       });
     }
 
-    // Lấy công thức BOM
-    const recipes = await db.query(`SELECT * FROM concession_recipes`, []);
-    let totalAmount = 0;
+    // 4.2. Lấy công thức BOM và kiểm tra tồn kho nguyên vật liệu
+    const [recipes] = await conn.query(`SELECT * FROM concession_recipes`, []);
+    const [ingredients] = await conn.query(`SELECT * FROM inventory_ingredients`, []);
 
-    // Trừ kho nguyên liệu
-    for (const orderItem of items) {
-      totalAmount += orderItem.price * orderItem.quantity;
-      const itemRecipes = recipes.filter((r) => r.item_id === orderItem.id);
-
+    const ingredientDemands = {};
+    for (const vItem of validatedItems) {
+      const itemRecipes = (recipes || []).filter((r) => r.item_id === vItem.item_id);
       for (const recipe of itemRecipes) {
-        const usageQuantity = -(recipe.quantity_used * orderItem.quantity);
-        await db.query(
-          `INSERT INTO inventory_logs (ingredient_id, change_type, quantity, reason, employee_id)
-           VALUES (?, ?, ?, ?, ?)`,
-          [recipe.ingredient_id, 'usage', usageQuantity, `Bán ${orderItem.quantity}x ${orderItem.name}`, staff_id]
+        const needed = recipe.quantity_used * vItem.quantity;
+        ingredientDemands[recipe.ingredient_id] = (ingredientDemands[recipe.ingredient_id] || 0) + needed;
+      }
+    }
+
+    // Kiểm tra tồn kho trước khi xác nhận đơn
+    for (const [ingIdStr, requiredQty] of Object.entries(ingredientDemands)) {
+      const ingId = parseInt(ingIdStr, 10);
+      const ing = (ingredients || []).find((i) => i.id === ingId);
+      if (ing && ing.stock_quantity < requiredQty) {
+        throw new Error(
+          `Kho không đủ nguyên liệu '${ing.name}' để phục vụ đơn hàng (cần ${requiredQty.toFixed(2)} ${ing.unit}, hiện có ${ing.stock_quantity} ${ing.unit}).`
         );
       }
     }
 
+    // 4.3. Tạo mã đơn hàng chuẩn và lưu vào bảng concession_orders
+    const orderCode = idempotencyKey
+      ? `ORD-${idempotencyKey}`
+      : `ORD-POS-${Date.now().toString().slice(-8)}-${Math.floor(100 + Math.random() * 900)}`;
+
+    const [orderRes] = await conn.query(
+      `INSERT INTO concession_orders (order_code, employee_id, customer_id, total_amount, payment_method, notes, idempotency_key, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        orderCode,
+        staff_id,
+        customerId || null,
+        totalAmount,
+        payment_method || 'cash',
+        notes || '',
+        idempotencyKey || null,
+        new Date().toISOString(),
+      ]
+    );
+    const orderId = orderRes?.insertId;
+
+    // 4.4. Lưu chi tiết từng món vào bảng concession_order_items
+    for (const item of validatedItems) {
+      await conn.query(
+        `INSERT INTO concession_order_items (order_id, item_id, item_name, quantity, unit_price, total_price)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [orderId, item.item_id, item.name, item.quantity, item.unit_price, item.total_price]
+      );
+    }
+
+    // 4.5. Trừ kho nguyên vật liệu và ghi nhật ký inventory_logs
+    for (const [ingIdStr, requiredQty] of Object.entries(ingredientDemands)) {
+      const ingId = parseInt(ingIdStr, 10);
+      await conn.query(
+        `INSERT INTO inventory_logs (ingredient_id, change_type, quantity, reason, employee_id)
+         VALUES (?, ?, ?, ?, ?)`,
+        [ingId, 'usage', -requiredQty, `Bán đơn hàng #${orderCode}`, staff_id || 1]
+      );
+    }
+
+    return {
+      order_id: orderId,
+      order_code: orderCode,
+      total_amount: totalAmount,
+      payment_method: payment_method || 'cash',
+      staff_id,
+      items: validatedItems,
+      created_at: new Date().toISOString(),
+    };
+  };
+
+  if (existingConn) {
+    return await runTransactionLogic(existingConn);
+  }
+  return await db.withTransaction(runTransactionLogic);
+}
+
+async function sellConcessionOrder(req, res, next) {
+  try {
+    const { items, payment_method = 'cash', notes = '' } = req.body;
+
+    // 1. Bảo mật danh tính nhân viên: Lấy từ token đã xác thực, không tin tưởng req.body.staff_id
+    const authenticatedStaffId = req.user?.employeeId || req.user?.id || 1;
+    const idempotencyKey = req.headers['x-idempotency-key'] || req.body.idempotency_key;
+
+    const transactionResult = await executeConcessionSaleTransaction({
+      items,
+      payment_method,
+      staff_id: authenticatedStaffId,
+      notes,
+      idempotencyKey,
+      customerId: req.user?.customerId || null,
+    });
+
+    if (transactionResult.alreadyProcessed) {
+      return res.status(200).json({
+        success: true,
+        message: 'Đơn hàng đã được xử lý trước đó (Idempotent replay). Không trừ kho lặp lại.',
+        data: transactionResult,
+      });
+    }
+
     return res.status(200).json({
       success: true,
-      message: `Bán đơn hàng thành công! Đã tự động trừ kho nguyên vật liệu tương ứng.`,
-      data: {
-        order_id: `ORD-POS-${Date.now() % 100000}`,
-        total_amount: totalAmount,
-        payment_method,
-        item_count: items.length,
-        created_at: new Date(),
-      },
+      message: 'Bán đơn hàng thành công! Đã lưu database và tự động trừ kho nguyên vật liệu.',
+      data: transactionResult,
     });
   } catch (error) {
-    next(error);
+    return res.status(400).json({
+      success: false,
+      message: error.message || 'Lỗi xử lý đơn hàng bắp nước.',
+    });
   }
 }
 
@@ -148,4 +311,5 @@ module.exports = {
   updateConcession,
   deleteConcession,
   sellConcessionOrder,
+  executeConcessionSaleTransaction,
 };

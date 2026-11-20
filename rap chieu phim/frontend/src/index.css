@@ -2,13 +2,59 @@
 @tailwind components;
 @tailwind utilities;
 
+/* CSS Variables for Dark & Light Themes */
+:root,
+.dark {
+  --color-cinema-950: 7 9 14;
+  /* #07090e */
+  --color-cinema-900: 13 17 23;
+  /* #0d1117 */
+  --color-cinema-850: 19 24 34;
+  /* #131822 */
+  --color-cinema-800: 26 34 50;
+  /* #1a2232 */
+  --color-cinema-700: 38 49 69;
+  /* #263145 */
+  --color-cinema-600: 56 70 97;
+  /* #384661 */
+  --cinema-border-base: #263145;
+  --cinema-body-bg: #07090e;
+  --cinema-body-color: #f1f5f9;
+  color-scheme: dark;
+}
+
+html.light {
+  --color-cinema-950: 248 250 252;
+  /* slate-50 canvas */
+  --color-cinema-900: 255 255 255;
+  /* pure white card surfaces */
+  --color-cinema-850: 241 245 249;
+  /* slate-100 sub-panels */
+  --color-cinema-800: 226 232 240;
+  /* slate-200 chips & subtle hovers */
+  --color-cinema-700: 203 213 225;
+  /* slate-300 borders & dividers */
+  --color-cinema-600: 148 163 184;
+  /* slate-400 prominent outlines */
+  --cinema-border-base: #cbd5e1;
+  --cinema-body-bg: #f8fafc;
+  --cinema-body-color: #0f172a;
+  color-scheme: light;
+}
+
 @layer base {
   * {
-    border-color: #263145;
+    border-color: var(--cinema-border-base);
   }
+
+  html {
+    transition: background-color 0.25s ease, color 0.25s ease;
+  }
+
   body {
-    background-color: #07090e;
-    color: #f1f5f9;
+    background-color: var(--cinema-body-bg);
+    color: var(--cinema-body-color);
+    transition: background-color 0.25s ease, color 0.25s ease;
   }
 }
 
@@ -17,14 +63,29 @@
   width: 8px;
   height: 8px;
 }
+
 ::-webkit-scrollbar-track {
   background: #0d1117;
 }
+
 ::-webkit-scrollbar-thumb {
   background: #263145;
   border-radius: 4px;
 }
+
 ::-webkit-scrollbar-thumb:hover {
+  background: #e50914;
+}
+
+html.light ::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+html.light ::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+}
+
+html.light ::-webkit-scrollbar-thumb:hover {
   background: #e50914;
 }
 
@@ -32,7 +93,7 @@
 .cinema-screen-curve {
   position: relative;
   height: 18px;
-  background: linear-gradient(180deg, rgba(255,255,255,0.9) 0%, rgba(229,9,20,0.4) 50%, transparent 100%);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.9) 0%, rgba(229, 9, 20, 0.4) 50%, transparent 100%);
   border-radius: 50% / 100% 100% 0 0;
   box-shadow: 0 10px 30px rgba(229, 9, 20, 0.4);
 }
@@ -52,9 +113,200 @@
 .glass-panel-hover {
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
+
 .glass-panel-hover:hover {
   background: rgba(26, 34, 50, 0.85);
   border-color: rgba(229, 9, 20, 0.35);
   box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
   transform: translateY(-2px);
+}
+
+html.light .glass-panel {
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
+}
+
+html.light .glass-panel-hover:hover {
+  background: rgba(255, 255, 255, 0.98);
+  border-color: rgba(229, 9, 20, 0.35);
+  box-shadow: 0 12px 30px -5px rgba(0, 0, 0, 0.12);
+  transform: translateY(-2px);
+}
+
+/* ============================================================
+   LIGHT THEME ADAPTIVE RULES (Ensures high contrast & readability)
+   ============================================================ */
+
+/* Headings in Light Mode */
+html.light h1:not([class*="text-ruby"]):not([class*="text-gold"]):not([class*="text-amber"]):not([class*="text-emerald"]):not([class*="text-transparent"]):not(.keep-white),
+html.light h2:not([class*="text-ruby"]):not([class*="text-gold"]):not([class*="text-amber"]):not([class*="text-emerald"]):not([class*="text-transparent"]):not(.keep-white),
+html.light h3:not([class*="text-ruby"]):not([class*="text-gold"]):not([class*="text-amber"]):not([class*="text-emerald"]):not([class*="text-transparent"]):not(.keep-white),
+html.light h4:not([class*="text-ruby"]):not([class*="text-gold"]):not([class*="text-amber"]):not([class*="text-emerald"]):not([class*="text-transparent"]):not(.keep-white),
+html.light h5:not([class*="text-ruby"]):not([class*="text-gold"]):not([class*="text-amber"]):not([class*="text-emerald"]):not([class*="text-transparent"]):not(.keep-white),
+html.light h6:not([class*="text-ruby"]):not([class*="text-gold"]):not([class*="text-amber"]):not([class*="text-emerald"]):not([class*="text-transparent"]):not(.keep-white) {
+  color: #0f172a;
+}
+
+/* Inputs, Textareas, Selects in Light Mode */
+html.light input:not([type="checkbox"]):not([type="radio"]),
+html.light select,
+html.light textarea {
+  color: #0f172a !important;
+  background-color: #ffffff !important;
+}
+
+html.light input::placeholder,
+html.light textarea::placeholder {
+  color: #94a3b8 !important;
+}
+
+/* Slate text shades mapped to high contrast on light backgrounds */
+html.light .text-slate-100:not(.keep-white):not([class*="bg-ruby"]):not([class*="bg-emerald"]):not([class*="bg-blue"]):not([class*="from-ruby"]) {
+  color: #0f172a;
+}
+
+html.light .text-slate-200:not(.keep-white):not([class*="bg-ruby"]):not([class*="bg-emerald"]):not([class*="bg-blue"]):not([class*="from-ruby"]) {
+  color: #1e293b;
+}
+
+html.light .text-slate-300:not(.keep-white):not([class*="bg-ruby"]):not([class*="bg-emerald"]):not([class*="bg-blue"]):not([class*="from-ruby"]) {
+  color: #334155;
+}
+
+html.light .text-slate-400:not(.keep-white):not([class*="bg-ruby"]):not([class*="bg-emerald"]):not([class*="bg-blue"]):not([class*="from-ruby"]):not([class*="bg-cinema-850"]) {
+  color: #64748b;
+}
+
+/* Titles and labels rendered in div/span/p with text-white */
+html.light div.text-white:not(.keep-white):not([class*="bg-ruby"]):not([class*="bg-rose"]):not([class*="bg-emerald"]):not([class*="bg-blue"]):not([class*="bg-gradient"]):not([class*="from-ruby"]):not([class*="from-orange"]),
+html.light span.text-white:not(.keep-white):not([class*="bg-ruby"]):not([class*="bg-rose"]):not([class*="bg-emerald"]):not([class*="bg-blue"]):not([class*="bg-gradient"]):not([class*="from-ruby"]):not([class*="from-orange"]),
+html.light p.text-white:not(.keep-white):not([class*="bg-ruby"]):not([class*="bg-rose"]):not([class*="bg-emerald"]):not([class*="bg-blue"]):not([class*="bg-gradient"]):not([class*="from-ruby"]):not([class*="from-orange"]),
+html.light label.text-white:not(.keep-white):not([class*="bg-ruby"]):not([class*="bg-rose"]):not([class*="bg-emerald"]):not([class*="bg-blue"]):not([class*="bg-gradient"]):not([class*="from-ruby"]):not([class*="from-orange"]) {
+  color: #0f172a;
+}
+
+/* Ensure vibrant brand buttons, chips, badges, and selected seats retain pure white text */
+button[class*="bg-ruby"] *,
+button[class*="from-ruby"] *,
+button[class*="bg-emerald"] *,
+button[class*="from-emerald"] *,
+button[class*="bg-blue"] *,
+button[class*="from-blue"] *,
+button[class*="bg-rose"] *,
+button[class*="from-orange"] *,
+.keep-white,
+.keep-white * {
+  color: #ffffff !important;
+}
+
+/* Cinematic Dark Cards (IMAX, 4DX, Hero spotlight) keep light text on their dark image backgrounds */
+html.light .cinematic-dark-overlay,
+html.light .cinematic-dark-overlay h1,
+html.light .cinematic-dark-overlay h2,
+html.light .cinematic-dark-overlay h3,
+html.light .cinematic-dark-overlay h4,
+html.light .cinematic-dark-overlay .text-white,
+.cinematic-dark-overlay,
+.cinematic-dark-overlay h1,
+.cinematic-dark-overlay h2,
+.cinematic-dark-overlay h3,
+.cinematic-dark-overlay h4 {
+  color: #ffffff !important;
+}
+
+html.light .cinematic-dark-overlay p,
+html.light .cinematic-dark-overlay .text-slate-300,
+.cinematic-dark-overlay p,
+.cinematic-dark-overlay .text-slate-300 {
+  color: #e2e8f0 !important;
+}
+
+html.light .cinematic-dark-overlay .text-slate-400,
+.cinematic-dark-overlay .text-slate-400 {
+  color: #cbd5e1 !important;
+}
+
+/* ============================================================
+   HERO SPOTLIGHT MOTION & PROGRESS ANIMATIONS
+   ============================================================ */
+@keyframes kenBurnsSlow {
+  0% {
+    transform: scale(1.02);
+  }
+
+  100% {
+    transform: scale(1.10);
+  }
+}
+
+.animate-ken-burns {
+  animation: kenBurnsSlow 6.5s ease-out forwards;
+}
+
+@keyframes progressBarFill {
+  0% {
+    width: 0%;
+  }
+
+  100% {
+    width: 100%;
+  }
+}
+
+.animate-progress-fill {
+  animation: progressBarFill 6s linear forwards;
+}
+
+/* ============================================================
+   SAFARI COMPATIBILITY: DROP TRANSFORM CONTEXT ON ANIMATION COMPLETION
+   ============================================================ */
+@keyframes fadeIn {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes scaleIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes scaleUp {
+  0% {
+    opacity: 0;
+    transform: scale(0.96) translateY(6px);
+  }
+
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+.animate-scale-in {
+  animation: scaleIn 0.25s ease-out forwards;
+}
+
+.animate-scale-up {
+  animation: scaleUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }

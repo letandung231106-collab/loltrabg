@@ -6,6 +6,9 @@ const { authenticateToken } = require('../middlewares/authMiddleware');
 // Xử lý thanh toán trực tiếp / mô phỏng
 router.post('/process', authenticateToken, paymentController.processPayment);
 
+// Hoàn tiền giao dịch (Admin / Manager)
+router.post('/refund', authenticateToken, paymentController.refundPayment);
+
 // MoMo Payment Gateway v2 Sandbox Endpoints
 router.post('/momo/create', authenticateToken, paymentController.createMomoPayment);
 router.get('/momo/sandbox-checkout', paymentController.renderMomoSandboxGateway);

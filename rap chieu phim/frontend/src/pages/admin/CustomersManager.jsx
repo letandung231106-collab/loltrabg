@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
-import { UserCheck, Search, DollarSign, Ticket, Eye, X } from 'lucide-react';
+import { UserCheck, Search, DollarSign, Ticket, Eye, Edit2, X, CheckCircle, AlertCircle } from 'lucide-react';
+import { ModalPortal } from '../../components/common/ModalPortal';
 
 export function CustomersManager() {
   const [customers, setCustomers] = useState([]);
@@ -8,6 +9,17 @@ export function CustomersManager() {
   const [search, setSearch] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [historyLoading, setHistoryLoading] = useState(false);
+
+  // Edit modal
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editingCustomer, setEditingCustomer] = useState(null);
+  const [editFormData, setEditFormData] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    membership_level: 'standard',
+  });
+  const [msg, setMsg] = useState({ text: '', type: '' });
 
   useEffect(() => {
     fetchCustomers();
@@ -37,6 +49,29 @@ export function CustomersManager() {
     }
   };
 
+  const handleOpenEdit = (c) => {
+    setEditingCustomer(c);
+    setEditFormData({
+      name: c.name,
+      email: c.email || '',
+      phone: c.phone || '',
+      membership_level: c.membership_level || 'standard',
+    });
+    setIsEditOpen(true);
+  };
+
+  const handleSubmitEdit = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await api.updateCustomer(editingCustomer.id, editFormData);
+      setMsg({ text: res.message || 'Cập nhật thông tin khách hàng thành công!', type: 'success' });
+      setIsEditOpen(false);
+      fetchCustomers();
+    } catch (err) {
+      setMsg({ text: err.message || 'Lỗi khi cập nhật khách hàng.', type: 'error' });
+    }
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-cinema-700/60">
@@ -49,6 +84,21 @@ export function CustomersManager() {
           </p>
         </div>
       </div>
+
+      {msg.text && (
+        <div
+          className={`p-4 rounded-xl text-xs font-semibold flex items-center justify-between ${
+            msg.type === 'success'
+              ? 'bg-emerald-950 border border-emerald-500 text-emerald-200'
+              : 'bg-ruby-950 border border-ruby-500 text-ruby-200'
+          }`}
+        >
+          <span>{msg.text}</span>
+          <button onClick={() => setMsg({ text: '', type: '' })} className="font-bold">
+            Đóng
+          </button>
+        </div>
+      )}
 
       {/* Filter Row */}
       <div className="p-4 glass-panel rounded-2xl border border-cinema-700/60 flex items-center justify-between gap-4 text-xs">
@@ -75,29 +125,34 @@ export function CustomersManager() {
               <tr>
                 <th className="p-4">Khách Hàng</th>
                 <th className="p-4">Email</th>
-                <th className="p-4">Điện thoại</th>
-                <th className="p-4">Hạng thẻ</th>
-                <th className="p-4">Tổng đơn đặt</th>
-                <th className="p-4">Tổng vé đã mua</th>
-                <th className="p-4">Tổng chi tiêu</th>
-                <th className="p-4 text-right">Lịch sử</th>
+                <th className="p-4 whitespace-nowrap">Điện thoại</th>
+                <th className="p-4 whitespace-nowrap">Hạng thẻ</th>
+                <th className="p-4 whitespace-nowrap">Tổng đơn đặt</th>
+                <th className="p-4 whitespace-nowrap">Tổng vé đã mua</th>
+                <th className="p-4 whitespace-nowrap">Tổng chi tiêu</th>
+                <th className="p-4 text-right whitespace-nowrap">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-cinema-800">
               {customers.map((c) => (
                 <tr key={c.id} className="hover:bg-cinema-850/60 transition-colors">
-                  <td className="p-4 font-bold text-white text-sm">
-                    {c.name}
-                  </td>
+                  <td className="p-4 font-bold text-white text-sm">{c.name}</td>
                   <td className="p-4 text-slate-300">{c.email}</td>
                   <td className="p-4 font-mono text-slate-400">{c.phone}</td>
-                  <td className="p-4">
-                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                      c.membership_level === 'platinum' ? 'bg-purple-950 text-purple-300 border border-purple-500' :
-                      c.membership_level === 'gold' ? 'bg-amber-950 text-amber-300 border border-amber-500' :
-                      'bg-slate-800 text-slate-300'
-                    }`}>
-                      {c.membership_level}
+                  <td className="p-4 whitespace-nowrap">
+                    <span
+                      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${
+                        c.membership_level === 'platinum'
+                          ? 'bg-purple-500/15 text-purple-300 border border-purple-500/30'
+                          : c.membership_level === 'gold'
+                          ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                          : 'bg-slate-500/15 text-slate-300 border border-slate-500/30'
+                      }`}
+                    >
+                      <span className={`w-2 h-2 rounded-full shrink-0 ${
+                        c.membership_level === 'platinum' ? 'bg-purple-400' : c.membership_level === 'gold' ? 'bg-amber-400' : 'bg-slate-400'
+                      }`} />
+                      {c.membership_level === 'platinum' ? 'Platinum' : c.membership_level === 'gold' ? 'Gold' : 'Standard'}
                     </span>
                   </td>
                   <td className="p-4 text-slate-300">{c.total_bookings} đơn</td>
@@ -106,12 +161,22 @@ export function CustomersManager() {
                     {parseFloat(c.total_spent).toLocaleString('vi-VN')}đ
                   </td>
                   <td className="p-4 text-right">
-                    <button
-                      onClick={() => handleViewCustomer(c.id)}
-                      className="p-1.5 rounded-lg bg-cinema-800 hover:bg-cinema-700 text-slate-300"
-                    >
-                      <Eye className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center justify-end gap-1.5">
+                      <button
+                        onClick={() => handleOpenEdit(c)}
+                        className="p-1.5 rounded-lg bg-cinema-800 hover:bg-cinema-700 text-gold-400 transition-colors"
+                        title="Chỉnh sửa thông tin & Hạng thẻ"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleViewCustomer(c.id)}
+                        className="p-1.5 rounded-lg bg-cinema-800 hover:bg-cinema-700 text-slate-300 transition-colors"
+                        title="Xem lịch sử đơn đặt vé"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -121,41 +186,107 @@ export function CustomersManager() {
       </div>
 
       {/* Customer History Modal */}
-      {selectedCustomer && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-fade-in">
-          <div className="relative w-full max-w-2xl glass-panel rounded-3xl p-6 shadow-2xl border border-cinema-600 overflow-y-auto max-h-[85vh] space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-cinema-700">
-              <div>
-                <h3 className="font-black text-base text-white">{selectedCustomer.name}</h3>
-                <span className="text-xs text-slate-400">{selectedCustomer.email} • {selectedCustomer.phone}</span>
-              </div>
-              <button onClick={() => setSelectedCustomer(null)} className="p-1 text-slate-400 hover:text-white">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="space-y-3">
-              <div className="text-xs font-bold text-gold-400 uppercase tracking-wider">LỊCH SỬ ĐẶT VÉ:</div>
-              {selectedCustomer.bookings?.length === 0 ? (
-                <p className="text-slate-400 text-xs py-4 text-center">Khách hàng chưa có giao dịch nào.</p>
-              ) : (
-                selectedCustomer.bookings?.map((b) => (
-                  <div key={b.id} className="p-3 rounded-xl bg-cinema-900 border border-cinema-700 text-xs flex items-center justify-between">
-                    <div>
-                      <div className="font-bold text-white">{b.movie_name}</div>
-                      <div className="text-[10px] text-slate-400">{b.room_name} • {b.start_time}</div>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-mono font-bold text-amber-400">{parseFloat(b.total_amount).toLocaleString('vi-VN')}đ</div>
-                      <span className="text-[10px] font-bold uppercase text-emerald-400">{b.status}</span>
+      <ModalPortal
+        isOpen={Boolean(selectedCustomer)}
+        onClose={() => setSelectedCustomer(null)}
+        title={selectedCustomer?.name}
+        subtitle={`${selectedCustomer?.email || 'Chưa có email'} • ${selectedCustomer?.phone || 'Chưa có SĐT'}`}
+        maxWidth="max-w-2xl"
+      >
+        <div className="space-y-4">
+          <div className="text-xs font-bold text-gold-400 uppercase tracking-wider">LỊCH SỬ ĐẶT VÉ:</div>
+          {selectedCustomer?.bookings?.length === 0 ? (
+            <p className="text-slate-400 text-xs py-4 text-center">Khách hàng chưa có giao dịch nào.</p>
+          ) : (
+            <div className="space-y-2.5 max-h-[60vh] overflow-y-auto pr-1">
+              {selectedCustomer?.bookings?.map((b) => (
+                <div
+                  key={b.id}
+                  className="p-3 rounded-xl bg-cinema-900 border border-cinema-700 text-xs flex items-center justify-between"
+                >
+                  <div>
+                    <div className="font-bold text-white">{b.movie_name}</div>
+                    <div className="text-[10px] text-slate-400">
+                      {b.room_name} • {b.start_time}
                     </div>
                   </div>
-                ))
-              )}
+                  <div className="text-right">
+                    <div className="font-mono font-bold text-amber-400">
+                      {parseFloat(b.total_amount).toLocaleString('vi-VN')}đ
+                    </div>
+                    <span className="text-[10px] font-bold uppercase text-emerald-400">{b.status}</span>
+                  </div>
+                </div>
+              ))}
             </div>
-          </div>
+          )}
         </div>
-      )}
+      </ModalPortal>
+
+      {/* Customer Edit Modal */}
+      <ModalPortal
+        isOpen={isEditOpen}
+        onClose={() => setIsEditOpen(false)}
+        title="Cập Nhật Khách Hàng"
+        subtitle="Chỉnh sửa thông tin liên hệ và phân hạng thành viên VIP"
+        maxWidth="max-w-md"
+      >
+        <form onSubmit={handleSubmitEdit} className="space-y-4 text-xs">
+          <div>
+            <label className="block font-semibold text-slate-300 mb-1">Họ và tên *</label>
+            <input
+              type="text"
+              required
+              value={editFormData.name}
+              onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
+              className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-850 border border-cinema-700 text-white focus:outline-none focus:border-ruby-500"
+            />
+          </div>
+
+          <div>
+            <label className="block font-semibold text-slate-300 mb-1">Email</label>
+            <input
+              type="email"
+              value={editFormData.email}
+              onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
+              className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-850 border border-cinema-700 text-white focus:outline-none"
+            />
+          </div>
+
+          <div>
+            <label className="block font-semibold text-slate-300 mb-1">Số điện thoại</label>
+            <input
+              type="tel"
+              value={editFormData.phone}
+              onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value })}
+              className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-850 border border-cinema-700 text-white focus:outline-none font-mono"
+            />
+          </div>
+
+          <div>
+            <label className="block font-semibold text-slate-300 mb-1">Hạng thẻ thành viên</label>
+            <select
+              value={editFormData.membership_level}
+              onChange={(e) => setEditFormData({ ...editFormData, membership_level: e.target.value })}
+              className="w-full px-3.5 py-2.5 rounded-xl bg-cinema-850 border border-cinema-700 text-white focus:outline-none font-bold"
+            >
+              <option value="standard">Standard - Thành viên tiêu chuẩn</option>
+              <option value="silver">Silver - Thành viên Bạc (Tích điểm 5%)</option>
+              <option value="gold">Gold - Thành viên Vàng (Tích điểm 10%)</option>
+              <option value="platinum">Platinum - Thành viên Bạch Kim (Tích điểm 15%)</option>
+            </select>
+          </div>
+
+          <div className="pt-2">
+            <button
+              type="submit"
+              className="w-full py-3 rounded-xl bg-ruby-600 hover:bg-ruby-500 text-white font-bold text-xs shadow-glow-red transition-all cursor-pointer"
+            >
+              Lưu Thông Tin Khách Hàng
+            </button>
+          </div>
+        </form>
+      </ModalPortal>
     </div>
   );
 }

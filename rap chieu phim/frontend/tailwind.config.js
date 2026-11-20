@@ -9,12 +9,12 @@ export default {
     extend: {
       colors: {
         cinema: {
-          950: '#07090e',
-          900: '#0d1117',
-          850: '#131822',
-          800: '#1a2232',
-          700: '#263145',
-          600: '#384661',
+          950: 'rgb(var(--color-cinema-950) / <alpha-value>)',
+          900: 'rgb(var(--color-cinema-900) / <alpha-value>)',
+          850: 'rgb(var(--color-cinema-850) / <alpha-value>)',
+          800: 'rgb(var(--color-cinema-800) / <alpha-value>)',
+          700: 'rgb(var(--color-cinema-700) / <alpha-value>)',
+          600: 'rgb(var(--color-cinema-600) / <alpha-value>)',
         },
         ruby: {
           500: '#ff1a2b',
@@ -41,15 +41,20 @@ export default {
         'pulse-fast': 'pulse 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
         'fade-in': 'fadeIn 0.3s ease-out forwards',
         'scale-in': 'scaleIn 0.25s ease-out forwards',
+        'scale-up': 'scaleUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards',
       },
       keyframes: {
         fadeIn: {
           '0%': { opacity: '0', transform: 'translateY(8px)' },
-          '100%': { opacity: '1' },
+          '100%': { opacity: '1', transform: 'none' },
         },
         scaleIn: {
           '0%': { opacity: '0', transform: 'scale(0.95)' },
-          '100%': { opacity: '1' },
+          '100%': { opacity: '1', transform: 'none' },
+        },
+        scaleUp: {
+          '0%': { opacity: '0', transform: 'scale(0.96) translateY(6px)' },
+          '100%': { opacity: '1', transform: 'none' },
         },
       },
     },

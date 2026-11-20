@@ -62,7 +62,13 @@ async function createKdmLicense(req, res, next) {
 async function deleteKdmLicense(req, res, next) {
   try {
     const { id } = req.params;
-    await db.query(`DELETE FROM kdm_licenses WHERE id = ?`, [id]);
+    const result = await db.query(`DELETE FROM kdm_licenses WHERE id = ?`, [id]);
+    if (result && result.affectedRows === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy khóa KDM cần xóa.',
+      });
+    }
     return res.status(200).json({
       success: true,
       message: 'Đã xóa file khóa KDM.',
@@ -96,10 +102,17 @@ async function updateProjectorLamp(req, res, next) {
     const { id } = req.params;
     const { hours_used, temperature_celsius, status } = req.body;
 
-    await db.query(
+    const result = await db.query(
       `UPDATE projector_lamp_logs SET hours_used = ?, temperature_celsius = ?, status = ? WHERE id = ?`,
       [hours_used, temperature_celsius, status, id]
     );
+
+    if (result && result.affectedRows === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy cụm đèn máy chiếu cần cập nhật.',
+      });
+    }
 
     return res.status(200).json({
       success: true,

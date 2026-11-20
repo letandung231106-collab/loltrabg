@@ -1,4 +1,7 @@
 const db = require('../config/database');
+const { validateAllSeatsGap } = require('../utils/seatGapValidator');
+const { badRequest, forbidden, notFound, conflict } = require('../utils/httpError');
+const { resolveAuthenticatedCustomerId, isOwnedByCustomer } = require('../utils/ownershipHelper');
 
 const SEAT_HOLD_MINUTES = parseInt(process.env.SEAT_HOLD_MINUTES || '10', 10);
 
@@ -9,12 +12,35 @@ const SEAT_HOLD_MINUTES = parseInt(process.env.SEAT_HOLD_MINUTES || '10', 10);
 async function holdSeats(req, res, next) {
   try {
     const { screening_id, seat_ids } = req.body;
-    const customerId = req.user.customerId || req.user.id;
+    const resolvedCustomerId = await resolveAuthenticatedCustomerId(req.user);
+    if (req.user.role === 'customer' && !resolvedCustomerId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Tài khoản khách hàng chưa có hồ sơ hợp lệ để đặt vé.',
+      });
+    }
+    // Nhân viên/Admin giữ ghế tại quầy (khi không có hồ sơ customer riêng) mặc định gán khách lẻ hệ thống (id = 1)
+    const customerId = resolvedCustomerId || 1;
 
     if (!screening_id || !Array.isArray(seat_ids) || seat_ids.length === 0) {
       return res.status(400).json({
         success: false,
         message: 'Vui lòng chọn ít nhất một ghế để giữ.',
+      });
+    }
+
+    const uniqueSeatIds = [
+      ...new Set(
+        seat_ids
+          .map((id) => parseInt(id, 10))
+          .filter((id) => Number.isInteger(id) && id > 0)
+      ),
+    ];
+
+    if (uniqueSeatIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Danh sách ghế được chọn không hợp lệ.',
       });
     }
 
@@ -33,6 +59,13 @@ async function holdSeats(req, res, next) {
     }
 
     const schedule = schedules[0];
+    if (schedule.status === 'cancelled') {
+      return res.status(400).json({
+        success: false,
+        message: 'Suất chiếu này đã bị hủy. Không thể đặt chỗ.',
+      });
+    }
+
     if (new Date(schedule.start_time) < new Date()) {
       return res.status(400).json({
         success: false,
@@ -44,7 +77,7 @@ async function holdSeats(req, res, next) {
     const bookingResult = await db.withTransaction(async (conn) => {
       // Khóa và kiểm tra trạng thái của các ghế được chọn trong suất chiếu này
       const [conflicts] = await conn.query(
-        `SELECT bs.seat_id, bs.status, s.row_number, s.seat_number, bs.hold_expire
+        `SELECT bs.seat_id, bs.status, s.\`row_number\`, s.seat_number, bs.hold_expire
          FROM booking_seats bs
          JOIN bookings b ON bs.booking_id = b.id
          JOIN seats s ON bs.seat_id = s.id
@@ -55,30 +88,72 @@ async function holdSeats(req, res, next) {
              OR (bs.status = 'holding' AND bs.hold_expire > NOW())
            )
          FOR UPDATE`,
-        [screening_id, seat_ids]
+        [screening_id, uniqueSeatIds]
       );
 
       if (conflicts.length > 0) {
         const conflictSeats = conflicts.map((c) => `${c.row_number}${c.seat_number}`).join(', ');
-        throw new Error(`Ghế ${conflictSeats} vừa được người khác giữ hoặc đã bán. Vui lòng chọn ghế khác!`);
+        throw conflict(`Ghế ${conflictSeats} vừa được người khác giữ hoặc đã bán. Vui lòng chọn ghế khác!`);
       }
 
       // Lấy thông tin giá từng loại ghế
       const [seatsInfo] = await conn.query(
-        `SELECT id, row_number, seat_number, seat_type FROM seats WHERE id IN (?)`,
-        [seat_ids]
+        `SELECT id, room_id, \`row_number\`, seat_number, seat_type, status FROM seats WHERE id IN (?)`,
+        [uniqueSeatIds]
       );
 
+      if (!seatsInfo || seatsInfo.length !== uniqueSeatIds.length) {
+        throw badRequest('Một số ghế được chọn không tồn tại trong hệ thống.');
+      }
+
+      // RÀNG BUỘC: Không cho đặt ghế đang bảo trì hoặc ngừng hoạt động
+      const brokenSeats = seatsInfo.filter((s) => s.status === 'broken' || s.status === 'inactive');
+      if (brokenSeats.length > 0) {
+        throw badRequest('Một số ghế được chọn đang bảo trì hoặc tạm ngừng phục vụ.');
+      }
+
+      // Xác thực nghiêm ngặt: Tất cả ghế phải thuộc chính xác phòng chiếu của suất chiếu này
+      const invalidRoomSeats = seatsInfo.filter(
+        (s) => s.room_id && s.room_id !== schedule.room_id
+      );
+      if (invalidRoomSeats.length > 0) {
+        throw badRequest('Một số ghế được chọn không thuộc phòng chiếu của suất này.');
+      }
+
+      // RÀNG BUỘC NGHIỆP VỤ: KHÔNG ĐỂ LẠI GHẾ TRỐNG ĐƠN LẺ (SINGLE SEAT GAP RULE)
+      // Áp dụng cho: Ghế thường (A, B, C) và Ghế VIP (D, E). Không áp dụng cho Couple (F).
+      const [allRoomSeats] = await conn.query(
+        `SELECT id, room_id, \`row_number\`, seat_number, seat_type, status FROM seats WHERE room_id = ?`,
+        [schedule.room_id]
+      );
+
+      const [activeScreeningSeats] = await conn.query(
+        `SELECT bs.seat_id, bs.status, bs.hold_expire
+         FROM booking_seats bs
+         JOIN bookings b ON bs.booking_id = b.id
+         WHERE b.screening_id = ?
+           AND (
+             bs.status = 'booked'
+             OR (bs.status = 'holding' AND bs.hold_expire > NOW())
+           )`,
+        [screening_id]
+      );
+
+      // Đã bỏ ràng buộc ghế trống đơn lẻ theo yêu cầu (cho phép chừa 1 ghế ở giữa)
+
       let totalAmount = 0;
+      let totalPeopleCount = 0;
       const basePrice = parseFloat(schedule.ticket_price);
       const calculatedSeats = seatsInfo.map((seat) => {
         let price = basePrice;
         if (seat.seat_type === 'vip') price += 20000;
         if (seat.seat_type === 'couple') price = price * 2 + 10000;
         totalAmount += price;
+        totalPeopleCount += (seat.seat_type === 'couple' ? 2 : 1);
         return {
           seat_id: seat.id,
           price,
+          capacity: seat.seat_type === 'couple' ? 2 : 1,
         };
       });
 
@@ -123,24 +198,24 @@ async function holdSeats(req, res, next) {
         bookingId,
         bookingCode,
         totalAmount,
+        totalSeatsCount: seatsInfo.length,
+        totalPeopleCount,
         holdExpire: holdExpireDate,
         holdMinutes: SEAT_HOLD_MINUTES,
-        seats: seatsInfo,
+        seats: seatsInfo.map((s) => ({
+          ...s,
+          price: calculatedSeats.find((cs) => cs.seat_id === s.id)?.price || basePrice,
+          capacity: s.seat_type === 'couple' ? 2 : 1,
+        })),
       };
     });
 
     return res.status(200).json({
       success: true,
-      message: `Đã giữ tạm thời ${seat_ids.length} ghế trong ${SEAT_HOLD_MINUTES} phút. Vui lòng thanh toán trước khi hết hạn!`,
+      message: `Đã giữ tạm thời ${uniqueSeatIds.length} ghế trong ${SEAT_HOLD_MINUTES} phút. Vui lòng thanh toán trước khi hết hạn!`,
       data: bookingResult,
     });
   } catch (error) {
-    if (error.message.includes('vừa được người khác giữ')) {
-      return res.status(409).json({
-        success: false,
-        message: error.message,
-      });
-    }
     next(error);
   }
 }
@@ -151,16 +226,33 @@ async function holdSeats(req, res, next) {
 async function releaseSeatHold(req, res, next) {
   try {
     const { booking_id } = req.body;
-    const customerId = req.user.customerId || req.user.id;
+    const isPrivileged = ['admin', 'manager', 'staff'].includes(req.user.role);
+    const resolvedCustomerId = await resolveAuthenticatedCustomerId(req.user);
+
+    if (!isPrivileged && !resolvedCustomerId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Bạn không có quyền hủy giữ ghế.',
+      });
+    }
+
+    if (!booking_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng cung cấp mã đơn đặt vé (booking_id).',
+      });
+    }
 
     await db.withTransaction(async (conn) => {
-      const [bookings] = await conn.query(
-        `SELECT id, status FROM bookings WHERE id = ? AND customer_id = ? FOR UPDATE`,
-        [booking_id, customerId]
-      );
+      const [bookings] = isPrivileged
+        ? await conn.query(`SELECT id, status, customer_id FROM bookings WHERE id = ? FOR UPDATE`, [booking_id])
+        : await conn.query(
+            `SELECT id, status, customer_id FROM bookings WHERE id = ? AND customer_id = ? FOR UPDATE`,
+            [booking_id, resolvedCustomerId]
+          );
 
       if (!bookings || bookings.length === 0) {
-        throw new Error('Không tìm thấy đơn đặt hoặc bạn không có quyền hủy đơn này.');
+        throw notFound('Không tìm thấy đơn đặt hoặc bạn không có quyền hủy đơn này.');
       }
 
       const booking = bookings[0];
@@ -206,10 +298,19 @@ async function getBookingById(req, res, next) {
     }
 
     const booking = bookings[0];
+    if (req.user.role === 'customer') {
+      const resolvedCustomerId = await resolveAuthenticatedCustomerId(req.user);
+      if (!isOwnedByCustomer(booking.customer_id, resolvedCustomerId)) {
+        return res.status(403).json({
+          success: false,
+          message: 'Bạn không có quyền truy cập vào thông tin đơn đặt vé này.',
+        });
+      }
+    }
 
     // Lấy danh sách ghế
     const seats = await db.query(
-      `SELECT bs.*, s.row_number, s.seat_number, s.seat_type
+      `SELECT bs.*, s.\`row_number\`, s.seat_number, s.seat_type
        FROM booking_seats bs
        JOIN seats s ON bs.seat_id = s.id
        WHERE bs.booking_id = ?`,
@@ -221,7 +322,7 @@ async function getBookingById(req, res, next) {
 
     // Lấy vé điện tử nếu đã phát hành
     const tickets = await db.query(
-      `SELECT t.*, s.row_number, s.seat_number 
+      `SELECT t.*, s.\`row_number\`, s.seat_number 
        FROM tickets t
        JOIN seats s ON t.seat_id = s.id
        WHERE t.booking_id = ?`,
@@ -247,7 +348,10 @@ async function getBookingById(req, res, next) {
  */
 async function getMyBookings(req, res, next) {
   try {
-    const customerId = req.user.customerId || req.user.id;
+    const customerId = await resolveAuthenticatedCustomerId(req.user);
+    if (!customerId) {
+      return res.status(200).json({ success: true, data: [] });
+    }
 
     const bookings = await db.query(
       `SELECT b.*, 
@@ -255,7 +359,7 @@ async function getMyBookings(req, res, next) {
               s.start_time, s.end_time,
               r.name AS room_name,
               COUNT(bs.id) AS seat_count,
-              GROUP_CONCAT(CONCAT(st.row_number, st.seat_number) SEPARATOR ', ') AS seat_labels
+              GROUP_CONCAT(CONCAT(st.\`row_number\`, st.seat_number) SEPARATOR ', ') AS seat_labels
        FROM bookings b
        JOIN screening_schedules s ON b.screening_id = s.id
        JOIN movies m ON s.movie_id = m.id
@@ -263,7 +367,7 @@ async function getMyBookings(req, res, next) {
        LEFT JOIN booking_seats bs ON bs.booking_id = b.id
        LEFT JOIN seats st ON bs.seat_id = st.id
        WHERE b.customer_id = ?
-       GROUP BY b.id
+       GROUP BY b.id, m.id, m.name, m.poster, s.id, s.start_time, s.end_time, r.id, r.name
        ORDER BY b.booking_time DESC`,
       [customerId]
     );

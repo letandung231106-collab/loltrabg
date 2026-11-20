@@ -6,6 +6,8 @@ const { authorizeRoles } = require('../middlewares/roleMiddleware');
 
 router.get('/', movieController.getMovies);
 router.get('/:id', movieController.getMovieById);
+router.get('/:id/reviews', movieController.getMovieReviews);
+router.post('/:id/reviews', authenticateToken, movieController.addMovieReview);
 router.post('/', authenticateToken, authorizeRoles('admin', 'manager'), movieController.createMovie);
 router.put('/:id', authenticateToken, authorizeRoles('admin', 'manager'), movieController.updateMovie);
 router.delete('/:id', authenticateToken, authorizeRoles('admin'), movieController.deleteMovie);

@@ -1,4 +1,5 @@
 const db = require('../config/database');
+const { badRequest, forbidden, notFound } = require('../utils/httpError');
 
 /**
  * Lấy danh sách sự cố
@@ -196,11 +197,11 @@ async function assignTechnician(req, res, next) {
     await db.withTransaction(async (conn) => {
       // 1. Kiểm tra sự cố
       const [incidents] = await conn.query(`SELECT * FROM incidents WHERE id = ? FOR UPDATE`, [id]);
-      if (!incidents || incidents.length === 0) throw new Error('Không tìm thấy sự cố.');
+      if (!incidents || incidents.length === 0) throw notFound('Không tìm thấy sự cố.');
 
       const inc = incidents[0];
       if (inc.status === 'closed') {
-        throw new Error('BR13: Sự cố đã đóng không thể phân công lại.');
+        throw badRequest('BR13: Sự cố đã đóng không thể phân công lại.');
       }
 
       // 2. Tạo hoặc cập nhật assignments
@@ -264,11 +265,11 @@ async function resolveIncident(req, res, next) {
 
     await db.withTransaction(async (conn) => {
       const [incidents] = await conn.query(`SELECT * FROM incidents WHERE id = ? FOR UPDATE`, [id]);
-      if (!incidents || incidents.length === 0) throw new Error('Không tìm thấy sự cố.');
+      if (!incidents || incidents.length === 0) throw notFound('Không tìm thấy sự cố.');
 
       const inc = incidents[0];
       if (inc.status === 'closed') {
-        throw new Error('BR13: Sự cố đã đóng không được phép chỉnh sửa.');
+        throw badRequest('BR13: Sự cố đã đóng không được phép chỉnh sửa.');
       }
 
       // BR12: Kiểm tra phân quyền kỹ thuật viên (chỉ được sửa nếu được phân công hoặc là Manager/Admin)
@@ -278,7 +279,7 @@ async function resolveIncident(req, res, next) {
           [id, technicianId]
         );
         if (assigns.length === 0) {
-          throw new Error('BR12: Bạn chỉ được xử lý các sự cố được phân công cho mình.');
+          throw forbidden('BR12: Bạn chỉ được xử lý các sự cố được phân công cho mình.');
         }
       }
 
@@ -329,7 +330,7 @@ async function closeIncident(req, res, next) {
 
     await db.withTransaction(async (conn) => {
       const [incidents] = await conn.query(`SELECT * FROM incidents WHERE id = ? FOR UPDATE`, [id]);
-      if (!incidents || incidents.length === 0) throw new Error('Không tìm thấy sự cố.');
+      if (!incidents || incidents.length === 0) throw notFound('Không tìm thấy sự cố.');
 
       const inc = incidents[0];
 

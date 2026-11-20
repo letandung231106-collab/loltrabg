@@ -1,20 +1,57 @@
 const crypto = require('crypto');
 const db = require('../config/database');
+const { validateAndCalculateVoucher } = require('../config/vouchers');
+const { badRequest, forbidden, notFound } = require('../utils/httpError');
+const { executeConcessionSaleTransaction } = require('./concessionController');
+const sessionStore = require('../services/paymentGatewaySessionStore');
+const { resolveAuthenticatedCustomerId, isOwnedByCustomer } = require('../utils/ownershipHelper');
 
-// Bộ nhớ tạm lưu phiên giao dịch MoMo Sandbox để đối chiếu IPN & Return URL
-const pendingMomoOrders = new Map();
+/**
+ * Xác định URL cơ sở của Frontend/Backend động theo môi trường deploy (Vercel / Production / Local)
+ */
+function getFrontendBaseUrl(req = null) {
+  if (process.env.FRONTEND_URL) return process.env.FRONTEND_URL.replace(/\/+$/, '');
+  if (process.env.DEPLOY_DOMAIN) return process.env.DEPLOY_DOMAIN.replace(/\/+$/, '');
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+  if (req && req.get('host')) {
+    const proto = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+    return `${proto}://${req.get('host')}`;
+  }
+  return 'http://localhost:5173';
+}
+
+function getBackendBaseUrl(req = null) {
+  if (process.env.BACKEND_URL) return process.env.BACKEND_URL.replace(/\/+$/, '');
+  if (process.env.DEPLOY_DOMAIN) return process.env.DEPLOY_DOMAIN.replace(/\/+$/, '');
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+  if (req && req.get('host')) {
+    const proto = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+    return `${proto}://${req.get('host')}`;
+  }
+  return 'http://localhost:5050';
+}
 
 /**
  * Cấu hình MoMo Sandbox v2 (từ biến môi trường hoặc thông số Sandbox tiêu chuẩn của MoMo)
  */
-function getMomoConfig() {
+function getMomoConfig(req = null) {
+  const partnerCode = process.env.MOMO_PARTNER_CODE;
+  const accessKey = process.env.MOMO_ACCESS_KEY;
+  const secretKey = process.env.MOMO_SECRET_KEY;
+
+  if (!partnerCode || !accessKey || !secretKey) {
+    throw new Error('Cấu hình MoMo không hợp lệ: Thiếu MOMO_PARTNER_CODE, MOMO_ACCESS_KEY hoặc MOMO_SECRET_KEY trong .env');
+  }
+
   return {
-    partnerCode: process.env.MOMO_PARTNER_CODE || 'MOMO',
-    accessKey: process.env.MOMO_ACCESS_KEY || 'F8BBA842ECF85',
-    secretKey: process.env.MOMO_SECRET_KEY || 'K951B6PE1waDMi640xX08PD3vg6EkVlz',
+    partnerCode,
+    accessKey,
+    secretKey,
     endpoint: process.env.MOMO_ENDPOINT || 'https://test-payment.momo.vn/v2/gateway/api/create',
-    redirectUrl: process.env.MOMO_REDIRECT_URL || 'http://localhost:5173',
-    ipnUrl: process.env.MOMO_IPN_URL || 'http://localhost:5050/api/payments/momo/ipn',
+    redirectUrl: process.env.MOMO_REDIRECT_URL || getFrontendBaseUrl(req),
+    ipnUrl: process.env.MOMO_IPN_URL || `${getBackendBaseUrl(req)}/api/payments/momo/ipn`,
   };
 }
 
@@ -23,6 +60,106 @@ function getMomoConfig() {
  */
 function signHmacSha256(rawSignature, secretKey) {
   return crypto.createHmac('sha256', secretKey).update(rawSignature).digest('hex');
+}
+
+/**
+ * Helper: Tính số tiền thực thu chính xác của đơn đặt vé
+ * payable_amount = total_amount (vé) + concession_amount (bắp nước) - discount_amount (voucher)
+ */
+function calculateBookingPayable(booking) {
+  const totalAmount = Math.round(Number(booking?.total_amount || 0));
+  const concessionAmount = Math.round(Number(booking?.concession_amount || 0));
+  const discountAmount = Math.round(Number(booking?.discount_amount || 0));
+  return Math.max(0, totalAmount + concessionAmount - discountAmount);
+}
+
+/**
+ * Helper: Lưu và cập nhật danh sách bắp nước & combo cho đơn vé
+ * Kiểm tra xác thực món, trạng thái kinh doanh, số lượng và tính lại giá chuẩn từ DB
+ */
+async function saveBookingConcessions(conn, bookingId, concessions) {
+  if (concessions === undefined || concessions === null) {
+    return null;
+  }
+
+  if (!Array.isArray(concessions)) {
+    throw badRequest('Danh sách bắp nước concessions phải là một mảng.');
+  }
+
+  // Trường hợp khách bỏ qua hoặc xóa hết món bắp nước
+  if (concessions.length === 0) {
+    await conn.query(`DELETE FROM booking_concessions WHERE booking_id = ?`, [bookingId]);
+    await conn.query(`UPDATE bookings SET concession_amount = 0 WHERE id = ?`, [bookingId]);
+    return 0;
+  }
+
+  // 1. Kiểm tra tính hợp lệ của ID món và số lượng
+  const itemIds = [];
+  for (const c of concessions) {
+    const rawId = c.item_id || c.id;
+    const itemId = parseInt(rawId, 10);
+    if (!Number.isInteger(itemId) || itemId <= 0) {
+      throw badRequest(`ID món bắp nước không hợp lệ: ${rawId}`);
+    }
+    const qty = parseInt(c.quantity, 10);
+    if (!Number.isInteger(qty) || qty <= 0 || qty > 20) {
+      throw badRequest(`Số lượng món (ID: ${itemId}) không hợp lệ (phải là số nguyên từ 1 đến 20).`);
+    }
+    itemIds.push(itemId);
+  }
+
+  // 2. Tra cứu thông tin giá và trạng thái THỰC TẾ từ Database (chống giả mạo giá từ client)
+  const rawDbItems = await conn.query(
+    `SELECT * FROM concession_items WHERE id IN (?)`,
+    [itemIds]
+  );
+  const dbItems = Array.isArray(rawDbItems) && Array.isArray(rawDbItems[0])
+    ? rawDbItems[0]
+    : (Array.isArray(rawDbItems) ? rawDbItems : []);
+
+  let totalConcessionAmount = 0;
+  const validatedList = [];
+
+  for (const c of concessions) {
+    const itemId = parseInt(c.item_id || c.id, 10);
+    const qty = parseInt(c.quantity, 10);
+    const found = dbItems.find((item) => item.id === itemId);
+
+    if (!found) {
+      throw badRequest(`Sản phẩm F&B với ID ${itemId} không tồn tại trong hệ thống.`);
+    }
+    if (!found.is_active) {
+      throw badRequest(`Sản phẩm '${found.name}' hiện đang tạm ngừng kinh doanh.`);
+    }
+
+    const realUnitPrice = parseFloat(found.price);
+    totalConcessionAmount += realUnitPrice * qty;
+    validatedList.push({
+      concession_item_id: found.id,
+      quantity: qty,
+      unit_price: realUnitPrice,
+    });
+  }
+
+  // 3. Xóa các món cũ của booking này nếu có (Idempotent update)
+  await conn.query(`DELETE FROM booking_concessions WHERE booking_id = ?`, [bookingId]);
+
+  // 4. Lưu từng món vào booking_concessions
+  for (const item of validatedList) {
+    await conn.query(
+      `INSERT INTO booking_concessions (booking_id, concession_item_id, quantity, unit_price)
+       VALUES (?, ?, ?, ?)`,
+      [bookingId, item.concession_item_id, item.quantity, item.unit_price]
+    );
+  }
+
+  // 5. Cập nhật concession_amount vào bookings
+  await conn.query(
+    `UPDATE bookings SET concession_amount = ? WHERE id = ?`,
+    [totalConcessionAmount, bookingId]
+  );
+
+  return totalConcessionAmount;
 }
 
 /**
@@ -35,12 +172,12 @@ async function finalizeBookingTransaction({
   simulateFailure = false,
   user = {},
 }) {
-  const customerId = user.customerId || user.id || 1;
+  const resolvedCustomerId = user.role === 'customer' ? await resolveAuthenticatedCustomerId(user) : null;
 
   return await db.withTransaction(async (conn) => {
     // 1. Kiểm tra thông tin đơn đặt vé
     const [bookings] = await conn.query(
-      `SELECT b.*, s.movie_id, s.room_id, s.start_time, m.name AS movie_name, r.name AS room_name
+      `SELECT b.*, s.movie_id, s.room_id, s.start_time, s.status AS schedule_status, m.name AS movie_name, r.name AS room_name
        FROM bookings b
        JOIN screening_schedules s ON b.screening_id = s.id
        JOIN movies m ON s.movie_id = m.id
@@ -51,20 +188,17 @@ async function finalizeBookingTransaction({
     );
 
     if (!bookings || bookings.length === 0) {
-      throw new Error('Đơn đặt vé không tồn tại hoặc đã hết hạn.');
+      throw notFound('Đơn đặt vé không tồn tại hoặc đã hết hạn.');
     }
 
     const booking = bookings[0];
 
-    // Kiểm tra quyền sở hữu nếu có thông tin user customer
-    if (
-      user.role === 'customer' &&
-      booking.customer_id &&
-      booking.customer_id !== customerId &&
-      booking.customer_id !== user.id
-    ) {
-      throw new Error('Bạn không có quyền thanh toán đơn đặt vé này.');
+    // Kiểm tra quyền sở hữu chặt chẽ (KHÔNG so booking.customer_id với user.id)
+    if (user.role === 'customer' && !isOwnedByCustomer(booking.customer_id, resolvedCustomerId)) {
+      throw forbidden('Bạn không có quyền thanh toán đơn đặt vé này.');
     }
+
+    const customerId = booking.customer_id || resolvedCustomerId || 1;
 
     // Idempotent: Nếu đơn đã được thanh toán (ví dụ do IPN đã xử lý trước khi Return URL gọi về)
     if (booking.status === 'paid') {
@@ -96,15 +230,19 @@ async function finalizeBookingTransaction({
     }
 
     if (booking.status === 'cancelled' || booking.status === 'expired') {
-      throw new Error('Đơn đặt vé này đã bị hủy hoặc hết hạn thời gian giữ 10 phút. Vui lòng chọn ghế lại.');
+      throw badRequest('Đơn đặt vé này đã bị hủy hoặc hết hạn thời gian giữ 10 phút. Vui lòng chọn ghế lại.');
     }
 
-    // 2. Kiểm tra các ghế đang giữ của đơn đặt này
+    if (booking.schedule_status === 'cancelled') {
+      throw badRequest('Suất chiếu này đã bị hủy do sự cố kỹ thuật. Không thể tiếp tục thanh toán.');
+    }
+
+    // 2. STT 20: Kiểm tra các ghế đang giữ của đơn đặt này KÈM điều kiện hold_expire > NOW()
     const [heldSeats] = await conn.query(
-      `SELECT bs.*, s.row_number, s.seat_number 
+      `SELECT bs.*, s.\`row_number\`, s.seat_number, s.seat_type 
        FROM booking_seats bs
        JOIN seats s ON bs.seat_id = s.id
-       WHERE bs.booking_id = ? AND bs.status = 'holding'
+       WHERE bs.booking_id = ? AND bs.status = 'holding' AND bs.hold_expire > NOW()
        FOR UPDATE`,
       [bookingId]
     );
@@ -112,15 +250,24 @@ async function finalizeBookingTransaction({
     if (!heldSeats || heldSeats.length === 0) {
       await conn.query(`UPDATE booking_seats SET status = 'released' WHERE booking_id = ?`, [bookingId]);
       await conn.query(`UPDATE bookings SET status = 'expired' WHERE id = ?`, [bookingId]);
-      throw new Error('Thời gian giữ ghế 10 phút đã hết hạn hoặc không tìm thấy ghế. Ghế đã được tự động giải phóng.');
+      return {
+        paymentStatus: 'failed',
+        isExpired: true,
+        message: 'Thời gian giữ chỗ 10 phút đã hết hạn. Các ghế đã được tự động giải phóng.',
+      };
     }
+
+    // STT 22: Số tiền thực thu = total_amount (vé) + concession_amount (bắp nước) - discount_amount (voucher)
+    const discountAmount = Math.round(Number(booking.discount_amount || 0));
+    const concessionAmount = Math.round(Number(booking.concession_amount || 0));
+    const payableAmount = calculateBookingPayable(booking);
 
     // 3. Nếu giao dịch thất bại hoặc người dùng hủy thanh toán (BR09)
     if (simulateFailure) {
       await conn.query(
         `INSERT INTO payments (booking_id, payment_method, amount, transaction_code, status)
          VALUES (?, ?, ?, ?, 'failed')`,
-        [bookingId, paymentMethod, booking.total_amount, transactionCode]
+        [bookingId, paymentMethod, payableAmount, transactionCode]
       );
       await conn.query(`UPDATE booking_seats SET status = 'released' WHERE booking_id = ?`, [bookingId]);
       await conn.query(`UPDATE bookings SET status = 'cancelled' WHERE id = ?`, [bookingId]);
@@ -131,11 +278,11 @@ async function finalizeBookingTransaction({
       };
     }
 
-    // 4. Thanh toán THÀNH CÔNG:
+    // 4. Thanh toán THÀNH CÔNG: Ghi nhận giao dịch theo số tiền thực thu
     await conn.query(
       `INSERT INTO payments (booking_id, payment_method, amount, transaction_code, status)
        VALUES (?, ?, ?, ?, 'success')`,
-      [bookingId, paymentMethod, booking.total_amount, transactionCode]
+      [bookingId, paymentMethod, payableAmount, transactionCode]
     );
 
     await conn.query(`UPDATE bookings SET status = 'paid' WHERE id = ?`, [bookingId]);
@@ -144,12 +291,17 @@ async function finalizeBookingTransaction({
     // Sinh Vé Điện Tử (tickets) cho từng ghế
     const generatedTickets = [];
     for (const seat of heldSeats) {
-      const ticketCode = `TCK-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${booking.screening_id}-${seat.row_number}${seat.seat_number}`;
+      const isCouple = seat.seat_type === 'couple' || seat.row_number === 'F';
+      const capacity = isCouple ? 2 : 1;
+      const randSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
+      const ticketCode = `TCK-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${booking.screening_id}-${seat.row_number}${seat.seat_number}-${randSuffix}`;
       const qrCodePayload = JSON.stringify({
         ticketCode,
         movie: booking.movie_name,
         room: booking.room_name,
         seat: `${seat.row_number}${seat.seat_number}`,
+        seatType: isCouple ? 'COUPLE' : seat.seat_type?.toUpperCase() || 'STANDARD',
+        capacity: `${capacity} chỗ ngồi`,
         time: booking.start_time,
         customer: user.name || booking.customer_name || 'Khách hàng',
         paymentMethod: paymentMethod.toUpperCase(),
@@ -168,6 +320,8 @@ async function finalizeBookingTransaction({
         seat: `${seat.row_number}${seat.seat_number}`,
         row_number: seat.row_number,
         seat_number: seat.seat_number,
+        seat_type: isCouple ? 'couple' : seat.seat_type || 'standard',
+        capacity,
         price: seat.price,
       });
     }
@@ -179,9 +333,40 @@ async function finalizeBookingTransaction({
       [
         user.id || booking.customer_id || 1,
         'Đặt vé thành công!',
-        `Bạn đã thanh toán thành công ${booking.total_amount.toLocaleString('vi-VN')} VNĐ qua ${paymentMethod.toUpperCase()} cho ${generatedTickets.length} vé xem phim "${booking.movie_name}" lúc ${booking.start_time}.`,
+        `Bạn đã thanh toán thành công ${payableAmount.toLocaleString('vi-VN')} VNĐ qua ${paymentMethod.toUpperCase()} cho ${generatedTickets.length} vé xem phim "${booking.movie_name}" lúc ${booking.start_time}.`,
       ]
     );
+
+    // 5. Nếu đơn có bắp nước & combo, trong CÙNG TRANSACTION, tự động tạo đơn concession_orders & trừ kho BOM
+    const rawConcessions = await conn.query(
+      `SELECT bc.*, ci.name 
+       FROM booking_concessions bc
+       JOIN concession_items ci ON bc.concession_item_id = ci.id
+       WHERE bc.booking_id = ?`,
+      [bookingId]
+    );
+    const bookingConcessions = Array.isArray(rawConcessions) && Array.isArray(rawConcessions[0])
+      ? rawConcessions[0]
+      : (Array.isArray(rawConcessions) ? rawConcessions : []);
+
+    let concessionOrderResult = null;
+    if (bookingConcessions && bookingConcessions.length > 0) {
+      const concessionSaleItems = bookingConcessions.map((bc) => ({
+        id: bc.concession_item_id,
+        concession_item_id: bc.concession_item_id,
+        quantity: bc.quantity,
+      }));
+
+      concessionOrderResult = await executeConcessionSaleTransaction({
+        items: concessionSaleItems,
+        payment_method: paymentMethod,
+        staff_id: null,
+        notes: `Đơn đặt vé trực tuyến #${booking.booking_code}`,
+        idempotencyKey: booking.booking_code,
+        customerId: booking.customer_id || customerId,
+        existingConn: conn,
+      });
+    }
 
     return {
       paymentStatus: 'success',
@@ -190,10 +375,16 @@ async function finalizeBookingTransaction({
       transactionCode,
       paymentMethod,
       totalAmount: booking.total_amount,
+      concessionAmount,
+      discountAmount,
+      payableAmount,
+      voucherCode: booking.voucher_code || null,
       movieName: booking.movie_name,
       roomName: booking.room_name,
       screeningTime: booking.start_time,
       tickets: generatedTickets,
+      concessions: bookingConcessions || [],
+      concessionOrder: concessionOrderResult,
     };
   });
 }
@@ -203,13 +394,54 @@ async function finalizeBookingTransaction({
  */
 async function processPayment(req, res, next) {
   try {
-    const { booking_id, payment_method = 'banking', simulate_failure = false } = req.body;
+    // STT 08: Cổng thanh toán mô phỏng trực tiếp chỉ bật khi ENABLE_MOCK_PAYMENT === 'true'
+    if (process.env.ENABLE_MOCK_PAYMENT !== 'true') {
+      return res.status(403).json({
+        success: false,
+        message: 'Cổng thanh toán mô phỏng trực tiếp (/api/payments/process) đã bị tắt. Chỉ cho phép kích hoạt khi biến môi trường ENABLE_MOCK_PAYMENT=true.',
+      });
+    }
+
+    const { booking_id, payment_method = 'banking', simulate_failure = false, voucher_code, concessions } = req.body;
 
     if (!booking_id) {
       return res.status(400).json({
         success: false,
         message: 'Vui lòng cung cấp mã đơn đặt vé (booking_id).',
       });
+    }
+
+    // Kiểm tra quyền sở hữu TRƯỚC KHI ghi bắp nước / voucher (chống IDOR)
+    const ownerCheckRows = await db.query(`SELECT id, customer_id, total_amount FROM bookings WHERE id = ?`, [booking_id]);
+    const ownerBooking = Array.isArray(ownerCheckRows) ? ownerCheckRows[0] : ownerCheckRows;
+    if (!ownerBooking) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy đơn đặt vé.' });
+    }
+    if (req.user?.role === 'customer') {
+      const resolvedCustomerId = await resolveAuthenticatedCustomerId(req.user);
+      if (!isOwnedByCustomer(ownerBooking.customer_id, resolvedCustomerId)) {
+        return res.status(403).json({
+          success: false,
+          message: 'Bạn không có quyền thanh toán đơn đặt vé này.',
+        });
+      }
+    }
+
+    // 1. Cập nhật và xác thực danh sách bắp nước nếu được gửi kèm
+    if (concessions !== undefined) {
+      await saveBookingConcessions(db, booking_id, concessions);
+    }
+
+    // STT 22: Xác thực và áp dụng voucher nếu có
+    if (voucher_code) {
+      const vResult = validateAndCalculateVoucher(voucher_code, ownerBooking.total_amount);
+      if (!vResult.valid) {
+        return res.status(400).json({ success: false, message: vResult.error });
+      }
+      await db.query(
+        `UPDATE bookings SET voucher_code = ?, discount_amount = ? WHERE id = ?`,
+        [vResult.voucherCode, vResult.discountAmount, booking_id]
+      );
     }
 
     const transactionCode = `TXN-${payment_method.toUpperCase()}-${Date.now().toString().slice(-8)}-${Math.floor(1000 + Math.random() * 9000)}`;
@@ -242,7 +474,7 @@ async function processPayment(req, res, next) {
  */
 async function createMomoPayment(req, res, next) {
   try {
-    const { booking_id, request_type = 'captureWallet' } = req.body;
+    const { booking_id, request_type = 'captureWallet', voucher_code, concessions } = req.body;
 
     if (!booking_id) {
       return res.status(400).json({
@@ -251,7 +483,7 @@ async function createMomoPayment(req, res, next) {
       });
     }
 
-    // Kiểm tra đơn đặt vé
+    // Kiểm tra đơn đặt vé & quyền sở hữu TRƯỚC KHI ghi nhận bắp nước / voucher (chống IDOR)
     const bookings = await db.query(`SELECT * FROM bookings WHERE id = ?`, [booking_id]);
     if (!bookings || bookings.length === 0) {
       return res.status(404).json({
@@ -261,6 +493,16 @@ async function createMomoPayment(req, res, next) {
     }
 
     const booking = bookings[0];
+    if (req.user?.role === 'customer') {
+      const resolvedCustomerId = await resolveAuthenticatedCustomerId(req.user);
+      if (!isOwnedByCustomer(booking.customer_id, resolvedCustomerId)) {
+        return res.status(403).json({
+          success: false,
+          message: 'Bạn không có quyền khởi tạo thanh toán cho đơn đặt vé này.',
+        });
+      }
+    }
+
     if (booking.status === 'paid') {
       return res.status(400).json({
         success: false,
@@ -274,7 +516,33 @@ async function createMomoPayment(req, res, next) {
       });
     }
 
-    const config = getMomoConfig();
+    // 1. Cập nhật và xác thực danh sách bắp nước sau khi đã xác minh chủ sở hữu đơn
+    if (concessions !== undefined) {
+      const totalConcessionAmount = await saveBookingConcessions(db, booking_id, concessions);
+      booking.concession_amount = totalConcessionAmount;
+    }
+
+    // STT 22: Xác thực và áp dụng voucher nếu có
+    let discountAmount = Math.round(Number(booking.discount_amount || 0));
+    let voucherCode = booking.voucher_code || null;
+
+    if (voucher_code) {
+      const vResult = validateAndCalculateVoucher(voucher_code, booking.total_amount);
+      if (!vResult.valid) {
+        return res.status(400).json({ success: false, message: vResult.error });
+      }
+      voucherCode = vResult.voucherCode;
+      discountAmount = vResult.discountAmount;
+
+      await db.query(
+        `UPDATE bookings SET voucher_code = ?, discount_amount = ? WHERE id = ?`,
+        [voucherCode, discountAmount, booking.id]
+      );
+      booking.voucher_code = voucherCode;
+      booking.discount_amount = discountAmount;
+    }
+
+    const config = getMomoConfig(req);
     const partnerCode = config.partnerCode;
     const accessKey = config.accessKey;
     const secretKey = config.secretKey;
@@ -282,7 +550,8 @@ async function createMomoPayment(req, res, next) {
     const timestamp = Date.now();
     const orderId = `${partnerCode}_${booking.booking_code}_${timestamp}`;
     const requestId = `REQ_${timestamp}`;
-    const amount = String(Math.round(Number(booking.total_amount) || 90000));
+    const payableAmount = calculateBookingPayable(booking);
+    const amount = String(payableAmount);
     const orderInfo = `Thanh toan ve xem phim Night Movie - Ma don ${booking.booking_code}`;
     const redirectUrl = config.redirectUrl;
     const ipnUrl = config.ipnUrl;
@@ -351,12 +620,16 @@ async function createMomoPayment(req, res, next) {
       user: req.user,
       createdAt: new Date().toISOString(),
     };
-    pendingMomoOrders.set(orderId, sessionData);
+    await sessionStore.saveSession({
+      provider: 'momo',
+      key: orderId,
+      sessionType: 'booking',
+      status: 'pending',
+      payload: sessionData,
+    });
 
-    // Đường dẫn Cổng MoMo Sandbox nội bộ (phục vụ môi trường dev/test hoặc khi key demo công cộng bị giới hạn)
-    const protocol = req.protocol || 'http';
-    const host = req.get('host') || 'localhost:5050';
-    const localSandboxUrl = `${protocol}://${host}/api/payments/momo/sandbox-checkout?orderId=${encodeURIComponent(orderId)}`;
+    // Đường dẫn Cổng MoMo Sandbox nội bộ (tự nhận diện HTTPS trên Vercel/Production)
+    const localSandboxUrl = `${getBackendBaseUrl(req)}/api/payments/momo/sandbox-checkout?orderId=${encodeURIComponent(orderId)}`;
 
     let momoApiResponse = null;
     let payUrl = localSandboxUrl;
@@ -424,7 +697,7 @@ async function createMomoPayment(req, res, next) {
  */
 async function renderMomoSandboxGateway(req, res) {
   const { orderId } = req.query;
-  const session = pendingMomoOrders.get(orderId);
+  const session = await sessionStore.getSession('momo', orderId);
 
   if (!session) {
     return res.status(404).send(`
@@ -435,7 +708,7 @@ async function renderMomoSandboxGateway(req, res) {
         <div style="background:white;padding:32px;border-radius:16px;box-shadow:0 10px 25px rgba(0,0,0,0.1);text-align:center;max-width:420px;">
           <h2 style="color:#a50064;margin-top:0;">Phiên giao dịch MoMo đã hết hạn</h2>
           <p style="color:#475569;font-size:14px;">Không tìm thấy mã đơn hàng <b>${orderId || ''}</b> trên cổng MoMo Sandbox.</p>
-          <a href="http://localhost:5173" style="display:inline-block;margin-top:16px;padding:10px 20px;background:#a50064;color:white;text-decoration:none;border-radius:8px;font-weight:bold;">Quay về Rạp Night Movie</a>
+          <a href="${getFrontendBaseUrl(req)}" style="display:inline-block;margin-top:16px;padding:10px 20px;background:#a50064;color:white;text-decoration:none;border-radius:8px;font-weight:bold;">Quay về Rạp Night Movie</a>
         </div>
       </body>
       </html>
@@ -663,7 +936,13 @@ async function handleMomoIpn(req, res) {
       signature,
     } = req.body;
 
-    const config = getMomoConfig();
+    // STT 05: Bắt buộc phải có chữ ký điện tử
+    if (!signature) {
+      console.warn('[MoMo IPN] Yêu cầu IPN thiếu chữ ký điện tử signature!');
+      return res.status(400).json({ message: 'Missing signature' });
+    }
+
+    const config = getMomoConfig(req);
     const rawSignature =
       `accessKey=${config.accessKey}` +
       `&amount=${amount}` +
@@ -680,12 +959,12 @@ async function handleMomoIpn(req, res) {
       `&transId=${transId}`;
 
     const expectedSignature = signHmacSha256(rawSignature, config.secretKey);
-    if (signature && signature !== expectedSignature) {
+    if (signature !== expectedSignature) {
       console.warn('[MoMo IPN] Chữ ký HMAC-SHA256 không khớp!');
       return res.status(400).json({ message: 'Invalid signature' });
     }
 
-    const session = pendingMomoOrders.get(orderId);
+    const session = await sessionStore.getSession('momo', orderId);
     let bookingId = session?.bookingId;
     let user = session?.user || {};
 
@@ -700,6 +979,18 @@ async function handleMomoIpn(req, res) {
     }
 
     if (bookingId) {
+      // STT 07 & STT 22: Đối chiếu số tiền IPN nhận được với số thực thu (total_amount + concession_amount - discount_amount)
+      const bookingRows = await db.query(`SELECT id, total_amount, concession_amount, discount_amount, voucher_code FROM bookings WHERE id = ?`, [bookingId]);
+      const booking = Array.isArray(bookingRows) ? bookingRows[0] : bookingRows;
+      if (!booking) {
+        return res.status(404).json({ message: 'Booking not found' });
+      }
+      const expectedPayable = calculateBookingPayable(booking);
+      if (Math.round(Number(amount)) !== expectedPayable) {
+        console.warn(`[MoMo IPN] Số tiền không khớp! Nhận: ${amount}, Yêu cầu thực thu: ${expectedPayable}`);
+        return res.status(400).json({ message: 'Payment amount mismatch' });
+      }
+
       const isFailed = Number(resultCode) !== 0;
       await finalizeBookingTransaction({
         bookingId,
@@ -740,10 +1031,10 @@ async function verifyMomoReturn(req, res, next) {
       booking_id,
     } = req.body;
 
-    const config = getMomoConfig();
+    const config = getMomoConfig(req);
     let signatureVerified = false;
 
-    // Kiểm tra chữ ký HMAC-SHA256 nếu đầy đủ tham số Return URL từ MoMo
+    // Kiểm tra chữ ký HMAC-SHA256 nếu có tham số Return URL từ MoMo
     if (signature && orderId && requestId && transId !== undefined && responseTime !== undefined) {
       const rawSignature =
         `accessKey=${config.accessKey}` +
@@ -764,7 +1055,15 @@ async function verifyMomoReturn(req, res, next) {
       signatureVerified = expectedSignature === signature;
     }
 
-    const session = pendingMomoOrders.get(orderId);
+    // STT 06: Nếu gửi kèm chữ ký nhưng chữ ký không hợp lệ, từ chối giao dịch
+    if (signature && !signatureVerified) {
+      return res.status(400).json({
+        success: false,
+        message: 'Chữ ký điện tử MoMo Return URL không hợp lệ! Giao dịch bị từ chối.',
+      });
+    }
+
+    const session = await sessionStore.getSession('momo', orderId);
     let targetBookingId = booking_id || session?.bookingId;
     let user = req.user || session?.user || {};
 
@@ -799,6 +1098,20 @@ async function verifyMomoReturn(req, res, next) {
       });
     }
 
+    // STT 07 & STT 22: Đối chiếu số tiền với số thực thu (total_amount + concession_amount - discount_amount)
+    const bookingRows = await db.query(`SELECT id, total_amount, concession_amount, discount_amount, voucher_code FROM bookings WHERE id = ?`, [targetBookingId]);
+    const booking = Array.isArray(bookingRows) ? bookingRows[0] : bookingRows;
+    if (!booking) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy đơn đặt vé.' });
+    }
+    const expectedPayable = calculateBookingPayable(booking);
+    if (amount !== undefined && Math.round(Number(amount)) !== expectedPayable) {
+      return res.status(400).json({
+        success: false,
+        message: `Số tiền thanh toán MoMo (${amount}) không khớp với số tiền thực thu của đơn (${expectedPayable}).`,
+      });
+    }
+
     const isFailure = Number(resultCode) !== 0;
     const transactionCode = `MOMO-${transId || Date.now().toString().slice(-8)}`;
 
@@ -811,7 +1124,17 @@ async function verifyMomoReturn(req, res, next) {
     });
 
     if (orderId) {
-      pendingMomoOrders.delete(orderId);
+      await sessionStore.saveSession({
+        provider: 'momo',
+        key: orderId,
+        sessionType: 'booking',
+        status: result.paymentStatus === 'success' ? 'paid' : 'failed',
+        payload: {
+          ...(session || { orderId, bookingId: targetBookingId }),
+          status: result.paymentStatus === 'success' ? 'paid' : 'failed',
+          completedAt: new Date().toISOString(),
+        },
+      });
     }
 
     return res.status(200).json({
@@ -829,10 +1152,158 @@ async function verifyMomoReturn(req, res, next) {
   }
 }
 
+/**
+ * Hoàn tiền giao dịch (Admin / Manager)
+ * Đảm bảo:
+ * - Trạng thái thanh toán phản ánh đúng kết quả hoàn tiền (status: 'refunded').
+ * - Chống hoàn tiền lặp lại (Idempotency: nếu đã refunded thì trả về alreadyRefunded).
+ * - Xử lý mô phỏng lỗi hoàn tiền thất bại (simulate_failure = true).
+ * - Không xóa lịch sử giao dịch (toàn vẹn dữ liệu kế toán).
+ * - Đồng bộ hủy vé và giải phóng ghế còn lại của đơn.
+ */
+async function refundPayment(req, res, next) {
+  try {
+    const { booking_id, reason = '', simulate_failure = false } = req.body;
+    const userRole = req.user?.role;
+
+    if (!['admin', 'manager'].includes(userRole)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Chỉ Quản lý (Manager) hoặc Quản trị viên (Admin) mới có quyền xử lý hoàn tiền.',
+      });
+    }
+
+    if (!booking_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng cung cấp mã đơn đặt vé (booking_id).',
+      });
+    }
+
+    const payments = await db.query(
+      `SELECT p.*, b.booking_code, b.customer_id, b.total_amount
+       FROM payments p
+       JOIN bookings b ON p.booking_id = b.id
+       WHERE p.booking_id = ?`,
+      [booking_id]
+    );
+
+    if (!payments || payments.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy giao dịch thanh toán cho đơn hàng này.',
+      });
+    }
+
+    const payment = payments[0];
+
+    // Idempotency: Kiểm tra nếu giao dịch đã được hoàn tiền trước đó
+    if (payment.status === 'refunded') {
+      return res.status(200).json({
+        success: true,
+        alreadyRefunded: true,
+        message: 'Giao dịch này đã được hoàn tiền trước đó. Không xử lý hoàn tiền lặp lại.',
+        data: {
+          paymentId: payment.id,
+          bookingId: payment.booking_id,
+          amount: payment.amount,
+          status: 'refunded',
+        },
+      });
+    }
+
+    if (payment.status !== 'success') {
+      return res.status(400).json({
+        success: false,
+        message: `Không thể hoàn tiền cho giao dịch đang ở trạng thái: ${payment.status}. Chỉ hoàn tiền cho giao dịch đã thanh toán thành công.`,
+      });
+    }
+
+    // Mô phỏng trường hợp cổng thanh toán từ chối hoàn tiền (Gateway Refund Failed)
+    if (simulate_failure) {
+      return res.status(400).json({
+        success: false,
+        refundStatus: 'failed',
+        message: 'Cổng thanh toán từ chối yêu cầu hoàn tiền (Mã lỗi GATEWAY_REFUND_REJECTED). Số tiền và vé được giữ nguyên.',
+      });
+    }
+
+    // Xử lý hoàn tiền thành công trong Transaction
+    const refundTxResult = await db.withTransaction(async (conn) => {
+      // 1. Cập nhật trạng thái payment -> refunded (Nguyên tử chống Race Condition)
+      const updRes = await conn.query(`UPDATE payments SET status = 'refunded' WHERE id = ? AND status = 'success'`, [payment.id]);
+      const affected = updRes?.affectedRows ?? updRes?.[0]?.affectedRows ?? 1;
+      if (affected === 0) {
+        return { alreadyRefunded: true };
+      }
+
+      // 2. Đồng bộ trạng thái booking -> cancelled
+      await conn.query(`UPDATE bookings SET status = 'cancelled' WHERE id = ?`, [booking_id]);
+
+      // 3. Hủy toàn bộ vé liên quan nếu còn active
+      await conn.query(`UPDATE tickets SET status = 'cancelled' WHERE booking_id = ? AND status = 'active'`, [booking_id]);
+
+      // 4. Giải phóng ghế
+      await conn.query(`UPDATE booking_seats SET status = 'released' WHERE booking_id = ?`, [booking_id]);
+
+      // 5. Gửi thông báo đến khách hàng
+      if (payment.customer_id) {
+        const userRows = await conn.query(`SELECT user_id FROM customers WHERE id = ?`, [payment.customer_id]);
+        const userObj = Array.isArray(userRows?.[0]) ? userRows[0][0] : userRows?.[0];
+        const targetUserId = userObj?.user_id || payment.customer_id;
+        await conn.query(
+          `INSERT INTO notifications (user_id, title, message, type)
+           VALUES (?, ?, ?, 'system')`,
+          [
+            targetUserId,
+            'Hoàn tiền đơn đặt vé thành công',
+            `Đơn vé #${payment.booking_code} đã được hoàn tiền ${Number(payment.amount).toLocaleString('vi-VN')} đ. Lý do: ${reason || 'Hoàn vé theo yêu cầu'}.`,
+          ]
+        );
+      }
+      return { success: true };
+    });
+
+    if (refundTxResult?.alreadyRefunded) {
+      return res.status(200).json({
+        success: true,
+        alreadyRefunded: true,
+        message: 'Giao dịch này đã được hoàn tiền trước đó. Không xử lý hoàn tiền lặp lại.',
+        data: {
+          paymentId: payment.id,
+          bookingId: payment.booking_id,
+          amount: payment.amount,
+          status: 'refunded',
+        },
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      refundStatus: 'success',
+      message: `Đã hoàn tiền thành công số tiền ${Number(payment.amount).toLocaleString('vi-VN')} đ cho đơn hàng #${payment.booking_code}.`,
+      data: {
+        paymentId: payment.id,
+        bookingId: payment.booking_id,
+        bookingCode: payment.booking_code,
+        refundAmount: payment.amount,
+        status: 'refunded',
+        refundedAt: new Date().toISOString(),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
+  finalizeBookingTransaction,
   processPayment,
   createMomoPayment,
   renderMomoSandboxGateway,
   handleMomoIpn,
   verifyMomoReturn,
+  refundPayment,
+  calculateBookingPayable,
+  saveBookingConcessions,
 };

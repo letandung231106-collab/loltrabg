@@ -1,8 +1,44 @@
-const mysql = require('mysql2/promise');
+let pg = null;
+try {
+  pg = require('pg');
+  if (pg && pg.types) {
+    // Parse NUMERIC / DECIMAL (type ID 1700) as Float
+    pg.types.setTypeParser(1700, (val) => (val === null ? null : parseFloat(val)));
+    // Parse BIGINT / INT8 (type ID 20, returned by COUNT) as Integer
+    pg.types.setTypeParser(20, (val) => (val === null ? null : parseInt(val, 10)));
+  }
+} catch (err) {
+  // pg driver không có sẵn
+}
+
+let mysql = null;
+try {
+  mysql = require('mysql2/promise');
+} catch (err) {
+  // mysql2 driver không có sẵn trong môi trường serverless thuần
+}
 const dotenv = require('dotenv');
 const memory = require('./memoryStore');
 
 dotenv.config();
+
+function getSanitizedDatabaseUrl() {
+  let raw = (process.env.DATABASE_URL || '').trim();
+  if (!raw) return null;
+  if (raw.includes(':[') && raw.includes(']@')) {
+    raw = raw.replace(/:\[(.*?)\]@/, (m, pwd) => `:${encodeURIComponent(pwd)}@`);
+  } else if (raw.includes(':') && raw.includes('@')) {
+    try {
+      new URL(raw);
+    } catch {
+      const match = raw.match(/^(postgresql:\/\/[^:]+:)(.*)@([^@]+)$/);
+      if (match) {
+        raw = `${match[1]}${encodeURIComponent(match[2])}@${match[3]}`;
+      }
+    }
+  }
+  return raw;
+}
 
 const dbConfig = {
   host: process.env.DB_HOST || 'localhost',
@@ -15,49 +51,267 @@ const dbConfig = {
   queueLimit: 0,
   dateStrings: true,
   multipleStatements: true,
+  timezone: '+07:00',
 };
 
+let pgPool = null;
 let pool = null;
 let isConnected = false;
+let isSupabase = false;
+
+function getPgPool() {
+  if (!pg) return null;
+  if (!pgPool) {
+    const connStr = getSanitizedDatabaseUrl();
+    if (!connStr) return null;
+    pgPool = new pg.Pool({
+      connectionString: connStr,
+      ssl: { rejectUnauthorized: false },
+      max: 20,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 10000,
+    });
+    pgPool.on('error', (err) => {
+      console.error('[Supabase PostgreSQL Pool Error]', err.message);
+    });
+  }
+  return pgPool;
+}
+
+function translateSql(rawSql, rawParams = []) {
+  let sql = String(rawSql);
+  let params = [...rawParams];
+
+  // 1. Backticks `column` -> "column"
+  sql = sql.replace(/\`([a-zA-Z0-9_]+)\`/g, '"$1"');
+
+  // 2. GROUP_CONCAT(expr SEPARATOR ', ') -> STRING_AGG((expr)::text, ', ')
+  sql = sql.replace(/GROUP_CONCAT\s*\(\s*(.*?)\s+SEPARATOR\s+(['"][^'"]*['"])\s*\)/gi, (match, expr, sep) => {
+    const cleanSep = "'" + sep.slice(1, -1).replace(/'/g, "''") + "'";
+    return `STRING_AGG((${expr})::text, ${cleanSep})`;
+  });
+  sql = sql.replace(/GROUP_CONCAT\s*\(\s*(.*?)\s*\)/gi, (match, expr) => {
+    return `STRING_AGG((${expr})::text, ', ')`;
+  });
+
+  // 2b. DATE_FORMAT(expr, '%Y-%m') -> TO_CHAR(expr, 'YYYY-MM')
+  sql = sql.replace(/DATE_FORMAT\s*\(\s*([^,]+?)\s*,\s*'([^']+)'\s*\)/gi, (match, expr, fmt) => {
+    const pgFmt = fmt
+      .replace(/%Y/g, 'YYYY')
+      .replace(/%m/g, 'MM')
+      .replace(/%d/g, 'DD')
+      .replace(/%H/g, 'HH24')
+      .replace(/%i/g, 'MI')
+      .replace(/%s/g, 'SS');
+    return `TO_CHAR(${expr.trim()}, '${pgFmt}')`;
+  });
+
+  // 3. INTERVAL n DAY -> INTERVAL 'n DAY'
+  sql = sql.replace(/INTERVAL\s+(\d+)\s+([A-Za-z]+)/gi, "INTERVAL '$1 $2'");
+
+  // 4. INSERT IGNORE INTO -> INSERT INTO ... ON CONFLICT DO NOTHING
+  if (/^\s*INSERT\s+IGNORE\s+INTO/i.test(sql)) {
+    sql = sql.replace(/^\s*INSERT\s+IGNORE\s+INTO/i, 'INSERT INTO');
+    if (!/ON\s+CONFLICT/i.test(sql)) {
+      sql += ' ON CONFLICT DO NOTHING';
+    }
+  }
+
+  // 5. Expand placeholders (?) for scalar values, 1D arrays (IN (?)), and 2D arrays (VALUES ?)
+  let paramIdx = 0;
+  let newParams = [];
+  let inString = false;
+  let stringChar = '';
+  let translatedSql = '';
+
+  for (let i = 0; i < sql.length; i++) {
+    const char = sql[i];
+    if (!inString && (char === "'" || char === '"')) {
+      inString = true;
+      stringChar = char;
+      translatedSql += char;
+    } else if (inString && char === stringChar) {
+      if (sql[i + 1] === stringChar) {
+        translatedSql += char + sql[i + 1];
+        i++;
+      } else {
+        inString = false;
+        translatedSql += char;
+      }
+    } else if (!inString && char === '?') {
+      const val = params[paramIdx++];
+      if (Array.isArray(val)) {
+        if (val.length === 0) {
+          translatedSql += 'NULL';
+        } else if (Array.isArray(val[0])) {
+          // 2D Array: Bulk INSERT VALUES ?
+          const rowPhs = val.map(row => '(' + row.map(v => {
+            newParams.push(v);
+            return '$' + newParams.length;
+          }).join(', ') + ')');
+          translatedSql += rowPhs.join(', ');
+        } else {
+          // 1D Array: WHERE id IN (?)
+          const phs = val.map(v => {
+            newParams.push(v);
+            return '$' + newParams.length;
+          });
+          translatedSql += phs.join(', ');
+        }
+      } else {
+        newParams.push(val);
+        translatedSql += `$${newParams.length}`;
+      }
+    } else {
+      translatedSql += char;
+    }
+  }
+  sql = translatedSql;
+  params = newParams;
+
+  const isInsert = /^\s*INSERT\s+INTO/i.test(sql);
+  const isSelect = /^\s*SELECT/i.test(sql);
+
+  if (isInsert && !/RETURNING/i.test(sql)) {
+    sql += ' RETURNING *';
+  }
+
+  return { sql, params, isInsert, isSelect };
+}
+
+async function executePgQuery(clientOrPool, rawSql, rawParams = []) {
+  const { sql, params, isInsert, isSelect } = translateSql(rawSql, rawParams);
+  const res = await clientOrPool.query(sql, params);
+
+  if (isSelect) {
+    const rows = res.rows || [];
+    rows.affectedRows = res.rowCount || 0;
+    rows.rowCount = res.rowCount || 0;
+    return [rows, res.fields];
+  }
+
+  if (isInsert) {
+    const firstRow = res.rows?.[0] || {};
+    const insertId = firstRow.id ?? firstRow.item_id ?? 0;
+    const resultObj = {
+      insertId: Number(insertId) || 0,
+      affectedRows: res.rowCount || 0,
+      rowCount: res.rowCount || 0,
+      rows: res.rows || [],
+      length: res.rows?.length || 0,
+      ...firstRow,
+    };
+    return [resultObj, res.fields];
+  }
+
+  const resultObj = {
+    affectedRows: res.rowCount || 0,
+    rowCount: res.rowCount || 0,
+    changedRows: res.rowCount || 0,
+    insertId: 0,
+    rows: res.rows || [],
+    length: res.rows?.length || 0,
+  };
+  return [resultObj, res.fields];
+}
 
 function getPool() {
+  if (isSupabase || (pg && getSanitizedDatabaseUrl())) {
+    const p = getPgPool();
+    if (p) {
+      return {
+        query: async (sql, params) => executePgQuery(p, sql, params),
+        execute: async (sql, params) => executePgQuery(p, sql, params),
+        getConnection: async () => {
+          const client = await p.connect();
+          return {
+            query: async (sql, params) => executePgQuery(client, sql, params),
+            execute: async (sql, params) => executePgQuery(client, sql, params),
+            beginTransaction: async () => client.query('BEGIN'),
+            commit: async () => client.query('COMMIT'),
+            rollback: async () => client.query('ROLLBACK'),
+            release: () => client.release(),
+          };
+        },
+        end: async () => p.end(),
+      };
+    }
+  }
+
+  if (!mysql) return null;
   if (!pool) {
     pool = mysql.createPool(dbConfig);
+    pool.on('connection', (connection) => {
+      connection.query("SET time_zone = '+07:00'");
+    });
   }
   return pool;
 }
 
 async function testConnection() {
-  try {
-    const conn = await getPool().getConnection();
-    console.log(`[MySQL] Kết nối thành công đến database: ${dbConfig.database} trên ${dbConfig.host}:${dbConfig.port}`);
-    isConnected = true;
-    conn.release();
-    return true;
-  } catch (error) {
-    console.warn(`[MySQL Notice] Chưa thể kết nối MySQL trực tiếp (${error.message}).`);
-    console.warn(`[MySQL Auto-Fallback] Đã kích hoạt bộ nhớ đệm In-Memory Seed Data để Web App hoạt động ngay lập tức!`);
-    console.warn(`[MySQL Guide] Bạn có thể mở MySQL Workbench và import 'cinema_management.sql' bất kỳ lúc nào.`);
-    isConnected = false;
-    return false;
+  const dbUrl = getSanitizedDatabaseUrl();
+  if (dbUrl && pg) {
+    try {
+      const p = getPgPool();
+      if (!p) throw new Error('Không thể khởi tạo pg.Pool cho Supabase');
+      const res = await p.query('SELECT NOW() as now, version() as version;');
+      console.log(`[Supabase PostgreSQL] Kết nối thành công đến database Supabase! (${res.rows[0].version.split(' ')[0]} ${res.rows[0].version.split(' ')[1] || ''})`);
+      isConnected = true;
+      isSupabase = true;
+      return true;
+    } catch (pgError) {
+      console.warn(`[Supabase Notice] Chưa thể kết nối Supabase trực tiếp (${pgError.message}).`);
+    }
   }
+
+  if (mysql) {
+    try {
+      const p = getPool();
+      if (p && p.getConnection) {
+        const conn = await p.getConnection();
+        console.log(`[MySQL] Kết nối thành công đến database: ${dbConfig.database} trên ${dbConfig.host}:${dbConfig.port}`);
+        isConnected = true;
+        isSupabase = false;
+        conn.release();
+        return true;
+      }
+    } catch (error) {
+      console.warn(`[MySQL Notice] Chưa thể kết nối MySQL trực tiếp (${error.message}).`);
+    }
+  }
+
+  if (process.env.NODE_ENV === 'production') {
+    if (process.env.ENABLE_IN_MEMORY_DEMO === 'true') {
+      console.error(`[CRITICAL SECURITY ERROR] Tuyệt đối không cho phép ENABLE_IN_MEMORY_DEMO=true trong môi trường Production.`);
+    }
+    console.error(`[CRITICAL DATABASE ERROR] Môi trường Production bắt buộc phải kết nối cơ sở dữ liệu thật.`);
+    console.error(`Hệ thống từ chối khởi động và không được phép âm thầm chuyển sang bộ nhớ RAM In-Memory trong Production.`);
+    throw new Error(`Production Database Connection Failed (In-Memory fallback disabled in production).`);
+  }
+
+  console.warn(`[Database Auto-Fallback] Đã kích hoạt bộ nhớ đệm In-Memory Seed Data để Web App hoạt động ngay lập tức!`);
+  isConnected = false;
+  isSupabase = false;
+  return false;
 }
 
 /**
  * Thực thi câu truy vấn SQL thông thường
+ * - Khi Supabase/MySQL kết nối thành công: Thực thi trực tiếp trên DB, ném lỗi nghiệp vụ/cú pháp nếu có.
+ * - Khi chưa kết nối DB (!isConnected): Sử dụng bộ giả lập RAM (In-Memory Fallback).
  */
 async function query(sql, params = []) {
   if (isConnected) {
-    try {
-      const p = getPool();
-      const [results] = await p.query(sql, params);
+    if (isSupabase) {
+      const [results] = await executePgQuery(getPgPool(), sql, params);
       return results;
-    } catch (err) {
-      console.warn(`[MySQL Query Error] ${err.message}. Chuyển sang xử lý dự phòng.`);
     }
+    const p = getPool();
+    const [results] = await p.query(sql, params);
+    return results;
   }
 
-  // In-memory fallback query handler
+  // In-memory fallback query handler (chỉ kích hoạt khi !isConnected)
   const normalized = sql.toLowerCase().replace(/\s+/g, ' ').trim();
   const now = new Date();
   const todayStr = (d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'))(now);
@@ -111,20 +365,44 @@ async function query(sql, params = []) {
     }];
   }
 
-  // Dashboard: Today's Sales & Revenue
-  if (normalized.includes('screenings_today') || normalized.includes('revenue_today')) {
-    const paidBookings = memory.bookings.filter((b) => b.status === 'paid');
-    const revenueToday = paidBookings.reduce((sum, b) => sum + parseFloat(b.total_amount || 0), 0);
-    const activeTickets = memory.tickets.filter((t) => ['active', 'used'].includes(t.status)).length;
-    const screeningsToday = memory.schedules.filter(
+  // Dashboard: Today's Sales & Revenue (Phân biệt Gross, Refunded, Net)
+  if (normalized.includes('screenings_today') || normalized.includes('revenue_today') || normalized.includes('net_revenue_today')) {
+    const allPayments = memory.payments || [];
+    const successPayments = allPayments.filter((p) => p.status === 'success');
+    const refundedPayments = allPayments.filter((p) => p.status === 'refunded');
+    const grossPayments = allPayments.filter((p) => ['success', 'refunded'].includes(p.status));
+
+    const netRevenueToday = successPayments
+      .filter((p) => String(p.payment_time || todayStr).slice(0, 10) === todayStr)
+      .reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
+    const grossRevenueToday = grossPayments
+      .filter((p) => String(p.payment_time || todayStr).slice(0, 10) === todayStr)
+      .reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
+    const refundedToday = refundedPayments
+      .filter((p) => String(p.payment_time || todayStr).slice(0, 10) === todayStr)
+      .reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
+
+    const netRevenueAllTime = successPayments.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
+    const grossRevenueAllTime = grossPayments.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
+    const refundedAllTime = refundedPayments.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
+
+    const activeTickets = (memory.tickets || []).filter((t) => ['active', 'used'].includes(t.status)).length;
+    const screeningsToday = (memory.schedules || []).filter(
       (s) => String(s.start_time).slice(0, 10) === todayStr && s.status !== 'cancelled'
     ).length;
+
     return [{
       screenings_today: screeningsToday,
-      bookings_today: paidBookings.length,
+      bookings_today: successPayments.length,
       tickets_sold_today: activeTickets,
-      revenue_today: revenueToday,
-      total_revenue_all_time: revenueToday,
+      gross_revenue_today: grossRevenueToday,
+      refunded_amount_today: refundedToday,
+      net_revenue_today: netRevenueToday,
+      gross_revenue_all_time: grossRevenueAllTime,
+      refunded_amount_all_time: refundedAllTime,
+      net_revenue_all_time: netRevenueAllTime,
+      revenue_today: netRevenueToday,
+      total_revenue_all_time: netRevenueAllTime,
       total_tickets_all_time: activeTickets,
     }];
   }
@@ -140,10 +418,15 @@ async function query(sql, params = []) {
   }
 
   // Analytics: Daily Revenue
-  if ((normalized.includes('date(p.payment_time) as date') || normalized.includes('date(payment_time) as sale_date')) && normalized.includes('from payments')) {
+  if (
+    (normalized.includes('date(p.payment_time) as date') ||
+      normalized.includes('p_daily.pay_date') ||
+      normalized.includes('date(payment_time) as sale_date')) &&
+    normalized.includes('from payments')
+  ) {
     const grouped = {};
     (memory.payments || [])
-      .filter((p) => p.status === 'success')
+      .filter((p) => ['success', 'refunded'].includes(p.status))
       .forEach((p) => {
         const dStr = String(p.payment_time || todayStr).slice(0, 10);
         if (!grouped[dStr]) {
@@ -153,26 +436,28 @@ async function query(sql, params = []) {
             transaction_count: 0,
             total_transactions: 0,
             tickets_count: 0,
+            gross_revenue: 0,
+            refunded_amount: 0,
+            net_revenue: 0,
             total_revenue: 0,
           };
         }
-        grouped[dStr].transaction_count += 1;
-        grouped[dStr].total_transactions += 1;
-        grouped[dStr].tickets_count += 2;
-        grouped[dStr].total_revenue += parseFloat(p.amount || 0);
+        const amt = parseFloat(p.amount || 0);
+        grouped[dStr].gross_revenue += amt;
+        if (p.status === 'refunded') {
+          grouped[dStr].refunded_amount += amt;
+        } else {
+          grouped[dStr].transaction_count += 1;
+          grouped[dStr].total_transactions += 1;
+          const relatedTickets = (memory.tickets || []).filter(
+            (t) => t.booking_id === p.booking_id && ['active', 'used'].includes(t.status)
+          );
+          grouped[dStr].tickets_count += Math.max(1, relatedTickets.length);
+          grouped[dStr].net_revenue += amt;
+          grouped[dStr].total_revenue += amt;
+        }
       });
-    const result = Object.values(grouped);
-    if (result.length === 0) {
-      result.push({
-        date: todayStr,
-        sale_date: todayStr,
-        transaction_count: 1,
-        total_transactions: 1,
-        tickets_count: 2,
-        total_revenue: 220000,
-      });
-    }
-    return result;
+    return Object.values(grouped);
   }
 
   // Analytics: Top Movies by Revenue
@@ -241,7 +526,9 @@ async function query(sql, params = []) {
     if (params.length > 0) {
       const param0 = params[0];
       let foundUser = null;
-      if (normalized.includes('where r.name = ?')) {
+      if (normalized.includes('where u.auth_user_id = ?')) {
+        foundUser = memory.users.find((u) => u.auth_user_id && u.auth_user_id === param0);
+      } else if (normalized.includes('where r.name = ?')) {
         const targetRole = memory.roles.find((r) => r.name === param0);
         foundUser = memory.users.find((u) => u.role_id === targetRole?.id && u.status === 'active');
       } else if (normalized.includes('where u.id = ?') || normalized.includes('where id = ?')) {
@@ -263,11 +550,33 @@ async function query(sql, params = []) {
         customer_email: cust?.email,
         employee_id: emp?.id,
         employee_name: emp?.name,
+        employee_email: emp?.email,
         position: emp?.position,
         department: emp?.department,
       }];
     }
     return memory.users;
+  }
+
+  // Supabase OAuth email lookup in employees / customers
+  if (normalized.startsWith('select') && normalized.includes('from employees e') && normalized.includes('lower(e.email) = lower(?)')) {
+    const email = String(params[0] || '').toLowerCase();
+    const emp = memory.employees.find((e) => String(e.email || '').toLowerCase() === email);
+    if (!emp) return [];
+    const u = memory.users.find((item) => item.id === emp.user_id);
+    if (!u) return [];
+    const role = memory.roles.find((r) => r.id === u.role_id)?.name || 'staff';
+    return [{ ...u, role, employee_id: emp.id, employee_name: emp.name, employee_email: emp.email }];
+  }
+
+  if (normalized.startsWith('select') && normalized.includes('from customers c') && normalized.includes('lower(c.email) = lower(?)')) {
+    const email = String(params[0] || '').toLowerCase();
+    const cust = memory.customers.find((c) => String(c.email || '').toLowerCase() === email);
+    if (!cust) return [];
+    const u = memory.users.find((item) => item.id === cust.user_id);
+    if (!u) return [];
+    const role = memory.roles.find((r) => r.id === u.role_id)?.name || 'customer';
+    return [{ ...u, role, customer_id: cust.id, customer_name: cust.name, customer_email: cust.email }];
   }
 
   // =========================================================================
@@ -304,6 +613,23 @@ async function query(sql, params = []) {
       if (!isNaN(lim) && lim > 0) res = res.slice(0, lim);
     }
     return res;
+  }
+
+  // =========================================================================
+  // 2.1. MOVIE REVIEWS (Đánh giá & Bình luận phim)
+  // =========================================================================
+  if (normalized.startsWith('select') && normalized.includes('from movie_reviews')) {
+    if (normalized.includes('where movie_id = ? and user_id = ?')) {
+      const movieId = parseInt(params[0], 10);
+      const userId = parseInt(params[1], 10);
+      return (memory.movie_reviews || []).filter((r) => r.movie_id === movieId && r.user_id === userId);
+    }
+    if (normalized.includes('where movie_id = ?')) {
+      const movieId = parseInt(params[0], 10);
+      const reviews = (memory.movie_reviews || []).filter((r) => r.movie_id === movieId);
+      return reviews.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    }
+    return memory.movie_reviews || [];
   }
 
   // =========================================================================
@@ -344,6 +670,12 @@ async function query(sql, params = []) {
   // 5. SCREENING SCHEDULES
   // =========================================================================
   if (normalized.startsWith('select') && normalized.includes('from screening_schedules')) {
+    // Check active schedules for room deletion (roomController.deleteRoom)
+    if (normalized.includes('where room_id = ?') && normalized.includes("status = 'scheduled'")) {
+      const roomId = parseInt(params[0], 10);
+      return memory.schedules.filter((s) => s.room_id === roomId && s.status === 'scheduled');
+    }
+
     // Check active schedules for movie deletion (movieController.deleteMovie)
     if (normalized.includes('where movie_id = ?') && normalized.includes("status in ('scheduled', 'screening')")) {
       const movieId = parseInt(params[0], 10);
@@ -352,14 +684,19 @@ async function query(sql, params = []) {
       );
     }
 
-    // Check schedule time overlap conflict (scheduleController.createSchedule)
+    // Check schedule time overlap conflict (scheduleController.createSchedule / updateSchedule)
     if (normalized.includes('where s.room_id = ?') && normalized.includes('>= s.end_time')) {
       const roomId = parseInt(params[0], 10);
-      const newStart = new Date(String(params[1]).replace(' ', 'T'));
-      const newEnd = new Date(String(params[3]).replace(' ', 'T'));
+      const isExclude = normalized.includes('s.id != ?');
+      const excludeId = isExclude ? parseInt(params[1], 10) : null;
+      const startParam = isExclude ? params[2] : params[1];
+      const endParam = isExclude ? params[4] : params[3];
+      const newStart = new Date(String(startParam).replace(' ', 'T'));
+      const newEnd = new Date(String(endParam).replace(' ', 'T'));
       return memory.schedules
         .filter((s) => {
           if (s.room_id !== roomId) return false;
+          if (isExclude && s.id === excludeId) return false;
           if (!['scheduled', 'screening'].includes(s.status)) return false;
           const existStart = new Date(String(s.start_time).replace(' ', 'T'));
           const existEnd = new Date(String(s.end_time).replace(' ', 'T'));
@@ -424,6 +761,15 @@ async function query(sql, params = []) {
 
     if (normalized.includes("s.status != 'cancelled'")) {
       list = list.filter((s) => s.status !== 'cancelled');
+    }
+
+    if (normalized.includes('where s.movie_id = ?') && normalized.includes("s.status in ('scheduled', 'screening')")) {
+      const mId = parseInt(params[0], 10);
+      return list.filter((s) => s.movie_id === mId && ['scheduled', 'screening'].includes(s.status));
+    }
+
+    if (normalized.includes("where s.status = 'scheduled'")) {
+      return list.filter((s) => s.status === 'scheduled');
     }
 
     // In scheduleController, clauses are appended in order: date -> movie_id -> room_id -> status
@@ -531,6 +877,14 @@ async function query(sql, params = []) {
       });
     }
 
+    if (normalized.includes("where status = 'holding' and hold_expire < now()")) {
+      return memory.booking_seats.filter((bs) => {
+        if (bs.status !== 'holding') return false;
+        const exp = new Date(String(bs.hold_expire).replace(' ', 'T'));
+        return exp < now;
+      });
+    }
+
     return memory.booking_seats.map((bs) => {
       const st = memory.seats.find((s) => s.id === bs.seat_id);
       return {
@@ -545,12 +899,20 @@ async function query(sql, params = []) {
   // =========================================================================
   // 7. BOOKINGS
   // =========================================================================
-  if (normalized.includes('from bookings')) {
+  if (normalized.includes('from bookings') && !normalized.includes('from customers c')) {
     let list = memory.bookings.map((b) => {
       const s = memory.schedules.find((item) => item.id === b.screening_id);
       const m = memory.movies.find((item) => item.id === s?.movie_id);
       const r = memory.rooms.find((item) => item.id === s?.room_id);
       const c = memory.customers.find((item) => item.id === b.customer_id) || memory.users.find((u) => u.id === b.customer_id);
+      const bSeats = memory.booking_seats.filter((bs) => bs.booking_id === b.id);
+      const seatLabels = bSeats
+        .map((bs) => {
+          const st = memory.seats.find((seat) => seat.id === bs.seat_id);
+          return st ? `${st.row_number}${st.seat_number}` : '';
+        })
+        .filter(Boolean)
+        .join(', ');
       return {
         ...b,
         movie_id: s?.movie_id,
@@ -567,6 +929,8 @@ async function query(sql, params = []) {
         customer_name: c?.name || c?.username || 'Khách Hàng',
         customer_email: c?.email || 'customer@nightmovie.vn',
         customer_phone: c?.phone || '0901234567',
+        seat_count: bSeats.length,
+        seat_labels: seatLabels,
       };
     });
 
@@ -591,9 +955,30 @@ async function query(sql, params = []) {
   }
 
   // =========================================================================
+  // 7.1. BOOKING CONCESSIONS
+  // =========================================================================
+  if (normalized.includes('from booking_concessions')) {
+    let list = (memory.booking_concessions || []).map((bc) => {
+      const ci = (memory.concession_items || []).find((item) => item.id === bc.concession_item_id);
+      return {
+        ...bc,
+        name: ci?.name || '',
+        category: ci?.category || '',
+        image: ci?.image || '',
+        total_price: (bc.quantity || 1) * (bc.unit_price || 0),
+      };
+    });
+    if (normalized.includes('where booking_id = ?') || normalized.includes('where bc.booking_id = ?')) {
+      const bId = parseInt(params[0], 10);
+      return list.filter((bc) => bc.booking_id === bId);
+    }
+    return list;
+  }
+
+  // =========================================================================
   // 8. TICKETS
   // =========================================================================
-  if (normalized.includes('from tickets')) {
+  if (normalized.includes('from tickets') && !normalized.includes('from customers c')) {
     let list = memory.tickets.map((t) => {
       const b = memory.bookings.find((item) => item.id === t.booking_id);
       const s = memory.schedules.find((item) => item.id === t.screening_id);
@@ -604,6 +989,7 @@ async function query(sql, params = []) {
 
       return {
         ...t,
+        movie_id: s?.movie_id,
         movie_name: m?.name || 'Phim Night Movie',
         movie_poster: m?.poster || 'https://images.unsplash.com/photo-1534447677768-be436bb09401?q=80&w=800',
         duration: m?.duration || 120,
@@ -620,17 +1006,41 @@ async function query(sql, params = []) {
         customer_email: c?.email || 'customer@nightmovie.vn',
         customer_phone: c?.phone || '0901234567',
         booking_code: b?.booking_code || 'BK-DEMO',
+        booking_status: b?.status || 'paid',
         total_amount: b?.total_amount || 100000,
       };
     });
 
+    if (normalized.includes('s.movie_id = ?') && normalized.includes('b.customer_id = ?')) {
+      const movieId = parseInt(params[0], 10);
+      const custId = parseInt(params[1], 10);
+      const custId2 = params[3] ? parseInt(params[3], 10) : custId;
+      const requiresUsed = normalized.includes("t.status = 'used'");
+      const requiresPaid = normalized.includes("b.status = 'paid'");
+      return list.filter((t) => {
+        const s = memory.schedules.find((item) => item.id === t.screening_id);
+        const b = memory.bookings.find((item) => item.id === t.booking_id);
+        const mId = s ? s.movie_id : null;
+        const matchesCustomer = t.customer_id === custId || b?.customer_id === custId || t.customer_id === custId2 || b?.customer_id === custId2;
+        const matchesMovie = mId === movieId;
+        const paidOk = requiresPaid ? b?.status === 'paid' : true;
+        const statusOk = requiresUsed ? t.status === 'used' : true;
+        return matchesMovie && matchesCustomer && paidOk && statusOk;
+      });
+    }
+
+    if (normalized.includes('where t.id = ? or t.ticket_code = ?')) {
+      const tId = parseInt(params[0], 10);
+      const code = String(params[1] ?? params[0]);
+      return list.filter((t) => t.id === tId || t.ticket_code === code);
+    }
     if (normalized.includes('where t.id = ?') || normalized.includes('where id = ?')) {
       const tId = parseInt(params[0], 10);
       return list.filter((t) => t.id === tId);
     }
     if (normalized.includes('where t.customer_id = ?') || normalized.includes('where customer_id = ?')) {
       const cId = parseInt(params[0], 10);
-      return list.filter((t) => t.customer_id === cId || cId === 1);
+      return list.filter((t) => t.customer_id === cId);
     }
     if (normalized.includes('where t.ticket_code = ?') || normalized.includes('where ticket_code = ?')) {
       const code = params[0];
@@ -638,10 +1048,24 @@ async function query(sql, params = []) {
     }
     if (normalized.includes('where t.booking_id = ?') || normalized.includes('where booking_id = ?')) {
       const bId = parseInt(params[0], 10);
-      return list.filter((t) => t.booking_id === bId);
+      let res = list.filter((t) => t.booking_id === bId);
+      if (normalized.includes("status = 'active'")) {
+        res = res.filter((t) => t.status === 'active');
+      } else if (normalized.includes('and status = ?') || normalized.includes('and t.status = ?')) {
+        res = res.filter((t) => t.status === params[1]);
+      }
+      return res;
     }
 
     let pIdx = 0;
+    if (normalized.includes('and s.movie_id = ?')) {
+      const mId = parseInt(params[pIdx++], 10);
+      list = list.filter((t) => t.movie_id === mId);
+    }
+    if (normalized.includes('and date(s.start_time) = ?')) {
+      const dStr = String(params[pIdx++] || '');
+      list = list.filter((t) => String(t.start_time || '').slice(0, 10) === dStr);
+    }
     if (normalized.includes('and t.status = ?')) {
       const st = params[pIdx++];
       list = list.filter((t) => t.status === st);
@@ -656,7 +1080,8 @@ async function query(sql, params = []) {
         (t) =>
           (t.ticket_code || '').toLowerCase().includes(s) ||
           (t.customer_name || '').toLowerCase().includes(s) ||
-          (t.customer_phone || '').toLowerCase().includes(s)
+          (t.customer_phone || '').toLowerCase().includes(s) ||
+          (t.booking_code || '').toLowerCase().includes(s)
       );
     }
 
@@ -664,8 +1089,25 @@ async function query(sql, params = []) {
   }
 
   // 8.1 Payments
-  if (normalized.includes('from payments')) {
-    return memory.payments || [];
+  if (normalized.includes('from payments') && !normalized.includes('from customers c')) {
+    const allPayments = (memory.payments || []).map((p) => {
+      const b = (memory.bookings || []).find((item) => item.id === p.booking_id);
+      return {
+        ...p,
+        booking_code: b?.booking_code || `BK-${p.booking_id}`,
+        customer_id: b?.customer_id || 1,
+        total_amount: b?.total_amount || p.amount,
+      };
+    });
+    if (normalized.includes('where booking_id = ?') || normalized.includes('where p.booking_id = ?')) {
+      const bId = parseInt(params[0], 10);
+      return allPayments.filter((p) => p.booking_id === bId);
+    }
+    if (normalized.includes('where id = ?') || normalized.includes('where p.id = ?')) {
+      const pId = parseInt(params[0], 10);
+      return allPayments.filter((p) => p.id === pId);
+    }
+    return allPayments;
   }
 
   // =========================================================================
@@ -686,6 +1128,11 @@ async function query(sql, params = []) {
       };
     });
 
+    if (normalized.includes('where e.id = ?') || normalized.includes('where id = ?')) {
+      const id = parseInt(params[0], 10);
+      return list.filter((e) => e.id === id);
+    }
+
     // Check faulty equipment in a specific room (scheduleController.createSchedule)
     if (normalized.includes('where e.room_id = ?') && normalized.includes("e.status in ('broken', 'repairing')")) {
       const roomId = parseInt(params[0], 10);
@@ -694,7 +1141,51 @@ async function query(sql, params = []) {
 
     // Maintenance Alerts (equipmentController.getMaintenanceAlerts)
     if (normalized.includes('next_maintenance <= date_add')) {
-      return list.filter((e) => e.status !== 'good' || (e.next_maintenance && e.next_maintenance <= '2026-12-31'));
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const limit14Days = new Date(today.getTime() + 14 * 24 * 60 * 60 * 1000);
+      const limit14Str = limit14Days.toISOString().split('T')[0];
+
+      const filtered = list.filter((e) => {
+        const isFaulty = ['check_needed', 'broken', 'repairing'].includes(e.status);
+        const isDueOrOverdue = e.next_maintenance && e.next_maintenance <= limit14Str;
+        return isFaulty || isDueOrOverdue;
+      });
+
+      const withDays = filtered.map((e) => {
+        let daysUntil = null;
+        let alert_reason = 'due_soon';
+        if (e.next_maintenance) {
+          const nextD = new Date(e.next_maintenance);
+          nextD.setHours(0, 0, 0, 0);
+          daysUntil = Math.round((nextD.getTime() - today.getTime()) / (24 * 60 * 60 * 1000));
+        }
+
+        const st = String(e.status || '').toLowerCase();
+        if (st === 'broken' || st === 'repairing') {
+          alert_reason = 'broken';
+        } else if (st === 'check_needed') {
+          alert_reason = 'check_needed';
+        } else if (daysUntil !== null && daysUntil < 0) {
+          alert_reason = 'overdue';
+        } else {
+          alert_reason = 'due_soon';
+        }
+
+        return {
+          ...e,
+          days_until_maintenance: daysUntil,
+          alert_reason,
+        };
+      });
+
+      withDays.sort((a, b) => {
+        if (!a.next_maintenance) return 1;
+        if (!b.next_maintenance) return -1;
+        return a.next_maintenance.localeCompare(b.next_maintenance);
+      });
+
+      return withDays;
     }
 
     let pIdx = 0;
@@ -818,10 +1309,33 @@ async function query(sql, params = []) {
       };
     });
 
-    if (normalized.includes('where id = ?')) {
+    if (normalized.includes('where id = ?') || normalized.includes('where m.id = ?')) {
       const id = parseInt(params[0], 10);
       return list.filter((m) => m.id === id);
     }
+    if (normalized.includes('where m.equipment_id = ?') || normalized.includes('where equipment_id = ?')) {
+      const eqId = parseInt(params[0], 10);
+      return list.filter((m) => m.equipment_id === eqId);
+    }
+
+    let pIdx = 0;
+    if (normalized.includes('and m.type = ?')) {
+      const tp = params[pIdx++];
+      list = list.filter((m) => m.type === tp);
+    }
+    if (normalized.includes('and m.status = ?')) {
+      const st = params[pIdx++];
+      list = list.filter((m) => m.status === st);
+    }
+    if (normalized.includes('and m.equipment_id = ?')) {
+      const eqId = parseInt(params[pIdx++], 10);
+      list = list.filter((m) => m.equipment_id === eqId);
+    }
+    if (normalized.includes('and m.employee_id = ?')) {
+      const empId = parseInt(params[pIdx++], 10);
+      list = list.filter((m) => m.employee_id === empId);
+    }
+
     return list;
   }
 
@@ -835,6 +1349,7 @@ async function query(sql, params = []) {
       return {
         ...ws,
         employee_name: emp?.name,
+        employee_position: emp?.position,
         position: ws.position || emp?.position,
         department: emp?.department,
         room_name: r?.name,
@@ -850,6 +1365,14 @@ async function query(sql, params = []) {
     if (normalized.includes('and ws.employee_id = ?')) {
       const eId = parseInt(params[pIdx++], 10);
       list = list.filter((ws) => ws.employee_id === eId);
+    }
+    if (normalized.includes('and ws.room_id = ?')) {
+      const rId = parseInt(params[pIdx++], 10);
+      list = list.filter((ws) => ws.room_id === rId);
+    }
+    if (normalized.includes('and ws.shift_name = ?')) {
+      const sName = params[pIdx++];
+      list = list.filter((ws) => ws.shift_name === sName);
     }
     return list;
   }
@@ -869,9 +1392,22 @@ async function query(sql, params = []) {
         position: emp?.position,
       };
     });
-    if (normalized.includes('where ri.id = ?') || normalized.includes('where id = ?')) {
+    if (normalized.includes('where ri.id = ?') || normalized.includes('where i.id = ?') || normalized.includes('where id = ?')) {
       const id = parseInt(params[0], 10);
       return list.filter((i) => i.id === id);
+    }
+    if (normalized.includes('where i.room_id = ?') || normalized.includes('where room_id = ?')) {
+      const rId = parseInt(params[0], 10);
+      return list.filter((i) => i.room_id === rId);
+    }
+    let pIdx = 0;
+    if (normalized.includes('and i.room_id = ?')) {
+      const rId = parseInt(params[pIdx++], 10);
+      list = list.filter((i) => i.room_id === rId);
+    }
+    if (normalized.includes('and i.status = ?')) {
+      const st = params[pIdx++];
+      list = list.filter((i) => i.status === st);
     }
     return list;
   }
@@ -903,8 +1439,16 @@ async function query(sql, params = []) {
       };
     });
 
-    if (normalized.includes("where r.name = 'technician'")) {
-      return list.filter((e) => e.role_name === 'technician');
+    if (normalized.includes('where e.id = ?') || normalized.includes('where id = ?')) {
+      const id = parseInt(params[0], 10);
+      return list.filter((e) => e.id === id);
+    }
+
+    if (
+      normalized.includes("where r.name = 'technician'") ||
+      normalized.includes("where r.name in ('technician', 'manager', 'admin')")
+    ) {
+      return list.filter((e) => ['technician', 'manager', 'admin'].includes(e.role_name) && e.status === 'active');
     }
 
     let pIdx = 0;
@@ -973,10 +1517,58 @@ async function query(sql, params = []) {
   // 16. NOTIFICATIONS & OTHER MODULES
   // =========================================================================
   if (normalized.includes('from notifications')) {
-    return memory.notifications;
+    let list = [...(memory.notifications || [])];
+    if (normalized.includes('where user_id = ?')) {
+      const userId = parseInt(params[0], 10);
+      list = list.filter((n) => n.user_id === userId);
+    }
+    if (normalized.includes('is_read = false')) {
+      list = list.filter((n) => !n.is_read);
+    }
+    if (normalized.includes('count(*) as count')) {
+      return [{ count: list.length }];
+    }
+    list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    if (normalized.includes('limit')) {
+      const limitMatch = normalized.match(/limit\s+(\d+)/);
+      const limit = limitMatch ? parseInt(limitMatch[1], 10) : 30;
+      list = list.slice(0, limit);
+    }
+    return list;
   }
   if (normalized.includes('from concession_items')) {
+    if (normalized.includes('where id in (?)')) {
+      const ids = (Array.isArray(params[0]) ? params[0] : [params[0]]).map((x) => parseInt(x, 10));
+      return (memory.concession_items || []).filter((c) => ids.includes(c.id));
+    }
     return memory.concession_items;
+  }
+  if (normalized.includes('from concession_orders')) {
+    if (normalized.includes('where order_code = ? or idempotency_key = ?')) {
+      const code = params[0];
+      const key = params[1];
+      return (memory.concession_orders || []).filter((o) => o.order_code === code || o.idempotency_key === key);
+    }
+    if (normalized.includes('where order_code = ?')) {
+      const code = params[0];
+      return (memory.concession_orders || []).filter((o) => o.order_code === code);
+    }
+    if (normalized.includes('where idempotency_key = ?')) {
+      const key = params[0];
+      return (memory.concession_orders || []).filter((o) => o.idempotency_key === key);
+    }
+    if (normalized.includes('where id = ?')) {
+      const id = parseInt(params[0], 10);
+      return (memory.concession_orders || []).filter((o) => o.id === id);
+    }
+    return memory.concession_orders || [];
+  }
+  if (normalized.includes('from concession_order_items')) {
+    if (normalized.includes('where order_id = ?')) {
+      const ordId = parseInt(params[0], 10);
+      return (memory.concession_order_items || []).filter((oi) => oi.order_id === ordId);
+    }
+    return memory.concession_order_items || [];
   }
   if (normalized.includes('from inventory_ingredients')) {
     return memory.inventory_ingredients;
@@ -1024,12 +1616,20 @@ async function query(sql, params = []) {
 
   // A0. Users & Customers Registration
   if (normalized.startsWith('insert into users')) {
+    const hasAuthUuid = normalized.includes('auth_user_id');
+    const authUserId = hasAuthUuid ? params[2] : null;
+    if (authUserId && memory.users.some((u) => u.auth_user_id === authUserId)) {
+      const dupErr = new Error('duplicate key value violates unique constraint "idx_users_auth_user_id_unique"');
+      dupErr.code = '23505';
+      throw dupErr;
+    }
     const newId = memory.users.length > 0 ? Math.max(...memory.users.map((u) => u.id)) + 1 : 1;
     memory.users.push({
       id: newId,
       username: params[0],
-      password: params[1] || 'password123',
-      role_id: parseInt(params[2], 10) || 5,
+      password: params[1] || '',
+      role_id: hasAuthUuid ? 5 : (parseInt(params[2], 10) || 5),
+      auth_user_id: authUserId,
       status: 'active',
       created_at: now.toISOString().replace('T', ' ').slice(0, 19),
     });
@@ -1072,6 +1672,23 @@ async function query(sql, params = []) {
       created_at: now.toISOString(),
     };
     memory.movies.unshift(newMovie);
+    return { insertId: newId, affectedRows: 1 };
+  }
+
+  if (normalized.startsWith('insert into movie_reviews')) {
+    const newId = memory.movie_reviews && memory.movie_reviews.length > 0 ? Math.max(...memory.movie_reviews.map((r) => r.id)) + 1 : 1;
+    const newReview = {
+      id: newId,
+      movie_id: parseInt(params[0], 10),
+      user_id: parseInt(params[1], 10),
+      user_name: params[2] || 'Khách hàng',
+      rating: parseInt(params[3], 10) || 5,
+      comment: params[4] || '',
+      is_verified_buyer: params[5] ? 1 : 0,
+      created_at: new Date().toISOString(),
+    };
+    if (!memory.movie_reviews) memory.movie_reviews = [];
+    memory.movie_reviews.unshift(newReview);
     return { insertId: newId, affectedRows: 1 };
   }
 
@@ -1213,6 +1830,98 @@ async function query(sql, params = []) {
     return { affectedRows: room ? 1 : 0 };
   }
 
+  if (normalized.startsWith('delete from cinema_rooms')) {
+    const id = parseInt(params[0], 10);
+    memory.rooms = memory.rooms.filter((r) => r.id !== id);
+    memory.seats = memory.seats.filter((s) => s.room_id !== id);
+    return { affectedRows: 1 };
+  }
+
+  if (normalized.startsWith('update customers')) {
+    const targetId = parseInt(params[params.length - 1], 10);
+    const cust = normalized.includes('where user_id = ?')
+      ? memory.customers.find((c) => c.user_id === targetId)
+      : memory.customers.find((c) => c.id === targetId);
+    if (cust) {
+      if (normalized.includes('membership_level = ?')) {
+        if (params[0] !== undefined && params[0] !== null) cust.name = params[0];
+        if (params[1] !== undefined && params[1] !== null) cust.email = params[1];
+        if (params[2] !== undefined && params[2] !== null) cust.phone = params[2];
+        if (params[3] !== undefined && params[3] !== null) cust.membership_level = params[3];
+      } else {
+        if (params[0] !== undefined && params[0] !== null) cust.name = params[0];
+        if (params[1] !== undefined && params[1] !== null) cust.email = params[1];
+        if (params[2] !== undefined && params[2] !== null) cust.phone = params[2];
+      }
+    }
+    return { affectedRows: cust ? 1 : 0 };
+  }
+
+  if (normalized.startsWith('update users')) {
+    const id = parseInt(params[params.length - 1], 10);
+    const u = memory.users.find((user) => user.id === id);
+    if (u) {
+      if (normalized.includes('auth_user_id = ?')) {
+        const newUuid = params[0];
+        if (normalized.includes('and auth_user_id is null') && u.auth_user_id) {
+          return { affectedRows: 0 };
+        }
+        if (newUuid && memory.users.some((other) => other.id !== u.id && other.auth_user_id === newUuid)) {
+          const dupErr = new Error('duplicate key value violates unique constraint "idx_users_auth_user_id_unique"');
+          dupErr.code = '23505';
+          throw dupErr;
+        }
+        u.auth_user_id = newUuid;
+      } else if (normalized.includes('password = ?')) {
+        u.password = params[0];
+      } else if (normalized.includes('role_id = ?')) {
+        u.role_id = parseInt(params[0], 10);
+      } else if (normalized.includes('status = ?')) {
+        u.status = params[0];
+      }
+    }
+    return { affectedRows: u ? 1 : 0 };
+  }
+
+  if (normalized.startsWith('insert into employees')) {
+    const newId = memory.employees.length > 0 ? Math.max(...memory.employees.map((e) => e.id)) + 1 : 1;
+    const newEmp = {
+      id: newId,
+      user_id: parseInt(params[0], 10),
+      name: params[1],
+      phone: params[2] || '',
+      email: params[3] || '',
+      position: params[4] || 'Nhân viên',
+      department: params[5] || 'Vận Hành Rạp',
+      status: params[6] || 'active',
+      salary: 10000000,
+    };
+    memory.employees.push(newEmp);
+    return { insertId: newId, affectedRows: 1 };
+  }
+
+  if (normalized.startsWith('update employees')) {
+    const targetId = parseInt(params[params.length - 1], 10);
+    const emp = normalized.includes('where user_id = ?')
+      ? memory.employees.find((e) => e.user_id === targetId)
+      : memory.employees.find((e) => e.id === targetId);
+    if (emp) {
+      if (normalized.includes('where user_id = ?')) {
+        if (params[0] !== undefined && params[0] !== null) emp.name = params[0];
+        if (params[1] !== undefined && params[1] !== null) emp.email = params[1];
+        if (params[2] !== undefined && params[2] !== null) emp.phone = params[2];
+      } else {
+        if (params[0] !== undefined && params[0] !== null) emp.name = params[0];
+        if (params[1] !== undefined && params[1] !== null) emp.phone = params[1];
+        if (params[2] !== undefined && params[2] !== null) emp.email = params[2];
+        if (params[3] !== undefined && params[3] !== null) emp.position = params[3];
+        if (params[4] !== undefined && params[4] !== null) emp.department = params[4];
+        if (params[5] !== undefined && params[5] !== null) emp.status = params[5];
+      }
+    }
+    return { affectedRows: emp ? 1 : 0 };
+  }
+
   // D. Equipment Mutations
   if (normalized.startsWith('insert into equipment')) {
     const newId = memory.equipment.length > 0 ? Math.max(...memory.equipment.map((e) => e.id)) + 1 : 1;
@@ -1240,13 +1949,25 @@ async function query(sql, params = []) {
     if (eq) {
       if (normalized.includes("set status = 'broken'")) {
         eq.status = 'broken';
+      } else if (normalized.includes("status = 'good'") && normalized.includes('last_maintenance = curdate()')) {
+        eq.status = 'good';
+        eq.last_maintenance = todayStr;
+        if (normalized.includes('next_maintenance = ?') && params[0]) {
+          eq.next_maintenance = params[0];
+        }
       } else if (normalized.includes("set status = 'good'")) {
         eq.status = 'good';
-        if (normalized.includes('last_maintenance = curdate()')) {
-          eq.last_maintenance = todayStr;
-        }
+      } else if (normalized.includes('set status = ? where id = ?')) {
+        if (params[0] !== undefined && params[0] !== null) eq.status = params[0];
+      } else if (normalized.includes('name = coalesce(?, name)')) {
+        // equipmentController.updateEquipment: [name, room_id, status, last_maintenance, next_maintenance, manufacturer, id]
+        if (params[0] !== undefined && params[0] !== null) eq.name = params[0];
+        if (params[1] !== undefined && params[1] !== null) eq.room_id = parseInt(params[1], 10);
+        if (params[2] !== undefined && params[2] !== null) eq.status = params[2];
+        if (params[3] !== undefined && params[3] !== null) eq.last_maintenance = params[3];
+        if (params[4] !== undefined && params[4] !== null) eq.next_maintenance = params[4];
+        if (params[5] !== undefined && params[5] !== null) eq.manufacturer = params[5];
       } else {
-        // SQL: SET status = COALESCE(?, status), last_maintenance = COALESCE(?, last_maintenance), next_maintenance = COALESCE(?, next_maintenance) WHERE id = ?
         if (params[0] !== undefined && params[0] !== null) eq.status = params[0];
         if (params[1] !== undefined && params[1] !== null) eq.last_maintenance = params[1];
         if (params[2] !== undefined && params[2] !== null) eq.next_maintenance = params[2];
@@ -1327,12 +2048,16 @@ async function query(sql, params = []) {
   }
 
   if (normalized.startsWith('update assignments')) {
-    const incId = parseInt(params[params.length - 1], 10);
-    const assign = memory.assignments.find((a) => a.incident_id === incId);
+    const targetId = parseInt(params[params.length - 1], 10);
+    const assign = normalized.includes('where maintenance_id = ?')
+      ? memory.assignments.find((a) => a.maintenance_id === targetId)
+      : memory.assignments.find((a) => a.incident_id === targetId);
     if (assign) {
       if (normalized.includes('set employee_id = ?')) {
         assign.employee_id = parseInt(params[0], 10);
         assign.status = 'assigned';
+      } else if (normalized.includes("status = 'completed'")) {
+        assign.status = 'completed';
       } else if (params[0] !== undefined) {
         assign.status = params[0];
       }
@@ -1504,6 +2229,40 @@ async function query(sql, params = []) {
     return { affectedRows: ing ? 1 : 0 };
   }
 
+  if (normalized.startsWith('insert into concession_orders')) {
+    if (!memory.concession_orders) memory.concession_orders = [];
+    const newId = memory.concession_orders.length > 0 ? Math.max(...memory.concession_orders.map((o) => o.id)) + 1 : 1;
+    const newOrder = {
+      id: newId,
+      order_code: params[0],
+      employee_id: parseInt(params[1], 10),
+      customer_id: params[2] ? parseInt(params[2], 10) : null,
+      total_amount: parseFloat(params[3]),
+      payment_method: params[4] || 'cash',
+      notes: params[5] || '',
+      idempotency_key: params[6] || null,
+      created_at: params[7] || new Date().toISOString(),
+    };
+    memory.concession_orders.push(newOrder);
+    return { insertId: newId, affectedRows: 1 };
+  }
+
+  if (normalized.startsWith('insert into concession_order_items')) {
+    if (!memory.concession_order_items) memory.concession_order_items = [];
+    const newId = memory.concession_order_items.length > 0 ? Math.max(...memory.concession_order_items.map((oi) => oi.id)) + 1 : 1;
+    const newItem = {
+      id: newId,
+      order_id: parseInt(params[0], 10),
+      item_id: parseInt(params[1], 10),
+      item_name: params[2] || '',
+      quantity: parseInt(params[3], 10),
+      unit_price: parseFloat(params[4]),
+      total_price: parseFloat(params[5]),
+    };
+    memory.concession_order_items.push(newItem);
+    return { insertId: newId, affectedRows: 1 };
+  }
+
   if (normalized.startsWith('insert into inventory_logs')) {
     const newId = memory.inventory_logs.length > 0 ? Math.max(...memory.inventory_logs.map((l) => l.id)) + 1 : 1;
     const newLog = {
@@ -1517,10 +2276,15 @@ async function query(sql, params = []) {
     };
     memory.inventory_logs.unshift(newLog);
 
-    // Auto-update ingredient stock level
+    // Auto-update ingredient stock level (Nghiệp vụ chuẩn: Chặn tồn kho âm, không che giấu lỗi bằng GREATEST/Math.max)
     const ing = memory.inventory_ingredients.find((i) => i.id === newLog.ingredient_id);
     if (ing) {
-      ing.stock_quantity = Math.max(0, parseFloat((ing.stock_quantity + newLog.quantity).toFixed(2)));
+      if (newLog.quantity < 0 && (ing.stock_quantity + newLog.quantity) < 0) {
+        throw new Error(
+          `Lỗi nghiệp vụ kho: Số lượng xuất/hao hụt (${Math.abs(newLog.quantity)}) vượt quá tồn kho hiện có (${ing.stock_quantity} ${ing.unit}) của nguyên liệu '${ing.name}'.`
+        );
+      }
+      ing.stock_quantity = parseFloat((ing.stock_quantity + newLog.quantity).toFixed(2));
     }
     return { insertId: newId, affectedRows: 1 };
   }
@@ -1580,8 +2344,9 @@ async function query(sql, params = []) {
 
   if (normalized.startsWith('delete from kdm_licenses')) {
     const id = parseInt(params[0], 10);
+    const initialLen = memory.kdm_licenses.length;
     memory.kdm_licenses = memory.kdm_licenses.filter((k) => k.id !== id);
-    return { affectedRows: 1 };
+    return { affectedRows: initialLen - memory.kdm_licenses.length };
   }
 
   // I. Projector Lamp Logs Mutations
@@ -1629,6 +2394,9 @@ async function query(sql, params = []) {
       screening_id: parseInt(params[1], 10),
       booking_code: params[2],
       total_amount: parseFloat(params[3]),
+      concession_amount: 0,
+      voucher_code: null,
+      discount_amount: 0,
       status: params[4] || 'pending',
       booking_time: now.toISOString().replace('T', ' ').slice(0, 19),
     };
@@ -1637,12 +2405,55 @@ async function query(sql, params = []) {
   }
 
   if (normalized.startsWith('update bookings')) {
+    if (normalized.includes('concession_amount = ?') && normalized.includes('where id = ?')) {
+      const cAmount = parseFloat(params[0]) || 0;
+      const id = parseInt(params[1], 10);
+      const b = memory.bookings.find((item) => item.id === id);
+      if (b) {
+        b.concession_amount = cAmount;
+      }
+      return { affectedRows: b ? 1 : 0 };
+    }
+    if (normalized.includes('voucher_code') && normalized.includes('discount_amount')) {
+      const vCode = params[0];
+      const dAmount = parseFloat(params[1]) || 0;
+      const id = parseInt(params[2], 10);
+      const b = memory.bookings.find((item) => item.id === id);
+      if (b) {
+        b.voucher_code = vCode;
+        b.discount_amount = dAmount;
+      }
+      return { affectedRows: b ? 1 : 0 };
+    }
+    if (normalized.includes('where id in (?)')) {
+      const ids = (Array.isArray(params[0]) ? params[0] : [params[0]]).map((x) => parseInt(x, 10));
+      let count = 0;
+      memory.bookings.forEach((b) => {
+        if (ids.includes(b.id) && (!normalized.includes("status = 'pending'") || b.status === 'pending')) {
+          if (normalized.includes("status = 'expired'")) b.status = 'expired';
+          else if (normalized.includes("status = 'cancelled'")) b.status = 'cancelled';
+          count++;
+        }
+      });
+      return { affectedRows: count };
+    }
     if (normalized.includes('set status = ? where id = ?')) {
       const status = params[0];
       const id = parseInt(params[1], 10);
       const b = memory.bookings.find((item) => item.id === id);
       if (b) b.status = status;
       return { affectedRows: b ? 1 : 0 };
+    }
+    if (normalized.includes('where screening_id = ?') || normalized.includes('where b.screening_id = ?')) {
+      const scrId = parseInt(params[0], 10);
+      let count = 0;
+      memory.bookings.forEach((b) => {
+        if (b.screening_id === scrId) {
+          if (normalized.includes("status = 'cancelled'")) b.status = 'cancelled';
+          count++;
+        }
+      });
+      return { affectedRows: count };
     }
     const id = parseInt(params[params.length - 1], 10);
     const b = memory.bookings.find((item) => item.id === id);
@@ -1677,6 +2488,42 @@ async function query(sql, params = []) {
   }
 
   if (normalized.startsWith('update booking_seats')) {
+    if (normalized.includes('where b.screening_id = ?') || normalized.includes('where screening_id = ?')) {
+      const scrId = parseInt(params[0], 10);
+      const scrBookingIds = (memory.bookings || []).filter((b) => b.screening_id === scrId).map((b) => b.id);
+      let count = 0;
+      memory.booking_seats.forEach((bs) => {
+        if (scrBookingIds.includes(bs.booking_id)) {
+          if (normalized.includes("status = 'released'")) bs.status = 'released';
+          else if (normalized.includes("status = 'booked'")) bs.status = 'booked';
+          count++;
+        }
+      });
+      return { affectedRows: count };
+    }
+    if (normalized.includes('hold_expire =') && (normalized.includes('where booking_id = ?') || normalized.includes('where bs.booking_id = ?'))) {
+      const bookingId = parseInt(params[params.length - 1], 10);
+      let exp = params.length > 1 ? params[0] : null;
+      if (!exp) {
+        const match = normalized.match(/hold_expire\s*=\s*'([^']+)'/);
+        exp = match ? match[1] : '2020-01-01 00:00:00';
+      }
+      memory.booking_seats.forEach((bs) => {
+        if (bs.booking_id === bookingId) bs.hold_expire = exp;
+      });
+      return { affectedRows: 1 };
+    }
+    if (normalized.includes('where id in (?)')) {
+      const ids = (Array.isArray(params[0]) ? params[0] : [params[0]]).map((x) => parseInt(x, 10));
+      let count = 0;
+      memory.booking_seats.forEach((bs) => {
+        if (ids.includes(bs.id)) {
+          if (normalized.includes("status = 'released'")) bs.status = 'released';
+          count++;
+        }
+      });
+      return { affectedRows: count };
+    }
     // Release single seat on ticket cancel: WHERE booking_id = ? AND seat_id = ?
     if (normalized.includes('where booking_id = ? and seat_id = ?')) {
       const bookingId = parseInt(params[0], 10);
@@ -1712,6 +2559,51 @@ async function query(sql, params = []) {
     return { affectedRows: 1 };
   }
 
+  // L1. Booking Concessions Mutations
+  if (normalized.startsWith('insert into booking_concessions')) {
+    if (!memory.booking_concessions) memory.booking_concessions = [];
+    const rows = params[0];
+    if (Array.isArray(rows)) {
+      let lastId = 1;
+      for (const row of rows) {
+        if (Array.isArray(row)) {
+          const newId = memory.booking_concessions.length > 0 ? Math.max(...memory.booking_concessions.map((bc) => bc.id)) + 1 : 1;
+          memory.booking_concessions.push({
+            id: newId,
+            booking_id: parseInt(row[0], 10),
+            concession_item_id: parseInt(row[1], 10),
+            quantity: parseInt(row[2], 10) || 1,
+            unit_price: parseFloat(row[3]) || 0,
+            created_at: now.toISOString().replace('T', ' ').slice(0, 19),
+          });
+          lastId = newId;
+        }
+      }
+      return { insertId: lastId, affectedRows: rows.length };
+    } else {
+      const newId = memory.booking_concessions.length > 0 ? Math.max(...memory.booking_concessions.map((bc) => bc.id)) + 1 : 1;
+      memory.booking_concessions.push({
+        id: newId,
+        booking_id: parseInt(params[0], 10),
+        concession_item_id: parseInt(params[1], 10),
+        quantity: parseInt(params[2], 10) || 1,
+        unit_price: parseFloat(params[3]) || 0,
+        created_at: now.toISOString().replace('T', ' ').slice(0, 19),
+      });
+      return { insertId: newId, affectedRows: 1 };
+    }
+  }
+
+  if (normalized.startsWith('delete from booking_concessions')) {
+    if (normalized.includes('where booking_id = ?')) {
+      const bId = parseInt(params[0], 10);
+      const prevLen = (memory.booking_concessions || []).length;
+      memory.booking_concessions = (memory.booking_concessions || []).filter((bc) => bc.booking_id !== bId);
+      return { affectedRows: prevLen - memory.booking_concessions.length };
+    }
+    return { affectedRows: 1 };
+  }
+
   // M. Payments Mutations
   if (normalized.startsWith('insert into payments')) {
     if (!memory.payments) memory.payments = [];
@@ -1727,6 +2619,24 @@ async function query(sql, params = []) {
     };
     memory.payments.push(newPayment);
     return { insertId: newId, affectedRows: 1 };
+  }
+
+  if (normalized.startsWith('update payments set status =') || normalized.startsWith('update payments set status=')) {
+    const isRefunded = normalized.includes("'refunded'");
+    const status = isRefunded ? 'refunded' : params[0];
+    const id = parseInt(params[params.length - 1], 10);
+    const isWhereBookingId = normalized.includes('where booking_id') || normalized.includes('where p.booking_id');
+    const payment = isWhereBookingId
+      ? (memory.payments || []).find((p) => p.booking_id === id)
+      : (memory.payments || []).find((p) => p.id === id);
+    if (payment) {
+      if (normalized.includes("status = 'success'") && payment.status !== 'success') {
+        return { affectedRows: 0 };
+      }
+      payment.status = status;
+      return { affectedRows: 1 };
+    }
+    return { affectedRows: 0 };
   }
 
   // N. Tickets Mutations
@@ -1748,22 +2658,85 @@ async function query(sql, params = []) {
   }
 
   if (normalized.startsWith('update tickets')) {
-    const idOrCode = params[params.length - 1];
+    if (normalized.includes('where screening_id = ?')) {
+      const scrId = parseInt(params[0], 10);
+      let count = 0;
+      memory.tickets.forEach((t) => {
+        if (t.screening_id === scrId) {
+          if (!normalized.includes("status = 'active'") || t.status === 'active') {
+            t.status = 'cancelled';
+            count++;
+          }
+        }
+      });
+      return { affectedRows: count };
+    }
+    if (normalized.includes('where booking_id = ?')) {
+      const bId = parseInt(params[0], 10);
+      let count = 0;
+      memory.tickets.forEach((t) => {
+        if (t.booking_id === bId) {
+          if (!normalized.includes("status = 'active'") || t.status === 'active') {
+            t.status = 'cancelled';
+            count++;
+          }
+        }
+      });
+      return { affectedRows: count };
+    }
+    const idOrCode = params[0] !== undefined && params.length === 1 ? params[0] : params[params.length - 1];
     const t = memory.tickets.find((item) => item.id === parseInt(idOrCode, 10) || item.ticket_code === idOrCode);
     if (t) {
+      if (normalized.includes("status = 'active'") && t.status !== 'active' && t.status !== 'valid') {
+        return { affectedRows: 0 };
+      }
       if (normalized.includes("status = 'used'")) t.status = 'used';
       else if (normalized.includes("status = 'cancelled'")) t.status = 'cancelled';
       else if (params[0] !== undefined) t.status = params[0];
+      return { affectedRows: 1 };
     }
-    return { affectedRows: t ? 1 : 0 };
+    return { affectedRows: 0 };
   }
 
   // O. Notifications Mutations
   if (normalized.startsWith('insert into notifications')) {
+    if (normalized.includes('select u.id')) {
+      const title = params[0];
+      const msg = params[1];
+      const targetUsers = (memory.users || []).filter((u) => [1, 2].includes(u.role_id));
+      let lastId = memory.notifications.length > 0 ? Math.max(...memory.notifications.map((n) => n.id)) : 0;
+      targetUsers.forEach((u) => {
+        lastId++;
+        memory.notifications.unshift({
+          id: lastId,
+          user_id: u.id,
+          title,
+          message: msg,
+          type: 'incident',
+          is_read: false,
+          created_at: now.toISOString().replace('T', ' ').slice(0, 19),
+        });
+      });
+      return { insertId: lastId, affectedRows: targetUsers.length };
+    }
     const newId = memory.notifications.length > 0 ? Math.max(...memory.notifications.map((n) => n.id)) + 1 : 1;
+    if (normalized.includes('select u.id')) {
+      // INSERT INTO notifications (user_id, title, message, type) SELECT u.id, ?, ?, 'incident' FROM users u ...
+      const newNotif = {
+        id: newId,
+        user_id: 1,
+        title: params[0],
+        message: params[1],
+        type: 'incident',
+        is_read: false,
+        created_at: now.toISOString().replace('T', ' ').slice(0, 19),
+      };
+      memory.notifications.unshift(newNotif);
+      return { insertId: newId, affectedRows: 1 };
+    }
     const newNotif = {
       id: newId,
-      user_id: parseInt(params[0], 10),
+      user_id: parseInt(params[0], 10) || 1,
       title: params[1],
       message: params[2],
       type: params[3] || 'general',
@@ -1775,8 +2748,29 @@ async function query(sql, params = []) {
   }
 
   if (normalized.startsWith('update notifications')) {
-    const id = parseInt(params[0], 10);
-    const notif = memory.notifications.find((n) => n.id === id);
+    if (normalized.includes('where id = ? and user_id = ?')) {
+      const notifId = parseInt(params[0], 10);
+      const userId = parseInt(params[1], 10);
+      const notif = (memory.notifications || []).find((n) => n.id === notifId && n.user_id === userId);
+      if (notif) {
+        notif.is_read = true;
+        return { affectedRows: 1 };
+      }
+      return { affectedRows: 0 };
+    }
+    if (normalized.includes('where user_id = ?')) {
+      const userId = parseInt(params[0], 10);
+      let count = 0;
+      (memory.notifications || []).forEach((n) => {
+        if ((n.user_id === userId || !n.user_id) && !n.is_read) {
+          n.is_read = true;
+          count++;
+        }
+      });
+      return { affectedRows: count };
+    }
+    const notifId = parseInt(params[0], 10);
+    const notif = (memory.notifications || []).find((n) => n.id === notifId);
     if (notif) notif.is_read = true;
     return { affectedRows: notif ? 1 : 0 };
   }
@@ -1797,29 +2791,84 @@ async function query(sql, params = []) {
 
 /**
  * Thực thi Transaction hỗ trợ Locking (SELECT FOR UPDATE)
+ * - Khi MySQL kết nối: Thực hiện transaction thật trên MySQL với beginTransaction, commit, rollback.
+ *   Nếu có lỗi nghiệp vụ hoặc DB, ném lỗi ra ngoài, TUYỆT ĐỐI KHÔNG rơi xuống fallback RAM.
+ * - Khi chưa kết nối MySQL (!isConnected): Sử dụng snapshot rollback trên bộ nhớ RAM.
  */
 async function withTransaction(callback) {
   if (isConnected) {
-    try {
-      const p = getPool();
-      const connection = await p.getConnection();
+    if (isSupabase) {
+      const p = getPgPool();
+      let client = null;
       try {
-        await connection.beginTransaction();
-        const result = await callback(connection);
-        await connection.commit();
-        return result;
-      } catch (error) {
-        await connection.rollback();
-        throw error;
-      } finally {
-        connection.release();
+        client = await p.connect();
+        client.on('error', (err) => {
+          console.error('[Supabase Transaction Client Error]', err.message);
+        });
+      } catch (connErr) {
+        console.warn(`[Supabase Transaction Fallback] ${connErr.message}.`);
       }
-    } catch (err) {
-      console.warn(`[MySQL Transaction Fallback] ${err.message}.`);
+
+      if (client) {
+        const connectionWrapper = {
+          query: async (sql, params = []) => executePgQuery(client, sql, params),
+          execute: async (sql, params = []) => executePgQuery(client, sql, params),
+          beginTransaction: async () => client.query('BEGIN'),
+          commit: async () => client.query('COMMIT'),
+          rollback: async () => client.query('ROLLBACK'),
+          release: () => client.release(),
+        };
+
+        try {
+          await connectionWrapper.beginTransaction();
+          const result = await callback(connectionWrapper);
+          await connectionWrapper.commit();
+          return result;
+        } catch (error) {
+          await connectionWrapper.rollback();
+          throw error;
+        } finally {
+          connectionWrapper.release();
+        }
+      }
+    } else {
+      let connection = null;
+      try {
+        const p = getPool();
+        connection = await p.getConnection();
+      } catch (connErr) {
+        console.warn(`[MySQL Transaction Fallback] ${connErr.message}.`);
+      }
+
+      if (connection) {
+        try {
+          await connection.beginTransaction();
+          const result = await callback(connection);
+          await connection.commit();
+          return result;
+        } catch (error) {
+          await connection.rollback();
+          throw error;
+        } finally {
+          connection.release();
+        }
+      }
     }
   }
 
-  // Fallback in-memory transaction mockup
+  // Fallback in-memory transaction with snapshot & rollback capability (chỉ khi !isConnected)
+  const snapshot = {
+    inventory_ingredients: JSON.parse(JSON.stringify(memory.inventory_ingredients || [])),
+    inventory_logs: JSON.parse(JSON.stringify(memory.inventory_logs || [])),
+    concession_orders: JSON.parse(JSON.stringify(memory.concession_orders || [])),
+    concession_order_items: JSON.parse(JSON.stringify(memory.concession_order_items || [])),
+    bookings: JSON.parse(JSON.stringify(memory.bookings || [])),
+    booking_seats: JSON.parse(JSON.stringify(memory.booking_seats || [])),
+    booking_concessions: JSON.parse(JSON.stringify(memory.booking_concessions || [])),
+    tickets: JSON.parse(JSON.stringify(memory.tickets || [])),
+    payments: JSON.parse(JSON.stringify(memory.payments || [])),
+  };
+
   const fakeConnection = {
     query: async (sql, params = []) => {
       const res = await query(sql, params);
@@ -1827,7 +2876,21 @@ async function withTransaction(callback) {
     },
   };
 
-  return await callback(fakeConnection);
+  try {
+    return await callback(fakeConnection);
+  } catch (error) {
+    // Rollback snapshot on error
+    if (memory.inventory_ingredients) memory.inventory_ingredients = snapshot.inventory_ingredients;
+    if (memory.inventory_logs) memory.inventory_logs = snapshot.inventory_logs;
+    if (memory.concession_orders) memory.concession_orders = snapshot.concession_orders;
+    if (memory.concession_order_items) memory.concession_order_items = snapshot.concession_order_items;
+    if (memory.bookings) memory.bookings = snapshot.bookings;
+    if (memory.booking_seats) memory.booking_seats = snapshot.booking_seats;
+    if (memory.booking_concessions) memory.booking_concessions = snapshot.booking_concessions;
+    if (memory.tickets) memory.tickets = snapshot.tickets;
+    if (memory.payments) memory.payments = snapshot.payments;
+    throw error;
+  }
 }
 
 module.exports = {
@@ -1837,4 +2900,5 @@ module.exports = {
   withTransaction,
   dbConfig,
   getIsConnected: () => isConnected,
+  getIsSupabase: () => isSupabase,
 };

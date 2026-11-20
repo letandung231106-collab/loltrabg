@@ -1,4 +1,5 @@
 const db = require('../config/database');
+const { notFound } = require('../utils/httpError');
 
 /**
  * Lấy danh sách kế hoạch & phiếu bảo trì
@@ -111,7 +112,7 @@ async function updateMaintenance(req, res, next) {
 
     await db.withTransaction(async (conn) => {
       const [maints] = await conn.query(`SELECT * FROM maintenances WHERE id = ? FOR UPDATE`, [id]);
-      if (!maints || maints.length === 0) throw new Error('Không tìm thấy phiếu bảo trì.');
+      if (!maints || maints.length === 0) throw notFound('Không tìm thấy phiếu bảo trì.');
 
       const maint = maints[0];
 

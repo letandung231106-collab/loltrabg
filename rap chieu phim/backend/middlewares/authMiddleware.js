@@ -1,7 +1,10 @@
 const jwt = require('jsonwebtoken');
 const db = require('../config/database');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'cinema_ooad_secret_jwt_key_2026_super_secure';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error('Thiếu biến môi trường JWT_SECRET! Hệ thống từ chối khởi chạy với khóa mặc định.');
+}
 
 async function authenticateToken(req, res, next) {
   const authHeader = req.headers['authorization'];

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  Bot,
-  Sparkles,
+  MessageSquare,
+  Headphones,
   Mic,
   MicOff,
   Send,
@@ -26,7 +26,6 @@ export function CinemaBotModal({
   onSelectMovie,
   onSelectSchedule,
   onNavigate,
-  onOpenLuckyWheel,
   onOpenInSeatDelivery
 }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -40,8 +39,8 @@ export function CinemaBotModal({
     {
       id: 1,
       sender: 'bot',
-      text: 'Xin chào! Tôi là **CinemaBot** - Trợ lý ảo AI của rạp Night Movie 🍿🎬. Tôi có thể giúp bạn đặt vé bằng giọng nói, tra cứu lịch chiếu, chọn vị trí ghế vàng Sweet Spot hoặc quay voucher may mắn!',
-      quickReplies: ['🔥 Phim hot đang chiếu', '🎫 Suất chiếu tối nay', '🎡 Quay voucher', '💡 Ghế Sweet Spot']
+      text: 'Xin chào! Tôi là trợ lý rạp Night Movie 🍿🎬. Tôi có thể hỗ trợ bạn tra cứu lịch chiếu, vị trí ghế ngồi hoặc giải đáp thắc mắc về dịch vụ!',
+      quickReplies: ['🔥 Phim hot đang chiếu', '🎫 Suất chiếu tối nay', '🍿 Menu bắp nước', '💡 Ghế Sweet Spot']
     }
   ]);
 
@@ -133,7 +132,7 @@ export function CinemaBotModal({
     } catch (e) {}
   };
 
-  const handleSendMessage = (textToSend) => {
+  const handleSendMessage = async (textToSend) => {
     const query = (textToSend || input).trim();
     if (!query) return;
 
@@ -156,27 +155,80 @@ export function CinemaBotModal({
       cinemaSound.playTicketChime();
     } catch (e) {}
 
-    setTimeout(() => {
-      const botResponse = generateBotResponse(query);
+    // Tạo timeout 10 giây cho request để tránh treo giao diện
+    const abortController = new AbortController();
+    const timeoutId = setTimeout(() => abortController.abort(), 10000);
+
+    try {
+      // 1. Gửi request đến backend REST API (/api/chat)
+      const res = await api.sendChatMessage(query, { signal: abortController.signal });
+      clearTimeout(timeoutId);
+
+      if (res && res.success && res.reply) {
+        const botMsg = {
+          id: Date.now() + 1,
+          sender: 'bot',
+          text: res.reply,
+          quickReplies: res.quickReplies || ['🔥 Phim hot đang chiếu', '🎫 Suất chiếu tối nay', '🍿 Menu bắp nước'],
+          actionType: res.actionType,
+          actionLabel: res.actionLabel,
+        };
+        setMessages((prev) => [...prev, botMsg]);
+        speakText(botMsg.text);
+      } else {
+        throw new Error(res?.message || 'Phản hồi từ máy chủ không hợp lệ');
+      }
+    } catch (err) {
+      clearTimeout(timeoutId);
+      console.warn('[CinemaBot] API chat error, attempting local fallback:', err.message);
+
+      // 2. Nếu API lỗi hoặc timeout, sử dụng local fallback an toàn và hiển thị thông báo
+      try {
+        const fallbackRes = generateBotResponse(query);
+        setMessages((prev) => [...prev, fallbackRes]);
+        speakText(fallbackRes.text);
+      } catch (fallbackErr) {
+        console.error('[CinemaBot] Fatal fallback error:', fallbackErr);
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: Date.now() + 1,
+            sender: 'bot',
+            text: 'Xin lỗi, trợ lý rạp đang gặp sự cố kết nối, bạn vui lòng thử lại sau nhé! ⚠️',
+            quickReplies: ['🔥 Phim hot đang chiếu', '🎫 Suất chiếu tối nay']
+          }
+        ]);
+      }
+    } finally {
+      // 3. Luôn tắt trạng thái "đang gõ" (3 chấm)
       setIsTyping(false);
-      setMessages((prev) => [...prev, botResponse]);
-      speakText(botResponse.text);
-    }, 600);
+    }
   };
 
   // Natural Language Understanding Engine
   const generateBotResponse = (query) => {
     const q = query.toLowerCase();
 
-    // 1. Voucher / Lucky Wheel
-    if (q.includes('voucher') || q.includes('quay') || q.includes('khuyến mãi') || q.includes('mã giảm') || q.includes('giảm giá')) {
+    // 0. Chào hỏi thân thiện (hello, hi, chào) - dùng word boundary để tránh khớp nhầm "phim", "chiếu" (chứa 'hi')
+    const isGreeting = /\b(hello|hi|hey|alo)\b/i.test(q) || q.includes('chào');
+    if (isGreeting) {
       return {
         id: Date.now() + 1,
         sender: 'bot',
-        text: '🎁 **Vòng Quay May Mắn Night Movie** đang diễn ra! Bạn có thể nhận ngay voucher giảm 20.000đ, giảm 15% tổng đơn, hoặc bắp rang miễn phí 55k!',
-        actionType: 'lucky_wheel',
-        actionLabel: '🎡 Mở Vòng Quay May Mắn Ngay',
-        quickReplies: ['🔥 Phim hot đang chiếu', '🎫 Đặt vé phim']
+        text: 'Xin chào! Tôi là **CinemaBot** - Trợ lý đặt vé và chăm sóc khách hàng của Rạp Night Movie 🍿🎬.\n\nTôi có thể giúp bạn:\n- 🎬 Tra cứu danh sách **phim hot đang chiếu**\n- 📅 Xem **lịch chiếu & giá vé** hôm nay\n- 💡 Hướng dẫn chọn **vị trí ghế vàng Sweet Spot**\n- 🍿 Gọi **bắp nước giao tận phòng chiếu**\n\nBạn cần hỗ trợ gì ạ?',
+        quickReplies: ['🔥 Phim hot đang chiếu', '🎫 Suất chiếu tối nay', '🍿 Menu bắp nước', '💡 Ghế Sweet Spot']
+      };
+    }
+
+    // 1. Voucher & Promotions
+    if (q.includes('voucher') || q.includes('khuyến mãi') || q.includes('mã giảm') || q.includes('giảm giá') || q.includes('ưu đãi')) {
+      return {
+        id: Date.now() + 1,
+        sender: 'bot',
+        text: '🎁 **Chính sách ưu đãi tại Night Movie**:\n- Giảm **15%** cho thành viên & học sinh sinh viên vào Thứ 4 Vui Vẻ.\n- Tặng combo bắp nước khi đặt vé nhóm từ 4 người trở lên.\n- Nhập mã voucher ưu đãi khi thanh toán để được giảm trực tiếp trên đơn vé!',
+        actionType: 'schedules',
+        actionLabel: '🎫 Xem Lịch Chiếu & Đặt Vé',
+        quickReplies: ['🔥 Phim hot đang chiếu', '🎫 Suất chiếu tối nay']
       };
     }
 
@@ -210,7 +262,7 @@ export function CinemaBotModal({
         text: '🍿 **Thực đơn Bắp & Nước Night Movie**:\n- **Combo Solo**: 1 Bắp Rang Bơ + 1 Nước ngọt lớn (75.000đ)\n- **Combo Couple**: 1 Bắp Rang Bơ lớn + 2 Nước ngọt (105.000đ)\n- Bắp vị Phô Mai, Caramel thơm béo nóng giòn giã!\n\nĐặc biệt: Bạn có thể chọn bắp nước kèm vé hoặc dùng dịch vụ **Gọi Món Tận Ghế** nhân viên sẽ mang đến tận vị trí ngồi!',
         actionType: 'in_seat_delivery',
         actionLabel: '🍿 Mở Gọi Món Tận Ghế',
-        quickReplies: ['🔥 Phim hot đang chiếu', '🎡 Quay voucher']
+        quickReplies: ['🔥 Phim hot đang chiếu', '🎫 Suất chiếu tối nay']
       };
     }
 
@@ -219,16 +271,17 @@ export function CinemaBotModal({
       return {
         id: Date.now() + 1,
         sender: 'bot',
-        text: '🎟️ **Bảng giá vé rạp Night Movie**:\n- Vé 2D Tiêu Chuẩn: **75.000đ - 90.000đ**\n- Vé 2D VIP: **85.000đ - 100.000đ**\n- Vé 3D / IMAX Laser: **120.000đ - 145.000đ**\n- Thành viên & Học sinh sinh viên: Giảm thêm **15%** kèm quay voucher may mắn!',
+        text: '🎟️ **Bảng giá vé rạp Night Movie**:\n- Vé 2D Tiêu Chuẩn: **75.000đ - 90.000đ**\n- Vé 2D VIP: **85.000đ - 100.000đ**\n- Vé 3D / IMAX Laser: **120.000đ - 145.000đ**\n- Thành viên & Học sinh sinh viên: Giảm thêm **15%**!',
         actionType: 'schedules',
         actionLabel: '📅 Xem Toàn Bộ Lịch Chiếu',
-        quickReplies: ['🔥 Phim hot đang chiếu', '🎡 Quay voucher']
+        quickReplies: ['🔥 Phim hot đang chiếu', '🍿 Menu bắp nước']
       };
     }
 
     // 6. Specific Movie Search
     const matchedMovie = moviesList.find((m) => {
-      const name = m.title.toLowerCase();
+      const name = (m.name || m.title || '').toLowerCase();
+      if (!name) return false;
       return q.includes(name) || (name.includes('lật mặt') && q.includes('lật mặt')) || (name.includes('dune') && q.includes('dune')) || (name.includes('conan') && q.includes('conan'));
     });
 
@@ -237,10 +290,10 @@ export function CinemaBotModal({
       return {
         id: Date.now() + 1,
         sender: 'bot',
-        text: `🎬 Tôi đã tìm thấy phim **${matchedMovie.title}** (${matchedMovie.screening_format || '2D/IMAX'} - ${matchedMovie.duration || 120} phút).\nĐiểm đánh giá: ⭐ **${matchedMovie.rating || '9.5'}/10**. Bạn có muốn chọn suất chiếu để giữ ghế ngay không?`,
+        text: `🎬 Tôi đã tìm thấy phim **${matchedMovie.name || matchedMovie.title}** (${matchedMovie.format || matchedMovie.screening_format || '2D/IMAX'} - ${matchedMovie.duration || 120} phút).\nĐiểm đánh giá: ⭐ **${matchedMovie.rating || '9.5'}/10**. Bạn có muốn chọn suất chiếu để giữ ghế ngay không?`,
         movieData: matchedMovie,
         schedulesData: movieSchedules.slice(0, 3),
-        quickReplies: ['🎫 Xem tất cả suất chiếu', '🎡 Quay voucher']
+        quickReplies: ['🎫 Xem tất cả suất chiếu', '🔥 Phim hot đang chiếu']
       };
     }
 
@@ -268,7 +321,7 @@ export function CinemaBotModal({
         moviesListData: sampleMovies,
         actionType: 'movies',
         actionLabel: '🎬 Khám Phá Toàn Bộ Phim',
-        quickReplies: ['🎫 Suất chiếu tối nay', '🎡 Quay voucher', '💡 Ghế Sweet Spot']
+        quickReplies: ['🎫 Suất chiếu tối nay', '🍿 Menu bắp nước', '💡 Ghế Sweet Spot']
       };
     }
 
@@ -276,16 +329,13 @@ export function CinemaBotModal({
     return {
       id: Date.now() + 1,
       sender: 'bot',
-      text: '🤖 CinemaBot đã nhận được yêu cầu của bạn! Tôi có thể giúp bạn:\n1. 🎙️ Đặt vé bằng giọng nói hoặc tìm tên phim bom tấn\n2. 🎫 Xem danh sách suất chiếu hôm nay\n3. 💡 Hướng dẫn chọn vị trí ghế vàng Sweet Spot\n4. 🎡 Quay vòng quay voucher nhận ưu đãi',
-      quickReplies: ['🔥 Phim hot đang chiếu', '🎫 Suất chiếu tối nay', '🎡 Quay voucher', '🍿 Menu bắp nước']
+      text: 'Trợ lý Night Movie đã nhận được yêu cầu của bạn! Tôi có thể hỗ trợ bạn:\n1. 🎙️ Tra cứu bằng giọng nói hoặc tìm tên phim bom tấn\n2. 🎫 Xem danh sách suất chiếu hôm nay\n3. 💡 Hướng dẫn chọn vị trí ghế ngồi\n4. 🎁 Khám phá ưu đãi vé rạp',
+      quickReplies: ['🔥 Phim hot đang chiếu', '🎫 Suất chiếu tối nay', '🍿 Menu bắp nước']
     };
   };
 
   const handleAction = (type, data) => {
-    if (type === 'lucky_wheel' && onOpenLuckyWheel) {
-      setIsOpen(false);
-      onOpenLuckyWheel();
-    } else if (type === 'in_seat_delivery' && onOpenInSeatDelivery) {
+    if (type === 'in_seat_delivery' && onOpenInSeatDelivery) {
       setIsOpen(false);
       onOpenInSeatDelivery();
     } else if (type === 'my_tickets' && onNavigate) {
@@ -308,42 +358,42 @@ export function CinemaBotModal({
 
   return (
     <>
-      {/* Floating CinemaBot Launch Button */}
+      {/* Floating Support Launch Button */}
       {!isOpen && (
-        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 animate-bounce">
+        <div className="fixed bottom-5 right-5 z-40 flex items-center gap-2.5 transition-transform duration-300 hover:scale-105">
           <div className="hidden sm:flex px-3.5 py-1.5 rounded-2xl bg-cinema-900/90 border border-ruby-500/50 text-white text-xs font-semibold shadow-xl backdrop-blur-md items-center gap-1.5">
-            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-            <span>Trợ lý ảo AI & Giọng nói</span>
+            <Headphones className="w-3.5 h-3.5 text-amber-400" />
+            <span>Hỗ trợ trực tuyến & Giọng nói</span>
           </div>
           <button
             onClick={() => setIsOpen(true)}
-            className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-ruby-600 via-rose-600 to-amber-500 text-white shadow-glow-red flex items-center justify-center relative group hover:scale-110 active:scale-95 transition-all"
-            title="Mở Trợ Lý Ảo CinemaBot"
+            className="w-13 h-13 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-tr from-ruby-600 via-rose-600 to-amber-500 text-white shadow-glow-red flex items-center justify-center relative group hover:scale-110 active:scale-95 transition-all"
+            title="Mở Hỗ Trợ Khách Hàng"
           >
-            <Bot className="w-7 h-7" />
-            <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 border-2 border-cinema-950 animate-pulse" />
+            <MessageSquare className="w-6 h-6 sm:w-7 sm:h-7" />
+            <span className="absolute -top-1 -right-1 w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full bg-emerald-500 border-2 border-cinema-950 animate-pulse" />
           </button>
         </div>
       )}
 
-      {/* CinemaBot Chat Window */}
+      {/* Support Chat Window */}
       {isOpen && (
         <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-[130] w-[94vw] sm:w-[420px] max-h-[88vh] h-[640px] flex flex-col rounded-3xl bg-cinema-950/95 border-2 border-ruby-500/60 shadow-[0_0_50px_rgba(225,29,72,0.35)] backdrop-blur-xl overflow-hidden animate-scale-up">
           {/* Header */}
           <div className="p-4 bg-gradient-to-r from-cinema-900 via-cinema-850 to-cinema-900 border-b border-cinema-700/60 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-ruby-600 to-rose-600 flex items-center justify-center text-white shadow-glow-red relative">
-                <Bot className="w-5 h-5" />
+                <Headphones className="w-5 h-5" />
                 <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-400 ring-2 ring-cinema-900" />
               </div>
               <div>
                 <h3 className="text-sm font-black text-white flex items-center gap-2">
-                  CinemaBot AI
+                  Hỗ Trợ Khách Hàng
                   <span className="text-[10px] px-2 py-0.5 rounded-full bg-ruby-500/20 text-ruby-300 font-bold border border-ruby-500/30">
-                    Voice & Chat
+                    Trực Tuyến
                   </span>
                 </h3>
-                <p className="text-[11px] text-slate-400">Trợ lý đặt vé Night Movie 24/7</p>
+                <p className="text-[11px] text-slate-400">Trợ lý Night Movie 24/7</p>
               </div>
             </div>
 
@@ -364,7 +414,7 @@ export function CinemaBotModal({
                       id: Date.now(),
                       sender: 'bot',
                       text: 'Cuộc trò chuyện đã được làm mới! Bạn muốn tìm phim nào hôm nay?',
-                      quickReplies: ['🔥 Phim hot đang chiếu', '🎫 Suất chiếu tối nay', '🎡 Quay voucher']
+                      quickReplies: ['🔥 Phim hot đang chiếu', '🎫 Suất chiếu tối nay', '🍿 Menu bắp nước']
                     }
                   ])
                 }
@@ -418,12 +468,12 @@ export function CinemaBotModal({
                     {m.movieData && (
                       <div className="mt-3 p-2.5 rounded-xl bg-cinema-950/80 border border-cinema-750 flex items-center gap-3">
                         <img
-                          src={m.movieData.poster_url || 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=400'}
-                          alt={m.movieData.title}
+                          src={m.movieData.poster || m.movieData.poster_url || 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=400'}
+                          alt={m.movieData.name || m.movieData.title}
                           className="w-12 h-16 object-cover rounded-lg shrink-0"
                         />
                         <div className="flex-1 min-w-0">
-                          <div className="font-black text-white truncate">{m.movieData.title}</div>
+                          <div className="font-black text-white truncate">{m.movieData.name || m.movieData.title}</div>
                           <div className="text-[10px] text-amber-400 font-bold mt-0.5">
                             ⭐ {m.movieData.rating || '9.5'} • {m.movieData.age_rating || 'T16'}
                           </div>
@@ -456,7 +506,7 @@ export function CinemaBotModal({
                                   : '18:30'}
                               </div>
                               <div className="text-[10px] text-slate-400 truncate">
-                                {sch.room_name || 'Hall 1'} • {sch.screening_format || '2D'}
+                                {sch.room_name || 'Hall 1'} • {sch.format || sch.screening_format || '2D'}
                               </div>
                             </button>
                           ))}
@@ -474,7 +524,7 @@ export function CinemaBotModal({
                             className="p-2 rounded-xl bg-cinema-950/80 border border-cinema-750 hover:border-ruby-500 flex items-center justify-between cursor-pointer group transition-all"
                           >
                             <div className="truncate">
-                              <span className="font-bold text-white group-hover:text-ruby-400">{mov.title}</span>
+                              <span className="font-bold text-white group-hover:text-ruby-400">{mov.name || mov.title}</span>
                               <span className="text-[10px] text-slate-400 ml-2">({mov.genre || 'Hành động'})</span>
                             </div>
                             <span className="text-[10px] font-bold text-ruby-400 shrink-0">Đặt vé →</span>
@@ -554,7 +604,7 @@ export function CinemaBotModal({
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder={isListening ? 'Đang lắng nghe bạn nói...' : 'Hỏi CinemaBot hoặc đặt vé...'}
+                placeholder={isListening ? 'Đang lắng nghe bạn nói...' : 'Nhập tin nhắn hoặc đặt vé...'}
                 className="flex-1 px-3.5 py-2.5 rounded-2xl bg-cinema-950 border border-cinema-700 text-white placeholder-slate-500 text-xs focus:outline-none focus:border-ruby-500 transition-colors"
               />
 

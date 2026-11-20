@@ -5,8 +5,8 @@
 -- Tương thích hoàn toàn: MySQL Workbench, Navicat, phpMyAdmin, CLI
 -- ====================================================================
 
-DROP DATABASE IF EXISTS `cinema_management`;
-CREATE DATABASE `cinema_management` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+CREATE DATABASE IF NOT EXISTS `cinema_management` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE `cinema_management`;
 
 -- Tắt kiểm tra khóa ngoại khi khởi tạo bảng
@@ -15,8 +15,7 @@ SET FOREIGN_KEY_CHECKS = 0;
 -- --------------------------------------------------------------------
 -- 1. BẢNG roles (Vai trò trong hệ thống)
 -- --------------------------------------------------------------------
-DROP TABLE IF EXISTS `roles`;
-CREATE TABLE `roles` (
+CREATE TABLE IF NOT EXISTS `roles` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `name` VARCHAR(50) NOT NULL UNIQUE,
   `description` VARCHAR(255) NULL
@@ -25,8 +24,7 @@ CREATE TABLE `roles` (
 -- --------------------------------------------------------------------
 -- 2. BẢNG users (Tài khoản đăng nhập)
 -- --------------------------------------------------------------------
-DROP TABLE IF EXISTS `users`;
-CREATE TABLE `users` (
+CREATE TABLE IF NOT EXISTS `users` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `username` VARCHAR(100) NOT NULL UNIQUE,
   `password` VARCHAR(255) NOT NULL,
@@ -39,8 +37,7 @@ CREATE TABLE `users` (
 -- --------------------------------------------------------------------
 -- 3. BẢNG customers (Thông tin khách hàng)
 -- --------------------------------------------------------------------
-DROP TABLE IF EXISTS `customers`;
-CREATE TABLE `customers` (
+CREATE TABLE IF NOT EXISTS `customers` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `user_id` INT NOT NULL UNIQUE,
   `name` VARCHAR(150) NOT NULL,
@@ -54,8 +51,7 @@ CREATE TABLE `customers` (
 -- --------------------------------------------------------------------
 -- 4. BẢNG employees (Thông tin nhân viên)
 -- --------------------------------------------------------------------
-DROP TABLE IF EXISTS `employees`;
-CREATE TABLE `employees` (
+CREATE TABLE IF NOT EXISTS `employees` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `user_id` INT NOT NULL UNIQUE,
   `name` VARCHAR(150) NOT NULL,
@@ -71,8 +67,7 @@ CREATE TABLE `employees` (
 -- --------------------------------------------------------------------
 -- 5. BẢNG movies (Phim)
 -- --------------------------------------------------------------------
-DROP TABLE IF EXISTS `movies`;
-CREATE TABLE `movies` (
+CREATE TABLE IF NOT EXISTS `movies` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `name` VARCHAR(255) NOT NULL,
   `genre` VARCHAR(100) NOT NULL,
@@ -94,8 +89,7 @@ CREATE TABLE `movies` (
 -- --------------------------------------------------------------------
 -- 6. BẢNG cinema_rooms (Phòng chiếu phim)
 -- --------------------------------------------------------------------
-DROP TABLE IF EXISTS `cinema_rooms`;
-CREATE TABLE `cinema_rooms` (
+CREATE TABLE IF NOT EXISTS `cinema_rooms` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `name` VARCHAR(100) NOT NULL UNIQUE,
   `room_type` ENUM('standard', 'vip', 'imax', '4dx') NOT NULL DEFAULT 'standard',
@@ -108,8 +102,7 @@ CREATE TABLE `cinema_rooms` (
 -- --------------------------------------------------------------------
 -- 7. BẢNG seats (Ghế trong phòng - Vị trí vật lý)
 -- --------------------------------------------------------------------
-DROP TABLE IF EXISTS `seats`;
-CREATE TABLE `seats` (
+CREATE TABLE IF NOT EXISTS `seats` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `room_id` INT NOT NULL,
   `row_number` VARCHAR(5) NOT NULL COMMENT 'Hàng ghế: A, B, C, D, E, F, G, H',
@@ -123,8 +116,7 @@ CREATE TABLE `seats` (
 -- --------------------------------------------------------------------
 -- 8. BẢNG screening_schedules (Lịch chiếu phim)
 -- --------------------------------------------------------------------
-DROP TABLE IF EXISTS `screening_schedules`;
-CREATE TABLE `screening_schedules` (
+CREATE TABLE IF NOT EXISTS `screening_schedules` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `movie_id` INT NOT NULL,
   `room_id` INT NOT NULL,
@@ -143,14 +135,16 @@ CREATE TABLE `screening_schedules` (
 -- --------------------------------------------------------------------
 -- 9. BẢNG bookings (Đơn đặt vé)
 -- --------------------------------------------------------------------
-DROP TABLE IF EXISTS `bookings`;
-CREATE TABLE `bookings` (
+CREATE TABLE IF NOT EXISTS `bookings` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `customer_id` INT NOT NULL,
   `screening_id` INT NOT NULL,
   `booking_code` VARCHAR(50) NOT NULL UNIQUE,
   `booking_time` DATETIME DEFAULT CURRENT_TIMESTAMP,
   `total_amount` DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+  `concession_amount` DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+  `voucher_code` VARCHAR(50) NULL,
+  `discount_amount` DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
   `status` ENUM('pending', 'paid', 'cancelled', 'expired') NOT NULL DEFAULT 'pending',
   CONSTRAINT `fk_bookings_customers` FOREIGN KEY (`customer_id`) REFERENCES `customers` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
   CONSTRAINT `fk_bookings_schedules` FOREIGN KEY (`screening_id`) REFERENCES `screening_schedules` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE
@@ -160,8 +154,7 @@ CREATE TABLE `bookings` (
 -- 10. BẢNG booking_seats (Ghế gắn với Đơn đặt & Cơ chế Giữ ghế)
 -- Trạng thái ghế thay đổi theo Suất chiếu + Ghế
 -- --------------------------------------------------------------------
-DROP TABLE IF EXISTS `booking_seats`;
-CREATE TABLE `booking_seats` (
+CREATE TABLE IF NOT EXISTS `booking_seats` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `booking_id` INT NOT NULL,
   `seat_id` INT NOT NULL,
@@ -176,10 +169,25 @@ CREATE TABLE `booking_seats` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------------------
+-- 10.1. BẢNG booking_concessions (Bắp nước & Combo đặt cùng đơn vé)
+-- --------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `booking_concessions` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `booking_id` INT NOT NULL,
+  `concession_item_id` INT NOT NULL,
+  `quantity` INT NOT NULL DEFAULT 1,
+  `unit_price` DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  INDEX `idx_booking_concessions_booking` (`booking_id`),
+  INDEX `idx_booking_concessions_item` (`concession_item_id`),
+  CONSTRAINT `fk_booking_concessions_booking` FOREIGN KEY (`booking_id`) REFERENCES `bookings` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_booking_concessions_item` FOREIGN KEY (`concession_item_id`) REFERENCES `concession_items` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------------------
 -- 11. BẢNG payments (Giao dịch thanh toán)
 -- --------------------------------------------------------------------
-DROP TABLE IF EXISTS `payments`;
-CREATE TABLE `payments` (
+CREATE TABLE IF NOT EXISTS `payments` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `booking_id` INT NOT NULL UNIQUE,
   `payment_method` ENUM('vnpay', 'momo', 'banking', 'credit_card', 'cash') NOT NULL DEFAULT 'banking',
@@ -193,8 +201,7 @@ CREATE TABLE `payments` (
 -- --------------------------------------------------------------------
 -- 12. BẢNG tickets (Vé xem phim điện tử)
 -- --------------------------------------------------------------------
-DROP TABLE IF EXISTS `tickets`;
-CREATE TABLE `tickets` (
+CREATE TABLE IF NOT EXISTS `tickets` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `booking_id` INT NOT NULL,
   `customer_id` INT NOT NULL,
@@ -213,8 +220,7 @@ CREATE TABLE `tickets` (
 -- --------------------------------------------------------------------
 -- 13. BẢNG equipment_types (Loại thiết bị rạp phim)
 -- --------------------------------------------------------------------
-DROP TABLE IF EXISTS `equipment_types`;
-CREATE TABLE `equipment_types` (
+CREATE TABLE IF NOT EXISTS `equipment_types` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `name` VARCHAR(100) NOT NULL UNIQUE,
   `description` VARCHAR(255) NULL
@@ -223,8 +229,7 @@ CREATE TABLE `equipment_types` (
 -- --------------------------------------------------------------------
 -- 14. BẢNG equipment (Thiết bị rạp phim chi tiết)
 -- --------------------------------------------------------------------
-DROP TABLE IF EXISTS `equipment`;
-CREATE TABLE `equipment` (
+CREATE TABLE IF NOT EXISTS `equipment` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `equipment_type_id` INT NOT NULL,
   `room_id` INT NULL COMMENT 'Gắn với phòng chiếu hoặc khu vực chung',
@@ -243,8 +248,7 @@ CREATE TABLE `equipment` (
 -- --------------------------------------------------------------------
 -- 15. BẢNG incidents (Báo cáo sự cố)
 -- --------------------------------------------------------------------
-DROP TABLE IF EXISTS `incidents`;
-CREATE TABLE `incidents` (
+CREATE TABLE IF NOT EXISTS `incidents` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `code` VARCHAR(50) NOT NULL UNIQUE,
   `reporter_id` INT NOT NULL,
@@ -264,8 +268,7 @@ CREATE TABLE `incidents` (
 -- --------------------------------------------------------------------
 -- 16. BẢNG incident_histories (Lịch sử xử lý sự cố)
 -- --------------------------------------------------------------------
-DROP TABLE IF EXISTS `incident_histories`;
-CREATE TABLE `incident_histories` (
+CREATE TABLE IF NOT EXISTS `incident_histories` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `incident_id` INT NOT NULL,
   `employee_id` INT NOT NULL,
@@ -281,8 +284,7 @@ CREATE TABLE `incident_histories` (
 -- --------------------------------------------------------------------
 -- 17. BẢNG maintenances (Kế hoạch & Nhật ký bảo trì)
 -- --------------------------------------------------------------------
-DROP TABLE IF EXISTS `maintenances`;
-CREATE TABLE `maintenances` (
+CREATE TABLE IF NOT EXISTS `maintenances` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `code` VARCHAR(50) NOT NULL UNIQUE,
   `equipment_id` INT NOT NULL,
@@ -302,8 +304,7 @@ CREATE TABLE `maintenances` (
 -- --------------------------------------------------------------------
 -- 18. BẢNG work_shifts (Ca làm việc của nhân viên)
 -- --------------------------------------------------------------------
-DROP TABLE IF EXISTS `work_shifts`;
-CREATE TABLE `work_shifts` (
+CREATE TABLE IF NOT EXISTS `work_shifts` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `employee_id` INT NOT NULL,
   `work_date` DATE NOT NULL,
@@ -320,8 +321,7 @@ CREATE TABLE `work_shifts` (
 -- --------------------------------------------------------------------
 -- 19. BẢNG assignments (Phân công nhiệm vụ cho Kỹ thuật/Nhân viên)
 -- --------------------------------------------------------------------
-DROP TABLE IF EXISTS `assignments`;
-CREATE TABLE `assignments` (
+CREATE TABLE IF NOT EXISTS `assignments` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `employee_id` INT NOT NULL,
   `incident_id` INT NULL,
@@ -336,8 +336,7 @@ CREATE TABLE `assignments` (
 -- --------------------------------------------------------------------
 -- 20. BẢNG room_inspections (Phiếu kiểm tra phòng chiếu / Checklist)
 -- --------------------------------------------------------------------
-DROP TABLE IF EXISTS `room_inspections`;
-CREATE TABLE `room_inspections` (
+CREATE TABLE IF NOT EXISTS `room_inspections` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `room_id` INT NOT NULL,
   `employee_id` INT NOT NULL,
@@ -351,8 +350,7 @@ CREATE TABLE `room_inspections` (
 -- --------------------------------------------------------------------
 -- 21. BẢNG inspection_details (Chi tiết từng hạng mục kiểm tra)
 -- --------------------------------------------------------------------
-DROP TABLE IF EXISTS `inspection_details`;
-CREATE TABLE `inspection_details` (
+CREATE TABLE IF NOT EXISTS `inspection_details` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `inspection_id` INT NOT NULL,
   `item_name` VARCHAR(100) NOT NULL COMMENT 'Máy chiếu, Âm thanh, Điều hòa, Đèn, Ghế, Màn hình, Cửa thoát hiểm, Vệ sinh, PCCC',
@@ -364,8 +362,7 @@ CREATE TABLE `inspection_details` (
 -- --------------------------------------------------------------------
 -- 22. BẢNG notifications (Thông báo hệ thống)
 -- --------------------------------------------------------------------
-DROP TABLE IF EXISTS `notifications`;
-CREATE TABLE `notifications` (
+CREATE TABLE IF NOT EXISTS `notifications` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `user_id` INT NOT NULL,
   `title` VARCHAR(200) NOT NULL,
@@ -384,7 +381,7 @@ SET FOREIGN_KEY_CHECKS = 1;
 -- ====================================================================
 
 -- 1. Roles
-INSERT INTO `roles` (`id`, `name`, `description`) VALUES
+INSERT IGNORE INTO `roles` (`id`, `name`, `description`) VALUES
 (1, 'admin', 'Quản trị viên toàn quyền hệ thống'),
 (2, 'manager', 'Quản lý vận hành rạp chiếu phim'),
 (3, 'staff', 'Nhân viên vận hành phòng chiếu & rạp'),
@@ -392,106 +389,646 @@ INSERT INTO `roles` (`id`, `name`, `description`) VALUES
 (5, 'customer', 'Khách hàng đặt vé xem phim');
 
 -- 2. Users (Mật khẩu băm chuẩn bcrypt của chuỗi 'password123')
--- $2a$10$wNqBqHj1.7GfCq3X0.q3v.YVlQh4d7aF9Hj8K1l2M3n4P5q6R7s8t
+-- $2a$10$40y5qsZxBNRDCnF9ucv3W.CJ7H9ND61dPPmfBlgjebG9jWAVFB/ke
 -- $2a$10$x7qD2oWc01V4uQoHk5n4.eQo6.y8n0A1e2k3L4m5N6p7Q8r9S0t1u
-INSERT INTO `users` (`id`, `username`, `password`, `role_id`, `status`) VALUES
-(1, 'admin', '$2a$10$wNqBqHj1.7GfCq3X0.q3v.YVlQh4d7aF9Hj8K1l2M3n4P5q6R7s8t', 1, 'active'),
-(2, 'manager1', '$2a$10$wNqBqHj1.7GfCq3X0.q3v.YVlQh4d7aF9Hj8K1l2M3n4P5q6R7s8t', 2, 'active'),
-(3, 'staff1', '$2a$10$wNqBqHj1.7GfCq3X0.q3v.YVlQh4d7aF9Hj8K1l2M3n4P5q6R7s8t', 3, 'active'),
-(4, 'staff2', '$2a$10$wNqBqHj1.7GfCq3X0.q3v.YVlQh4d7aF9Hj8K1l2M3n4P5q6R7s8t', 3, 'active'),
-(5, 'tech1', '$2a$10$wNqBqHj1.7GfCq3X0.q3v.YVlQh4d7aF9Hj8K1l2M3n4P5q6R7s8t', 4, 'active'),
-(6, 'tech2', '$2a$10$wNqBqHj1.7GfCq3X0.q3v.YVlQh4d7aF9Hj8K1l2M3n4P5q6R7s8t', 4, 'active'),
-(7, 'customer1', '$2a$10$wNqBqHj1.7GfCq3X0.q3v.YVlQh4d7aF9Hj8K1l2M3n4P5q6R7s8t', 5, 'active'),
-(8, 'customer2', '$2a$10$wNqBqHj1.7GfCq3X0.q3v.YVlQh4d7aF9Hj8K1l2M3n4P5q6R7s8t', 5, 'active'),
-(9, 'customer3', '$2a$10$wNqBqHj1.7GfCq3X0.q3v.YVlQh4d7aF9Hj8K1l2M3n4P5q6R7s8t', 5, 'active'),
-(10, 'manager2', '$2a$10$wNqBqHj1.7GfCq3X0.q3v.YVlQh4d7aF9Hj8K1l2M3n4P5q6R7s8t', 2, 'active');
+INSERT IGNORE INTO `users` (`id`, `username`, `password`, `role_id`, `status`) VALUES
+(1, 'admin', '$2a$10$40y5qsZxBNRDCnF9ucv3W.CJ7H9ND61dPPmfBlgjebG9jWAVFB/ke', 1, 'active'),
+(2, 'manager1', '$2a$10$40y5qsZxBNRDCnF9ucv3W.CJ7H9ND61dPPmfBlgjebG9jWAVFB/ke', 2, 'active'),
+(3, 'staff1', '$2a$10$40y5qsZxBNRDCnF9ucv3W.CJ7H9ND61dPPmfBlgjebG9jWAVFB/ke', 3, 'active'),
+(4, 'staff2', '$2a$10$40y5qsZxBNRDCnF9ucv3W.CJ7H9ND61dPPmfBlgjebG9jWAVFB/ke', 3, 'active'),
+(5, 'tech1', '$2a$10$40y5qsZxBNRDCnF9ucv3W.CJ7H9ND61dPPmfBlgjebG9jWAVFB/ke', 4, 'active'),
+(6, 'tech2', '$2a$10$40y5qsZxBNRDCnF9ucv3W.CJ7H9ND61dPPmfBlgjebG9jWAVFB/ke', 4, 'active'),
+(7, 'customer1', '$2a$10$40y5qsZxBNRDCnF9ucv3W.CJ7H9ND61dPPmfBlgjebG9jWAVFB/ke', 5, 'active'),
+(8, 'customer2', '$2a$10$40y5qsZxBNRDCnF9ucv3W.CJ7H9ND61dPPmfBlgjebG9jWAVFB/ke', 5, 'active'),
+(9, 'customer3', '$2a$10$40y5qsZxBNRDCnF9ucv3W.CJ7H9ND61dPPmfBlgjebG9jWAVFB/ke', 5, 'active'),
+(10, 'manager2', '$2a$10$40y5qsZxBNRDCnF9ucv3W.CJ7H9ND61dPPmfBlgjebG9jWAVFB/ke', 2, 'active');
 
 -- 3. Customers
-INSERT INTO `customers` (`id`, `user_id`, `name`, `email`, `phone`, `membership_level`) VALUES
+INSERT IGNORE INTO `customers` (`id`, `user_id`, `name`, `email`, `phone`, `membership_level`) VALUES
 (1, 7, 'Nguyễn Văn An', 'nguyenvanan@gmail.com', '0901234567', 'gold'),
 (2, 8, 'Trần Thị Mai', 'tranthimai@gmail.com', '0912345678', 'platinum'),
 (3, 9, 'Lê Hoàng Long', 'lehoanglong@gmail.com', '0987654321', 'silver');
 
 -- 4. Employees
-INSERT INTO `employees` (`id`, `user_id`, `name`, `phone`, `email`, `position`, `department`, `status`) VALUES
-(1, 1, 'Hồ Quốc Bảo (Admin)', '0909000001', 'admin@cinema.vn', 'Giám Đốc Hệ Thống', 'Ban Giám Đốc', 'active'),
-(2, 2, 'Phạm Minh Đức', '0909000002', 'duc.pm@cinema.vn', 'Trưởng Quản Lý Rạp', 'Vận Hành Rạp', 'active'),
+INSERT IGNORE INTO `employees` (`id`, `user_id`, `name`, `phone`, `email`, `position`, `department`, `status`) VALUES
+(1, 1, 'Elon Musk', '0909000001', 'elon.musk@cinema.vn', 'Giám Đốc Hệ Thống', 'Ban Giám Đốc', 'active'),
+(2, 2, 'Mark Zuckerberg', '0909000002', 'zuck@cinema.vn', 'Trưởng Quản Lý Rạp', 'Vận Hành Rạp', 'active'),
 (3, 10, 'Hoàng Thùy Linh', '0909000010', 'linh.ht@cinema.vn', 'Phó Quản Lý Rạp', 'Vận Hành Rạp', 'active'),
-(4, 3, 'Nguyễn Thu Trang', '0909000003', 'trang.nt@cinema.vn', 'Nhân Viên Soát Vé & Vận Hành', 'Vận Hành Rạp', 'active'),
+(4, 3, 'Steve Jobs', '0909000003', 'steve.jobs@cinema.vn', 'Nhân Viên Soát Vé & Vận Hành', 'Vận Hành Rạp', 'active'),
 (5, 4, 'Đỗ Tuấn Kiệt', '0909000004', 'kiet.dt@cinema.vn', 'Nhân Viên Kiểm Tra Phòng', 'Vận Hành Rạp', 'active'),
-(6, 5, 'Võ Minh Quân', '0909000005', 'quan.vm@cinema.vn', 'Kỹ Thuật Viên Trưởng', 'Kỹ Thuật & Bảo Trì', 'active'),
+(6, 5, 'Bill Gate', '0909000005', 'bill.gate@cinema.vn', 'Kỹ Thuật Viên Trưởng', 'Kỹ Thuật & Bảo Trì', 'active'),
 (7, 6, 'Lý Quốc Hùng', '0909000006', 'hung.lq@cinema.vn', 'Kỹ Thuật Viên Máy Chiếu', 'Kỹ Thuật & Bảo Trì', 'active');
 
 -- 5. Cinema Rooms (8 phòng tiêu chuẩn và cao cấp)
-INSERT INTO `cinema_rooms` (`id`, `name`, `room_type`, `capacity`, `location`, `status`, `description`) VALUES
-(1, 'Cinema Hall 1 (Standard Dolby)', 'standard', 72, 'Tầng 3 - Cánh Trái', 'active', 'Phòng chiếu tiêu chuẩn âm thanh vòm Dolby Atmos 7.1'),
-(2, 'Cinema Hall 2 (Standard Dolby)', 'standard', 72, 'Tầng 3 - Cánh Trái', 'active', 'Phòng chiếu kỹ thuật số Laser 4K sắc nét'),
-(3, 'Cinema Hall 3 (VIP Prime Lounge)', 'vip', 48, 'Tầng 3 - Khu Trung Tâm', 'active', 'Phòng chiếu ghế bọc da cao cấp điều chỉnh điện kèm phục vụ đồ uống'),
-(4, 'Cinema Hall 4 (IMAX Laser Theater)', 'imax', 96, 'Tầng 4 - Đại Sảnh IMAX', 'active', 'Màn hình khổng lồ 22m x 16m chuẩn IMAX Laser thế hệ mới'),
-(5, 'Cinema Hall 5 (4DX Motion World)', '4dx', 60, 'Tầng 4 - Cánh Phải', 'active', 'Hiệu ứng ghế rung lắc, gió, mưa, sương mù, mùi hương chân thực'),
-(6, 'Cinema Hall 6 (Gold Class Luxury)', 'vip', 36, 'Tầng 4 - Cánh Phải', 'maintenance', 'Phòng hạng sang phục vụ tiệc nhẹ - Đang nâng cấp hệ thống âm thanh'),
-(7, 'Cinema Hall 7 (Standard Dolby)', 'standard', 72, 'Tầng 5 - Cánh Trái', 'active', 'Phòng chiếu phim gia đình và hoạt hình trẻ em'),
-(8, 'Cinema Hall 8 (Studio Premiere)', 'standard', 72, 'Tầng 5 - Cánh Phải', 'incident', 'Đang xử lý sự cố máy điều hòa trung tâm');
+INSERT IGNORE INTO `cinema_rooms` (`id`, `name`, `room_type`, `capacity`, `location`, `status`, `description`) VALUES
+(1, 'Cinema Hall 1 (Standard Dolby)', 'standard', 84, 'Tầng 3 - Cánh Trái', 'active', 'Phòng chiếu tiêu chuẩn âm thanh vòm Dolby Atmos 7.1'),
+(2, 'Cinema Hall 2 (Standard Dolby)', 'standard', 84, 'Tầng 3 - Cánh Trái', 'active', 'Phòng chiếu kỹ thuật số Laser 4K sắc nét'),
+(3, 'Cinema Hall 3 (VIP Prime Lounge)', 'vip', 84, 'Tầng 3 - Khu Trung Tâm', 'active', 'Phòng chiếu ghế bọc da cao cấp điều chỉnh điện kèm phục vụ đồ uống'),
+(4, 'Cinema Hall 4 (IMAX Laser Theater)', 'imax', 84, 'Tầng 4 - Đại Sảnh IMAX', 'active', 'Màn hình khổng lồ 22m x 16m chuẩn IMAX Laser thế hệ mới'),
+(5, 'Cinema Hall 5 (4DX Motion World)', '4dx', 84, 'Tầng 4 - Cánh Phải', 'active', 'Hiệu ứng ghế rung lắc, gió, mưa, sương mù, mùi hương chân thực'),
+(6, 'Cinema Hall 6 (Gold Class Luxury)', 'vip', 84, 'Tầng 4 - Cánh Phải', 'maintenance', 'Phòng hạng sang phục vụ tiệc nhẹ - Đang nâng cấp hệ thống âm thanh'),
+(7, 'Cinema Hall 7 (Standard Dolby)', 'standard', 84, 'Tầng 5 - Cánh Trái', 'active', 'Phòng chiếu phim gia đình và hoạt hình trẻ em'),
+(8, 'Cinema Hall 8 (Studio Premiere)', 'standard', 84, 'Tầng 5 - Cánh Phải', 'incident', 'Đang xử lý sự cố máy điều hòa trung tâm');
 
 -- 6. Movies (16 Phim đa dạng thể loại)
-INSERT INTO `movies` (`id`, `name`, `genre`, `director`, `actors`, `duration`, `release_date`, `end_date`, `age_rating`, `language`, `format`, `description`, `poster`, `trailer`, `status`) VALUES
-(1, 'Dune: Hành Tinh Cát - Phần 2', 'Khoa học viễn tưởng, Hành động', 'Denis Villeneuve', 'Timothée Chalamet, Zendaya, Rebecca Ferguson, Javier Bardem', 166, '2026-03-01', '2026-05-30', 'T16', 'Tiếng Anh - Phụ đề Tiếng Việt', 'IMAX 2D, 2D Digital', 'Hành trình huyền thoại của Paul Atreides khi anh hợp nhất với Chani và người Fremen trên con đường trả thù những kẻ đã hủy diệt gia tộc mình.', 'https://image.tmdb.org/t/p/w780/1pdfLvkbY9ohJlCjQH2CZjjYVvJ.jpg', 'https://www.youtube.com/watch?v=Way9Dexny3w', 'now_showing'),
-(2, 'Oppenheimer', 'Tiểu sử, Lịch sử, Kịch tính', 'Christopher Nolan', 'Cillian Murphy, Emily Blunt, Matt Damon, Robert Downey Jr.', 180, '2026-02-15', '2026-05-15', 'T18', 'Tiếng Anh - Phụ đề Tiếng Việt', 'IMAX 2D, 2D Digital', 'Câu chuyện về nhà vật lý lý thuyết J. Robert Oppenheimer, người lãnh đạo Dự án Manhattan phát triển vũ khí hạt nhân đầu tiên của nhân loại.', 'https://image.tmdb.org/t/p/w780/8Gxv8gSFCU0XGDykEGv7zR1n2ua.jpg', 'https://www.youtube.com/watch?v=uYPbbksJxIg', 'now_showing'),
-(4, 'Lật Mặt 7: Một Điều Ước', 'Gia đình, Tâm lý, Hài', 'Lý Hải', 'Thanh Hiền, Trương Minh Cường, Đinh Y Nhung, Quách Ngọc Tuyên', 138, '2026-04-26', '2026-06-30', 'K', 'Tiếng Việt', '2D Digital', 'Câu chuyện đầy xúc động về tình mẫu tử của bà Hai 73 tuổi cùng 5 người con đã trưởng thành tỏa đi khắp mọi miền đất nước.', 'https://image.tmdb.org/t/p/w780/1K7pHhCZprfDXB7LkCquIK62yCb.jpg', 'https://www.youtube.com/watch?v=r0X6qZ1_yT0', 'now_showing'),
-(5, 'Deadpool & Wolverine', 'Hành động, Hài hước, Siêu anh hùng', 'Shawn Levy', 'Ryan Reynolds, Hugh Jackman, Emma Corrin, Matthew Macfadyen', 127, '2026-07-26', '2026-09-30', 'T18', 'Tiếng Anh - Phụ đề Tiếng Việt', '3D, 4DX, 2D Digital', 'Cặp đôi lầy lội Deadpool và Wolverine cùng hợp sức trong chuyến phiêu lưu đa vũ trụ đầy bùng nổ và hài hước không giới hạn.', 'https://image.tmdb.org/t/p/w780/8cdWjvZQUExUUTzyp4t6EDMubfO.jpg', 'https://www.youtube.com/watch?v=73_1biulkYk', 'now_showing'),
-(6, 'Godzilla x Kong: Đế Chế Mới', 'Hành động, Khoa học viễn tưởng', 'Adam Wingard', 'Rebecca Hall, Brian Tyree Henry, Dan Stevens, Kaylee Hottle', 115, '2026-03-29', '2026-05-20', 'T13', 'Tiếng Anh - Phụ đề Tiếng Việt', '3D, 4DX, IMAX 2D', 'Hai quái thú khổng lồ Godzilla và Kong phải gạt bỏ hiềm khích để cùng chống lại một mối đe dọa tiềm ẩn tại Trái Đất Rỗng.', 'https://image.tmdb.org/t/p/w780/z1p34vh7dEOnLDmyCrlUVLuoDzd.jpg', 'https://www.youtube.com/watch?v=lV1OOlGwExM', 'now_showing'),
-(7, 'Inside Out 2: Những Mảnh Ghép Cảm Xúc 2', 'Hoạt hình, Gia đình, Hài hước', 'Kelsey Mann', 'Amy Poehler, Maya Hawke, Phyllis Smith, Lewis Black', 96, '2026-06-14', '2026-08-30', 'P', 'Lồng tiếng & Phụ đề Tiếng Việt', '2D Digital, 3D', 'Riley bước vào tuổi dậy thì và trung tâm chỉ huy cảm xúc đón nhận những thành viên mới đầy rắc rối: Lo Âu, Ghen Tị, Xấu Hổ và Chán Nản.', 'https://image.tmdb.org/t/p/w780/vpnVM9B6NMmQpWeZvzLvDESb2QY.jpg', 'https://www.youtube.com/watch?v=LEjhY15eCx0', 'now_showing'),
-(8, 'Kung Fu Panda 4', 'Hoạt hình, Võ thuật, Hài hước', 'Mike Mitchell', 'Jack Black, Awkwafina, Viola Davis, Dustin Hoffman', 94, '2026-03-08', '2026-05-15', 'P', 'Lồng tiếng Tiếng Việt', '2D Digital, 3D', 'Po chuẩn bị trở thành Thủ lĩnh Tinh thần của Thung lũng Bình Yên và phải tìm kiếm một Thần Long Đại Hiệp kế cận trước kẻ thù Tắc Kè Bông.', 'https://image.tmdb.org/t/p/w780/kDp1vUBnMpe8ak4rjgl3cLELqjU.jpg', 'https://www.youtube.com/watch?v=_inKs4eeHiI', 'now_showing'),
-(9, 'Quật Mộ Trùng Ma (Exhuma)', 'Kinh dị, Bí ẩn, Giật gân', 'Jang Jae-hyun', 'Choi Min-sik, Kim Go-eun, Yoo Hae-jin, Lee Do-hyun', 134, '2026-03-15', '2026-05-10', 'T18', 'Tiếng Hàn - Phụ đề Tiếng Việt', '2D Digital', 'Hai pháp sư, một chuyên gia phong thủy và một nhân viên tang lễ khai quật một ngôi mộ bí ẩn để rồi giải phóng một thực thể tà ác khủng khiếp.', 'https://image.tmdb.org/t/p/w780/tw0i3kkmOTjDjGFZTLHKhoeXVvA.jpg', 'https://www.youtube.com/watch?v=q6D9YVw6x4M', 'now_showing'),
-(10, 'Thám Tử Lừng Danh Conan: Ngôi Sao 5 Cánh 1 Triệu Đô', 'Hoạt hình, Trinh thám, Hành động', 'Chika Nagaoka', 'Minami Takayama, Wakana Yamazaki, Rikiya Koyama, Kappei Yamaguchi', 110, '2026-08-02', '2026-10-15', 'K', 'Lồng tiếng & Phụ đề Tiếng Việt', '2D Digital, IMAX 2D', 'Siêu đạo chích Kid nhắm vào một thanh kiếm Nhật cổ tại Hakodate, dẫn đến cuộc đối đầu nghẹt thở giữa Conan, Heiji và Kid.', 'https://image.tmdb.org/t/p/w780/4TMkOnI6rCYxqD059aeeQSBv5mc.jpg', 'https://www.youtube.com/watch?v=n7z5z_9yq4k', 'now_showing'),
-(11, 'Spider-Man: Beyond the Spider-Verse', 'Hoạt hình, Hành động, Đa vũ trụ', 'Joaquim Dos Santos', 'Shameik Moore, Hailee Steinfeld, Oscar Isaac', 140, '2026-11-20', '2027-01-30', 'T13', 'Tiếng Anh - Phụ đề Tiếng Việt', 'IMAX 2D, 3D, 4DX', 'Hồi kết hoành tráng trong hành trình cứu lấy đa vũ trụ và số phận những người thân yêu của người nhện Miles Morales.', 'https://image.tmdb.org/t/p/w780/5cAuJOfd5tuuFBz2yQmBCtVBaj0.jpg', 'https://www.youtube.com/watch?v=shW9i6k8cB0', 'coming_soon'),
-(12, 'Avatar: Fire and Ash (Phần 3)', 'Khoa học viễn tưởng, Hành động', 'James Cameron', 'Sam Worthington, Zoe Saldana, Sigourney Weaver', 190, '2026-12-19', '2027-03-31', 'T13', 'Tiếng Anh - Phụ đề Tiếng Việt', 'IMAX 3D, 4DX 3D', 'Cuộc chạm trán giữa gia đình Jake Sully và Bộ tộc Tro Tàn - những người Na vi hung hãn đại diện cho yếu tố lửa trên hành tinh Pandora.', 'https://image.tmdb.org/t/p/w780/cf7hE1ifY4UNbS25tGnaTyyDrI2.jpg', 'https://www.youtube.com/watch?v=d9MyW72ELq0', 'coming_soon'),
+INSERT IGNORE INTO `movies` (`id`, `name`, `genre`, `director`, `actors`, `duration`, `release_date`, `end_date`, `age_rating`, `language`, `format`, `description`, `poster`, `trailer`, `status`) VALUES
+(1, 'Dune: Hành Tinh Cát - Phần 2', 'Khoa học viễn tưởng, Hành động', 'Denis Villeneuve', 'Timothée Chalamet, Zendaya, Rebecca Ferguson, Javier Bardem', 166, '2026-03-01', '2027-03-31', 'T16', 'Tiếng Anh - Phụ đề Tiếng Việt', 'IMAX 2D, 2D Digital', 'Hành trình huyền thoại của Paul Atreides khi anh hợp nhất với Chani và người Fremen trên con đường trả thù những kẻ đã hủy diệt gia tộc mình.', 'https://image.tmdb.org/t/p/w780/1pdfLvkbY9ohJlCjQH2CZjjYVvJ.jpg', 'https://www.youtube.com/watch?v=Way9Dexny3w', 'now_showing'),
+(2, 'Oppenheimer', 'Tiểu sử, Lịch sử, Kịch tính', 'Christopher Nolan', 'Cillian Murphy, Emily Blunt, Matt Damon, Robert Downey Jr.', 180, '2026-02-15', '2027-03-31', 'T18', 'Tiếng Anh - Phụ đề Tiếng Việt', 'IMAX 2D, 2D Digital', 'Câu chuyện về nhà vật lý lý thuyết J. Robert Oppenheimer, người lãnh đạo Dự án Manhattan phát triển vũ khí hạt nhân đầu tiên của nhân loại.', 'https://image.tmdb.org/t/p/w780/8Gxv8gSFCU0XGDykEGv7zR1n2ua.jpg', 'https://www.youtube.com/watch?v=uYPbbksJxIg', 'now_showing'),
+(4, 'Lật Mặt 7: Một Điều Ước', 'Gia đình, Tâm lý, Hài', 'Lý Hải', 'Thanh Hiền, Trương Minh Cường, Đinh Y Nhung, Quách Ngọc Tuyên', 138, '2026-04-26', '2027-03-31', 'K', 'Tiếng Việt', '2D Digital', 'Câu chuyện đầy xúc động về tình mẫu tử của bà Hai 73 tuổi cùng 5 người con đã trưởng thành tỏa đi khắp mọi miền đất nước.', 'https://image.tmdb.org/t/p/w780/1K7pHhCZprfDXB7LkCquIK62yCb.jpg', 'https://www.youtube.com/watch?v=r0X6qZ1_yT0', 'now_showing'),
+(5, 'Deadpool & Wolverine', 'Hành động, Hài hước, Siêu anh hùng', 'Shawn Levy', 'Ryan Reynolds, Hugh Jackman, Emma Corrin, Matthew Macfadyen', 127, '2026-07-26', '2027-03-31', 'T18', 'Tiếng Anh - Phụ đề Tiếng Việt', '3D, 4DX, 2D Digital', 'Cặp đôi lầy lội Deadpool và Wolverine cùng hợp sức trong chuyến phiêu lưu đa vũ trụ đầy bùng nổ và hài hước không giới hạn.', 'https://image.tmdb.org/t/p/w780/8cdWjvZQUExUUTzyp4t6EDMubfO.jpg', 'https://www.youtube.com/watch?v=73_1biulkYk', 'now_showing'),
+(6, 'Godzilla x Kong: Đế Chế Mới', 'Hành động, Khoa học viễn tưởng', 'Adam Wingard', 'Rebecca Hall, Brian Tyree Henry, Dan Stevens, Kaylee Hottle', 115, '2026-03-29', '2027-03-31', 'T13', 'Tiếng Anh - Phụ đề Tiếng Việt', '3D, 4DX, IMAX 2D', 'Hai quái thú khổng lồ Godzilla và Kong phải gạt bỏ hiềm khích để cùng chống lại một mối đe dọa tiềm ẩn tại Trái Đất Rỗng.', 'https://image.tmdb.org/t/p/w780/z1p34vh7dEOnLDmyCrlUVLuoDzd.jpg', 'https://www.youtube.com/watch?v=lV1OOlGwExM', 'now_showing'),
+(7, 'Inside Out 2: Những Mảnh Ghép Cảm Xúc 2', 'Hoạt hình, Gia đình, Hài hước', 'Kelsey Mann', 'Amy Poehler, Maya Hawke, Phyllis Smith, Lewis Black', 96, '2026-06-14', '2027-03-31', 'P', 'Lồng tiếng & Phụ đề Tiếng Việt', '2D Digital, 3D', 'Riley bước vào tuổi dậy thì và trung tâm chỉ huy cảm xúc đón nhận những thành viên mới đầy rắc rối: Lo Âu, Ghen Tị, Xấu Hổ và Chán Nản.', 'https://image.tmdb.org/t/p/w780/vpnVM9B6NMmQpWeZvzLvDESb2QY.jpg', 'https://www.youtube.com/watch?v=LEjhY15eCx0', 'now_showing'),
+(8, 'Kung Fu Panda 4', 'Hoạt hình, Võ thuật, Hài hước', 'Mike Mitchell', 'Jack Black, Awkwafina, Viola Davis, Dustin Hoffman', 94, '2026-03-08', '2027-03-31', 'P', 'Lồng tiếng Tiếng Việt', '2D Digital, 3D', 'Po chuẩn bị trở thành Thủ lĩnh Tinh thần của Thung lũng Bình Yên và phải tìm kiếm một Thần Long Đại Hiệp kế cận trước kẻ thù Tắc Kè Bông.', 'https://image.tmdb.org/t/p/w780/kDp1vUBnMpe8ak4rjgl3cLELqjU.jpg', 'https://www.youtube.com/watch?v=_inKs4eeHiI', 'now_showing'),
+(9, 'Quật Mộ Trùng Ma (Exhuma)', 'Kinh dị, Bí ẩn, Giật gân', 'Jang Jae-hyun', 'Choi Min-sik, Kim Go-eun, Yoo Hae-jin, Lee Do-hyun', 134, '2026-03-15', '2027-03-31', 'T18', 'Tiếng Hàn - Phụ đề Tiếng Việt', '2D Digital', 'Hai pháp sư, một chuyên gia phong thủy và một nhân viên tang lễ khai quật một ngôi mộ bí ẩn để rồi giải phóng một thực thể tà ác khủng khiếp.', 'https://image.tmdb.org/t/p/w780/tw0i3kkmOTjDjGFZTLHKhoeXVvA.jpg', 'https://www.youtube.com/watch?v=q6D9YVw6x4M', 'now_showing'),
+(10, 'Thám Tử Lừng Danh Conan: Ngôi Sao 5 Cánh 1 Triệu Đô', 'Hoạt hình, Trinh thám, Hành động', 'Chika Nagaoka', 'Minami Takayama, Wakana Yamazaki, Rikiya Koyama, Kappei Yamaguchi', 110, '2026-08-02', '2027-03-31', 'K', 'Lồng tiếng & Phụ đề Tiếng Việt', '2D Digital, IMAX 2D', 'Siêu đạo chích Kid nhắm vào một thanh kiếm Nhật cổ tại Hakodate, dẫn đến cuộc đối đầu nghẹt thở giữa Conan, Heiji và Kid.', 'https://image.tmdb.org/t/p/w780/4TMkOnI6rCYxqD059aeeQSBv5mc.jpg', 'https://www.youtube.com/watch?v=n7z5z_9yq4k', 'now_showing'),
+(11, 'Kẻ Trộm Mặt Trăng 4 (Despicable Me 4)', 'Hoạt hình, Hài hước', 'Chris Renaud', 'Steve Carell, Kristen Wiig, Will Ferrell, Sofia Vergara', 95, '2026-07-05', '2027-03-31', 'P', 'Lồng tiếng Tiếng Việt', '2D Digital, 3D', 'Gia đình Gru chào đón thành viên mới Gru Jr. và đối đầu với kẻ thù Maxime Le Mal vừa trốn thoát khỏi nhà tù siêu cấp.', 'https://image.tmdb.org/t/p/w780/lWVwWRLqpS1OaNg7KT0ZecSW0PK.jpg', 'https://www.youtube.com/watch?v=qQlr9-rF32A', 'now_showing'),
+(12, 'Transformers One', 'Hoạt hình, Hành động, Viễn tưởng', 'Josh Cooley', 'Chris Hemsworth, Brian Tyree Henry, Scarlett Johansson', 104, '2026-09-20', '2026-11-15', 'K', 'Lồng tiếng & Phụ đề Tiếng Việt', '2D Digital, 3D', 'Câu chuyện chưa kể về nguồn gốc mối quan hệ từ bạn chí cốt thành kẻ thù truyền kiếp giữa Orion Pax (Optimus Prime) và D-16 (Megatron).', 'https://image.tmdb.org/t/p/w780/qbkAqmmEIZfrCO8ZQAuIuVMlWoV.jpg', 'https://www.youtube.com/watch?v=u2NuURum_bE', 'coming_soon'),
 (13, 'Furiosa: Câu Chuyện Từ Max Điên', 'Hành động, Hậu tận thế', 'George Miller', 'Anya Taylor-Joy, Chris Hemsworth, Tom Burke', 148, '2026-05-24', '2026-07-30', 'T18', 'Tiếng Anh - Phụ đề Tiếng Việt', 'IMAX 2D, 4DX', 'Hành trình thời trẻ của nữ chiến binh Furiosa khi bị bắt cóc khỏi Vùng Xanh và tìm đường trở về nhà qua Vùng Đất Chết tàn khốc.', 'https://image.tmdb.org/t/p/w780/iADOJ8Zymht2JPMoy3R7xceZprc.jpg', 'https://www.youtube.com/watch?v=XJMuhwVlca4', 'coming_soon'),
-(14, 'Kẻ Trộm Mặt Trăng 4 (Despicable Me 4)', 'Hoạt hình, Hài hước', 'Chris Renaud', 'Steve Carell, Kristen Wiig, Will Ferrell, Sofia Vergara', 95, '2026-07-05', '2026-09-10', 'P', 'Lồng tiếng Tiếng Việt', '2D Digital, 3D', 'Gia đình Gru chào đón thành viên mới Gru Jr. và đối đầu với kẻ thù Maxime Le Mal vừa trốn thoát khỏi nhà tù siêu cấp.', 'https://image.tmdb.org/t/p/w780/lWVwWRLqpS1OaNg7KT0ZecSW0PK.jpg', 'https://www.youtube.com/watch?v=qQlr9-rF32A', 'now_showing'),
-(15, 'Interstellar (Tái Chiếu Kỷ Niệm 10 Năm)', 'Khoa học viễn tưởng, Kịch tính', 'Christopher Nolan', 'Matthew McConaughey, Anne Hathaway, Jessica Chastain', 169, '2026-09-27', '2026-10-30', 'T13', 'Tiếng Anh - Phụ đề Tiếng Việt', 'IMAX 2D 70mm', 'Một nhóm các nhà thám hiểm du hành qua hố sâu không gian để tìm kiếm hành tinh mới có thể duy trì sự sống cho nhân loại.', 'https://image.tmdb.org/t/p/w780/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg', 'https://www.youtube.com/watch?v=zSWdZVtXT7E', 'now_showing'),
-(16, 'Transformers One', 'Hoạt hình, Hành động, Viễn tưởng', 'Josh Cooley', 'Chris Hemsworth, Brian Tyree Henry, Scarlett Johansson', 104, '2026-09-20', '2026-11-15', 'K', 'Lồng tiếng & Phụ đề Tiếng Việt', '2D Digital, 3D', 'Câu chuyện chưa kể về nguồn gốc mối quan hệ từ bạn chí cốt thành kẻ thù truyền kiếp giữa Orion Pax (Optimus Prime) và D-16 (Megatron).', 'https://image.tmdb.org/t/p/w780/qbkAqmmEIZfrCO8ZQAuIuVMlWoV.jpg', 'https://www.youtube.com/watch?v=u2NuURum_bE', 'coming_soon');
+(14, 'Spider-Man: Beyond the Spider-Verse', 'Hoạt hình, Hành động, Đa vũ trụ', 'Joaquim Dos Santos', 'Shameik Moore, Hailee Steinfeld, Oscar Isaac', 140, '2026-11-20', '2027-01-30', 'T13', 'Tiếng Anh - Phụ đề Tiếng Việt', 'IMAX 2D, 3D, 4DX', 'Hồi kết hoành tráng trong hành trình cứu lấy đa vũ trụ và số phận những người thân yêu của người nhện Miles Morales.', 'https://image.tmdb.org/t/p/w780/5cAuJOfd5tuuFBz2yQmBCtVBaj0.jpg', 'https://www.youtube.com/watch?v=shW9i6k8cB0', 'coming_soon'),
+(15, 'Avatar: Fire and Ash (Phần 3)', 'Khoa học viễn tưởng, Hành động', 'James Cameron', 'Sam Worthington, Zoe Saldana, Sigourney Weaver', 190, '2026-12-19', '2027-03-31', 'T13', 'Tiếng Anh - Phụ đề Tiếng Việt', 'IMAX 3D, 4DX 3D', 'Cuộc chạm trán giữa gia đình Jake Sully và Bộ tộc Tro Tàn - những người Na vi hung hãn đại diện cho yếu tố lửa trên hành tinh Pandora.', 'https://image.tmdb.org/t/p/w780/cf7hE1ifY4UNbS25tGnaTyyDrI2.jpg', 'https://www.youtube.com/watch?v=d9MyW72ELq0', 'coming_soon'),
+(16, 'Interstellar (Tái Chiếu Kỷ Niệm 10 Năm)', 'Khoa học viễn tưởng, Kịch tính', 'Christopher Nolan', 'Matthew McConaughey, Anne Hathaway, Jessica Chastain', 169, '2026-09-27', '2027-03-31', 'T13', 'Tiếng Anh - Phụ đề Tiếng Việt', 'IMAX 2D 70mm', 'Một nhóm các nhà thám hiểm du hành qua hố sâu không gian để tìm kiếm hành tinh mới có thể duy trì sự sống cho nhân loại.', 'https://image.tmdb.org/t/p/w780/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg', 'https://www.youtube.com/watch?v=zSWdZVtXT7E', 'now_showing');
 
--- 7. Ghế trong 8 Phòng Chiếu (Tạo mẫu chuẩn cho Phòng 1, 2, 3, 4, 5)
--- Ghế phòng 1 (Standard 6 hàng x 12 ghế = 72 ghế: A-B-C: standard, D-E: vip, F: couple)
-INSERT INTO `seats` (`room_id`, `row_number`, `seat_number`, `seat_type`, `status`) VALUES
--- Hàng A
-(1, 'A', 1, 'standard', 'active'), (1, 'A', 2, 'standard', 'active'), (1, 'A', 3, 'standard', 'active'), (1, 'A', 4, 'standard', 'active'),
-(1, 'A', 5, 'standard', 'active'), (1, 'A', 6, 'standard', 'active'), (1, 'A', 7, 'standard', 'active'), (1, 'A', 8, 'standard', 'active'),
-(1, 'A', 9, 'standard', 'active'), (1, 'A', 10, 'standard', 'active'), (1, 'A', 11, 'standard', 'active'), (1, 'A', 12, 'standard', 'active'),
--- Hàng B
-(1, 'B', 1, 'standard', 'active'), (1, 'B', 2, 'standard', 'active'), (1, 'B', 3, 'standard', 'active'), (1, 'B', 4, 'standard', 'active'),
-(1, 'B', 5, 'standard', 'active'), (1, 'B', 6, 'standard', 'active'), (1, 'B', 7, 'standard', 'active'), (1, 'B', 8, 'standard', 'active'),
-(1, 'B', 9, 'standard', 'active'), (1, 'B', 10, 'standard', 'active'), (1, 'B', 11, 'standard', 'active'), (1, 'B', 12, 'standard', 'active'),
--- Hàng C
-(1, 'C', 1, 'standard', 'active'), (1, 'C', 2, 'standard', 'active'), (1, 'C', 3, 'standard', 'active'), (1, 'C', 4, 'standard', 'active'),
-(1, 'C', 5, 'standard', 'active'), (1, 'C', 6, 'standard', 'active'), (1, 'C', 7, 'standard', 'active'), (1, 'C', 8, 'standard', 'active'),
-(1, 'C', 9, 'standard', 'active'), (1, 'C', 10, 'standard', 'active'), (1, 'C', 11, 'standard', 'active'), (1, 'C', 12, 'standard', 'active'),
--- Hàng D (VIP)
-(1, 'D', 1, 'vip', 'active'), (1, 'D', 2, 'vip', 'active'), (1, 'D', 3, 'vip', 'active'), (1, 'D', 4, 'vip', 'active'),
-(1, 'D', 5, 'vip', 'active'), (1, 'D', 6, 'vip', 'active'), (1, 'D', 7, 'vip', 'active'), (1, 'D', 8, 'vip', 'active'),
-(1, 'D', 9, 'vip', 'active'), (1, 'D', 10, 'vip', 'active'), (1, 'D', 11, 'vip', 'active'), (1, 'D', 12, 'vip', 'active'),
--- Hàng E (VIP)
-(1, 'E', 1, 'vip', 'active'), (1, 'E', 2, 'vip', 'active'), (1, 'E', 3, 'vip', 'active'), (1, 'E', 4, 'vip', 'active'),
-(1, 'E', 5, 'vip', 'active'), (1, 'E', 6, 'vip', 'active'), (1, 'E', 7, 'vip', 'active'), (1, 'E', 8, 'vip', 'active'),
-(1, 'E', 9, 'vip', 'active'), (1, 'E', 10, 'vip', 'active'), (1, 'E', 11, 'vip', 'active'), (1, 'E', 12, 'vip', 'active'),
--- Hàng F (Couple đôi)
-(1, 'F', 1, 'couple', 'active'), (1, 'F', 2, 'couple', 'active'), (1, 'F', 3, 'couple', 'active'), (1, 'F', 4, 'couple', 'active'),
-(1, 'F', 5, 'couple', 'active'), (1, 'F', 6, 'couple', 'active');
-
--- Ghế phòng 4 (IMAX 8 hàng x 12 ghế = 96 ghế)
-INSERT INTO `seats` (`room_id`, `row_number`, `seat_number`, `seat_type`, `status`) VALUES
-(4, 'A', 1, 'standard', 'active'), (4, 'A', 2, 'standard', 'active'), (4, 'A', 3, 'standard', 'active'), (4, 'A', 4, 'standard', 'active'),
-(4, 'A', 5, 'standard', 'active'), (4, 'A', 6, 'standard', 'active'), (4, 'A', 7, 'standard', 'active'), (4, 'A', 8, 'standard', 'active'),
-(4, 'B', 1, 'standard', 'active'), (4, 'B', 2, 'standard', 'active'), (4, 'B', 3, 'standard', 'active'), (4, 'B', 4, 'standard', 'active'),
-(4, 'B', 5, 'standard', 'active'), (4, 'B', 6, 'standard', 'active'), (4, 'B', 7, 'standard', 'active'), (4, 'B', 8, 'standard', 'active'),
-(4, 'C', 1, 'vip', 'active'), (4, 'C', 2, 'vip', 'active'), (4, 'C', 3, 'vip', 'active'), (4, 'C', 4, 'vip', 'active'),
-(4, 'C', 5, 'vip', 'active'), (4, 'C', 6, 'vip', 'active'), (4, 'C', 7, 'vip', 'active'), (4, 'C', 8, 'vip', 'active'),
-(4, 'D', 1, 'vip', 'active'), (4, 'D', 2, 'vip', 'active'), (4, 'D', 3, 'vip', 'active'), (4, 'D', 4, 'vip', 'active'),
-(4, 'D', 5, 'vip', 'active'), (4, 'D', 6, 'vip', 'active'), (4, 'D', 7, 'vip', 'active'), (4, 'D', 8, 'vip', 'active'),
-(4, 'E', 1, 'couple', 'active'), (4, 'E', 2, 'couple', 'active'), (4, 'E', 3, 'couple', 'active'), (4, 'E', 4, 'couple', 'active');
+-- 7. Ghế trong 8 Phòng Chiếu (Chuẩn 72 ghế/phòng: A-C: standard, D-E: vip, F: couple)
+INSERT IGNORE INTO `seats` (`room_id`, `row_number`, `seat_number`, `seat_type`, `status`) VALUES
+(1, 'A', 1, 'standard', 'active'),
+(1, 'A', 2, 'standard', 'active'),
+(1, 'A', 3, 'standard', 'active'),
+(1, 'A', 4, 'standard', 'active'),
+(1, 'A', 5, 'standard', 'active'),
+(1, 'A', 6, 'standard', 'active'),
+(1, 'A', 7, 'standard', 'active'),
+(1, 'A', 8, 'standard', 'active'),
+(1, 'A', 9, 'standard', 'active'),
+(1, 'A', 10, 'standard', 'active'),
+(1, 'A', 11, 'standard', 'active'),
+(1, 'A', 12, 'standard', 'active'),
+(1, 'B', 1, 'standard', 'active'),
+(1, 'B', 2, 'standard', 'active'),
+(1, 'B', 3, 'standard', 'active'),
+(1, 'B', 4, 'standard', 'active'),
+(1, 'B', 5, 'standard', 'active'),
+(1, 'B', 6, 'standard', 'active'),
+(1, 'B', 7, 'standard', 'active'),
+(1, 'B', 8, 'standard', 'active'),
+(1, 'B', 9, 'standard', 'active'),
+(1, 'B', 10, 'standard', 'active'),
+(1, 'B', 11, 'standard', 'active'),
+(1, 'B', 12, 'standard', 'active'),
+(1, 'C', 1, 'standard', 'active'),
+(1, 'C', 2, 'standard', 'active'),
+(1, 'C', 3, 'standard', 'active'),
+(1, 'C', 4, 'standard', 'active'),
+(1, 'C', 5, 'standard', 'active'),
+(1, 'C', 6, 'standard', 'active'),
+(1, 'C', 7, 'standard', 'active'),
+(1, 'C', 8, 'standard', 'active'),
+(1, 'C', 9, 'standard', 'active'),
+(1, 'C', 10, 'standard', 'active'),
+(1, 'C', 11, 'standard', 'active'),
+(1, 'C', 12, 'standard', 'active'),
+(1, 'D', 1, 'vip', 'active'),
+(1, 'D', 2, 'vip', 'active'),
+(1, 'D', 3, 'vip', 'active'),
+(1, 'D', 4, 'vip', 'active'),
+(1, 'D', 5, 'vip', 'active'),
+(1, 'D', 6, 'vip', 'active'),
+(1, 'D', 7, 'vip', 'active'),
+(1, 'D', 8, 'vip', 'active'),
+(1, 'D', 9, 'vip', 'active'),
+(1, 'D', 10, 'vip', 'active'),
+(1, 'D', 11, 'vip', 'active'),
+(1, 'D', 12, 'vip', 'active'),
+(1, 'E', 1, 'vip', 'active'),
+(1, 'E', 2, 'vip', 'active'),
+(1, 'E', 3, 'vip', 'active'),
+(1, 'E', 4, 'vip', 'active'),
+(1, 'E', 5, 'vip', 'active'),
+(1, 'E', 6, 'vip', 'active'),
+(1, 'E', 7, 'vip', 'active'),
+(1, 'E', 8, 'vip', 'active'),
+(1, 'E', 9, 'vip', 'active'),
+(1, 'E', 10, 'vip', 'active'),
+(1, 'E', 11, 'vip', 'active'),
+(1, 'E', 12, 'vip', 'active'),
+(1, 'F', 1, 'couple', 'active'),
+(1, 'F', 2, 'couple', 'active'),
+(1, 'F', 3, 'couple', 'active'),
+(1, 'F', 4, 'couple', 'active'),
+(1, 'F', 5, 'couple', 'active'),
+(1, 'F', 6, 'couple', 'active'),
+(1, 'F', 7, 'couple', 'active'),
+(1, 'F', 8, 'couple', 'active'),
+(1, 'F', 9, 'couple', 'active'),
+(1, 'F', 10, 'couple', 'active'),
+(1, 'F', 11, 'couple', 'active'),
+(1, 'F', 12, 'couple', 'active'),
+(2, 'A', 1, 'standard', 'active'),
+(2, 'A', 2, 'standard', 'active'),
+(2, 'A', 3, 'standard', 'active'),
+(2, 'A', 4, 'standard', 'active'),
+(2, 'A', 5, 'standard', 'active'),
+(2, 'A', 6, 'standard', 'active'),
+(2, 'A', 7, 'standard', 'active'),
+(2, 'A', 8, 'standard', 'active'),
+(2, 'A', 9, 'standard', 'active'),
+(2, 'A', 10, 'standard', 'active'),
+(2, 'A', 11, 'standard', 'active'),
+(2, 'A', 12, 'standard', 'active'),
+(2, 'B', 1, 'standard', 'active'),
+(2, 'B', 2, 'standard', 'active'),
+(2, 'B', 3, 'standard', 'active'),
+(2, 'B', 4, 'standard', 'active'),
+(2, 'B', 5, 'standard', 'active'),
+(2, 'B', 6, 'standard', 'active'),
+(2, 'B', 7, 'standard', 'active'),
+(2, 'B', 8, 'standard', 'active'),
+(2, 'B', 9, 'standard', 'active'),
+(2, 'B', 10, 'standard', 'active'),
+(2, 'B', 11, 'standard', 'active'),
+(2, 'B', 12, 'standard', 'active'),
+(2, 'C', 1, 'standard', 'active'),
+(2, 'C', 2, 'standard', 'active'),
+(2, 'C', 3, 'standard', 'active'),
+(2, 'C', 4, 'standard', 'active'),
+(2, 'C', 5, 'standard', 'active'),
+(2, 'C', 6, 'standard', 'active'),
+(2, 'C', 7, 'standard', 'active'),
+(2, 'C', 8, 'standard', 'active'),
+(2, 'C', 9, 'standard', 'active'),
+(2, 'C', 10, 'standard', 'active'),
+(2, 'C', 11, 'standard', 'active'),
+(2, 'C', 12, 'standard', 'active'),
+(2, 'D', 1, 'vip', 'active'),
+(2, 'D', 2, 'vip', 'active'),
+(2, 'D', 3, 'vip', 'active'),
+(2, 'D', 4, 'vip', 'active'),
+(2, 'D', 5, 'vip', 'active'),
+(2, 'D', 6, 'vip', 'active'),
+(2, 'D', 7, 'vip', 'active'),
+(2, 'D', 8, 'vip', 'active'),
+(2, 'D', 9, 'vip', 'active'),
+(2, 'D', 10, 'vip', 'active'),
+(2, 'D', 11, 'vip', 'active'),
+(2, 'D', 12, 'vip', 'active'),
+(2, 'E', 1, 'vip', 'active'),
+(2, 'E', 2, 'vip', 'active'),
+(2, 'E', 3, 'vip', 'active'),
+(2, 'E', 4, 'vip', 'active'),
+(2, 'E', 5, 'vip', 'active'),
+(2, 'E', 6, 'vip', 'active'),
+(2, 'E', 7, 'vip', 'active'),
+(2, 'E', 8, 'vip', 'active'),
+(2, 'E', 9, 'vip', 'active'),
+(2, 'E', 10, 'vip', 'active'),
+(2, 'E', 11, 'vip', 'active'),
+(2, 'E', 12, 'vip', 'active'),
+(2, 'F', 1, 'couple', 'active'),
+(2, 'F', 2, 'couple', 'active'),
+(2, 'F', 3, 'couple', 'active'),
+(2, 'F', 4, 'couple', 'active'),
+(2, 'F', 5, 'couple', 'active'),
+(2, 'F', 6, 'couple', 'active'),
+(2, 'F', 7, 'couple', 'active'),
+(2, 'F', 8, 'couple', 'active'),
+(2, 'F', 9, 'couple', 'active'),
+(2, 'F', 10, 'couple', 'active'),
+(2, 'F', 11, 'couple', 'active'),
+(2, 'F', 12, 'couple', 'active'),
+(3, 'A', 1, 'standard', 'active'),
+(3, 'A', 2, 'standard', 'active'),
+(3, 'A', 3, 'standard', 'active'),
+(3, 'A', 4, 'standard', 'active'),
+(3, 'A', 5, 'standard', 'active'),
+(3, 'A', 6, 'standard', 'active'),
+(3, 'A', 7, 'standard', 'active'),
+(3, 'A', 8, 'standard', 'active'),
+(3, 'A', 9, 'standard', 'active'),
+(3, 'A', 10, 'standard', 'active'),
+(3, 'A', 11, 'standard', 'active'),
+(3, 'A', 12, 'standard', 'active'),
+(3, 'B', 1, 'standard', 'active'),
+(3, 'B', 2, 'standard', 'active'),
+(3, 'B', 3, 'standard', 'active'),
+(3, 'B', 4, 'standard', 'active'),
+(3, 'B', 5, 'standard', 'active'),
+(3, 'B', 6, 'standard', 'active'),
+(3, 'B', 7, 'standard', 'active'),
+(3, 'B', 8, 'standard', 'active'),
+(3, 'B', 9, 'standard', 'active'),
+(3, 'B', 10, 'standard', 'active'),
+(3, 'B', 11, 'standard', 'active'),
+(3, 'B', 12, 'standard', 'active'),
+(3, 'C', 1, 'standard', 'active'),
+(3, 'C', 2, 'standard', 'active'),
+(3, 'C', 3, 'standard', 'active'),
+(3, 'C', 4, 'standard', 'active'),
+(3, 'C', 5, 'standard', 'active'),
+(3, 'C', 6, 'standard', 'active'),
+(3, 'C', 7, 'standard', 'active'),
+(3, 'C', 8, 'standard', 'active'),
+(3, 'C', 9, 'standard', 'active'),
+(3, 'C', 10, 'standard', 'active'),
+(3, 'C', 11, 'standard', 'active'),
+(3, 'C', 12, 'standard', 'active'),
+(3, 'D', 1, 'vip', 'active'),
+(3, 'D', 2, 'vip', 'active'),
+(3, 'D', 3, 'vip', 'active'),
+(3, 'D', 4, 'vip', 'active'),
+(3, 'D', 5, 'vip', 'active'),
+(3, 'D', 6, 'vip', 'active'),
+(3, 'D', 7, 'vip', 'active'),
+(3, 'D', 8, 'vip', 'active'),
+(3, 'D', 9, 'vip', 'active'),
+(3, 'D', 10, 'vip', 'active'),
+(3, 'D', 11, 'vip', 'active'),
+(3, 'D', 12, 'vip', 'active'),
+(3, 'E', 1, 'vip', 'active'),
+(3, 'E', 2, 'vip', 'active'),
+(3, 'E', 3, 'vip', 'active'),
+(3, 'E', 4, 'vip', 'active'),
+(3, 'E', 5, 'vip', 'active'),
+(3, 'E', 6, 'vip', 'active'),
+(3, 'E', 7, 'vip', 'active'),
+(3, 'E', 8, 'vip', 'active'),
+(3, 'E', 9, 'vip', 'active'),
+(3, 'E', 10, 'vip', 'active'),
+(3, 'E', 11, 'vip', 'active'),
+(3, 'E', 12, 'vip', 'active'),
+(3, 'F', 1, 'couple', 'active'),
+(3, 'F', 2, 'couple', 'active'),
+(3, 'F', 3, 'couple', 'active'),
+(3, 'F', 4, 'couple', 'active'),
+(3, 'F', 5, 'couple', 'active'),
+(3, 'F', 6, 'couple', 'active'),
+(3, 'F', 7, 'couple', 'active'),
+(3, 'F', 8, 'couple', 'active'),
+(3, 'F', 9, 'couple', 'active'),
+(3, 'F', 10, 'couple', 'active'),
+(3, 'F', 11, 'couple', 'active'),
+(3, 'F', 12, 'couple', 'active'),
+(4, 'A', 1, 'standard', 'active'),
+(4, 'A', 2, 'standard', 'active'),
+(4, 'A', 3, 'standard', 'active'),
+(4, 'A', 4, 'standard', 'active'),
+(4, 'A', 5, 'standard', 'active'),
+(4, 'A', 6, 'standard', 'active'),
+(4, 'A', 7, 'standard', 'active'),
+(4, 'A', 8, 'standard', 'active'),
+(4, 'A', 9, 'standard', 'active'),
+(4, 'A', 10, 'standard', 'active'),
+(4, 'A', 11, 'standard', 'active'),
+(4, 'A', 12, 'standard', 'active'),
+(4, 'B', 1, 'standard', 'active'),
+(4, 'B', 2, 'standard', 'active'),
+(4, 'B', 3, 'standard', 'active'),
+(4, 'B', 4, 'standard', 'active'),
+(4, 'B', 5, 'standard', 'active'),
+(4, 'B', 6, 'standard', 'active'),
+(4, 'B', 7, 'standard', 'active'),
+(4, 'B', 8, 'standard', 'active'),
+(4, 'B', 9, 'standard', 'active'),
+(4, 'B', 10, 'standard', 'active'),
+(4, 'B', 11, 'standard', 'active'),
+(4, 'B', 12, 'standard', 'active'),
+(4, 'C', 1, 'standard', 'active'),
+(4, 'C', 2, 'standard', 'active'),
+(4, 'C', 3, 'standard', 'active'),
+(4, 'C', 4, 'standard', 'active'),
+(4, 'C', 5, 'standard', 'active'),
+(4, 'C', 6, 'standard', 'active'),
+(4, 'C', 7, 'standard', 'active'),
+(4, 'C', 8, 'standard', 'active'),
+(4, 'C', 9, 'standard', 'active'),
+(4, 'C', 10, 'standard', 'active'),
+(4, 'C', 11, 'standard', 'active'),
+(4, 'C', 12, 'standard', 'active'),
+(4, 'D', 1, 'vip', 'active'),
+(4, 'D', 2, 'vip', 'active'),
+(4, 'D', 3, 'vip', 'active'),
+(4, 'D', 4, 'vip', 'active'),
+(4, 'D', 5, 'vip', 'active'),
+(4, 'D', 6, 'vip', 'active'),
+(4, 'D', 7, 'vip', 'active'),
+(4, 'D', 8, 'vip', 'active'),
+(4, 'D', 9, 'vip', 'active'),
+(4, 'D', 10, 'vip', 'active'),
+(4, 'D', 11, 'vip', 'active'),
+(4, 'D', 12, 'vip', 'active'),
+(4, 'E', 1, 'vip', 'active'),
+(4, 'E', 2, 'vip', 'active'),
+(4, 'E', 3, 'vip', 'active'),
+(4, 'E', 4, 'vip', 'active'),
+(4, 'E', 5, 'vip', 'active'),
+(4, 'E', 6, 'vip', 'active'),
+(4, 'E', 7, 'vip', 'active'),
+(4, 'E', 8, 'vip', 'active'),
+(4, 'E', 9, 'vip', 'active'),
+(4, 'E', 10, 'vip', 'active'),
+(4, 'E', 11, 'vip', 'active'),
+(4, 'E', 12, 'vip', 'active'),
+(4, 'F', 1, 'couple', 'active'),
+(4, 'F', 2, 'couple', 'active'),
+(4, 'F', 3, 'couple', 'active'),
+(4, 'F', 4, 'couple', 'active'),
+(4, 'F', 5, 'couple', 'active'),
+(4, 'F', 6, 'couple', 'active'),
+(4, 'F', 7, 'couple', 'active'),
+(4, 'F', 8, 'couple', 'active'),
+(4, 'F', 9, 'couple', 'active'),
+(4, 'F', 10, 'couple', 'active'),
+(4, 'F', 11, 'couple', 'active'),
+(4, 'F', 12, 'couple', 'active'),
+(5, 'A', 1, 'standard', 'active'),
+(5, 'A', 2, 'standard', 'active'),
+(5, 'A', 3, 'standard', 'active'),
+(5, 'A', 4, 'standard', 'active'),
+(5, 'A', 5, 'standard', 'active'),
+(5, 'A', 6, 'standard', 'active'),
+(5, 'A', 7, 'standard', 'active'),
+(5, 'A', 8, 'standard', 'active'),
+(5, 'A', 9, 'standard', 'active'),
+(5, 'A', 10, 'standard', 'active'),
+(5, 'A', 11, 'standard', 'active'),
+(5, 'A', 12, 'standard', 'active'),
+(5, 'B', 1, 'standard', 'active'),
+(5, 'B', 2, 'standard', 'active'),
+(5, 'B', 3, 'standard', 'active'),
+(5, 'B', 4, 'standard', 'active'),
+(5, 'B', 5, 'standard', 'active'),
+(5, 'B', 6, 'standard', 'active'),
+(5, 'B', 7, 'standard', 'active'),
+(5, 'B', 8, 'standard', 'active'),
+(5, 'B', 9, 'standard', 'active'),
+(5, 'B', 10, 'standard', 'active'),
+(5, 'B', 11, 'standard', 'active'),
+(5, 'B', 12, 'standard', 'active'),
+(5, 'C', 1, 'standard', 'active'),
+(5, 'C', 2, 'standard', 'active'),
+(5, 'C', 3, 'standard', 'active'),
+(5, 'C', 4, 'standard', 'active'),
+(5, 'C', 5, 'standard', 'active'),
+(5, 'C', 6, 'standard', 'active'),
+(5, 'C', 7, 'standard', 'active'),
+(5, 'C', 8, 'standard', 'active'),
+(5, 'C', 9, 'standard', 'active'),
+(5, 'C', 10, 'standard', 'active'),
+(5, 'C', 11, 'standard', 'active'),
+(5, 'C', 12, 'standard', 'active'),
+(5, 'D', 1, 'vip', 'active'),
+(5, 'D', 2, 'vip', 'active'),
+(5, 'D', 3, 'vip', 'active'),
+(5, 'D', 4, 'vip', 'active'),
+(5, 'D', 5, 'vip', 'active'),
+(5, 'D', 6, 'vip', 'active'),
+(5, 'D', 7, 'vip', 'active'),
+(5, 'D', 8, 'vip', 'active'),
+(5, 'D', 9, 'vip', 'active'),
+(5, 'D', 10, 'vip', 'active'),
+(5, 'D', 11, 'vip', 'active'),
+(5, 'D', 12, 'vip', 'active'),
+(5, 'E', 1, 'vip', 'active'),
+(5, 'E', 2, 'vip', 'active'),
+(5, 'E', 3, 'vip', 'active'),
+(5, 'E', 4, 'vip', 'active'),
+(5, 'E', 5, 'vip', 'active'),
+(5, 'E', 6, 'vip', 'active'),
+(5, 'E', 7, 'vip', 'active'),
+(5, 'E', 8, 'vip', 'active'),
+(5, 'E', 9, 'vip', 'active'),
+(5, 'E', 10, 'vip', 'active'),
+(5, 'E', 11, 'vip', 'active'),
+(5, 'E', 12, 'vip', 'active'),
+(5, 'F', 1, 'couple', 'active'),
+(5, 'F', 2, 'couple', 'active'),
+(5, 'F', 3, 'couple', 'active'),
+(5, 'F', 4, 'couple', 'active'),
+(5, 'F', 5, 'couple', 'active'),
+(5, 'F', 6, 'couple', 'active'),
+(5, 'F', 7, 'couple', 'active'),
+(5, 'F', 8, 'couple', 'active'),
+(5, 'F', 9, 'couple', 'active'),
+(5, 'F', 10, 'couple', 'active'),
+(5, 'F', 11, 'couple', 'active'),
+(5, 'F', 12, 'couple', 'active'),
+(6, 'A', 1, 'standard', 'active'),
+(6, 'A', 2, 'standard', 'active'),
+(6, 'A', 3, 'standard', 'active'),
+(6, 'A', 4, 'standard', 'active'),
+(6, 'A', 5, 'standard', 'active'),
+(6, 'A', 6, 'standard', 'active'),
+(6, 'A', 7, 'standard', 'active'),
+(6, 'A', 8, 'standard', 'active'),
+(6, 'A', 9, 'standard', 'active'),
+(6, 'A', 10, 'standard', 'active'),
+(6, 'A', 11, 'standard', 'active'),
+(6, 'A', 12, 'standard', 'active'),
+(6, 'B', 1, 'standard', 'active'),
+(6, 'B', 2, 'standard', 'active'),
+(6, 'B', 3, 'standard', 'active'),
+(6, 'B', 4, 'standard', 'active'),
+(6, 'B', 5, 'standard', 'active'),
+(6, 'B', 6, 'standard', 'active'),
+(6, 'B', 7, 'standard', 'active'),
+(6, 'B', 8, 'standard', 'active'),
+(6, 'B', 9, 'standard', 'active'),
+(6, 'B', 10, 'standard', 'active'),
+(6, 'B', 11, 'standard', 'active'),
+(6, 'B', 12, 'standard', 'active'),
+(6, 'C', 1, 'standard', 'active'),
+(6, 'C', 2, 'standard', 'active'),
+(6, 'C', 3, 'standard', 'active'),
+(6, 'C', 4, 'standard', 'active'),
+(6, 'C', 5, 'standard', 'active'),
+(6, 'C', 6, 'standard', 'active'),
+(6, 'C', 7, 'standard', 'active'),
+(6, 'C', 8, 'standard', 'active'),
+(6, 'C', 9, 'standard', 'active'),
+(6, 'C', 10, 'standard', 'active'),
+(6, 'C', 11, 'standard', 'active'),
+(6, 'C', 12, 'standard', 'active'),
+(6, 'D', 1, 'vip', 'active'),
+(6, 'D', 2, 'vip', 'active'),
+(6, 'D', 3, 'vip', 'active'),
+(6, 'D', 4, 'vip', 'active'),
+(6, 'D', 5, 'vip', 'active'),
+(6, 'D', 6, 'vip', 'active'),
+(6, 'D', 7, 'vip', 'active'),
+(6, 'D', 8, 'vip', 'active'),
+(6, 'D', 9, 'vip', 'active'),
+(6, 'D', 10, 'vip', 'active'),
+(6, 'D', 11, 'vip', 'active'),
+(6, 'D', 12, 'vip', 'active'),
+(6, 'E', 1, 'vip', 'active'),
+(6, 'E', 2, 'vip', 'active'),
+(6, 'E', 3, 'vip', 'active'),
+(6, 'E', 4, 'vip', 'active'),
+(6, 'E', 5, 'vip', 'active'),
+(6, 'E', 6, 'vip', 'active'),
+(6, 'E', 7, 'vip', 'active'),
+(6, 'E', 8, 'vip', 'active'),
+(6, 'E', 9, 'vip', 'active'),
+(6, 'E', 10, 'vip', 'active'),
+(6, 'E', 11, 'vip', 'active'),
+(6, 'E', 12, 'vip', 'active'),
+(6, 'F', 1, 'couple', 'active'),
+(6, 'F', 2, 'couple', 'active'),
+(6, 'F', 3, 'couple', 'active'),
+(6, 'F', 4, 'couple', 'active'),
+(6, 'F', 5, 'couple', 'active'),
+(6, 'F', 6, 'couple', 'active'),
+(6, 'F', 7, 'couple', 'active'),
+(6, 'F', 8, 'couple', 'active'),
+(6, 'F', 9, 'couple', 'active'),
+(6, 'F', 10, 'couple', 'active'),
+(6, 'F', 11, 'couple', 'active'),
+(6, 'F', 12, 'couple', 'active'),
+(7, 'A', 1, 'standard', 'active'),
+(7, 'A', 2, 'standard', 'active'),
+(7, 'A', 3, 'standard', 'active'),
+(7, 'A', 4, 'standard', 'active'),
+(7, 'A', 5, 'standard', 'active'),
+(7, 'A', 6, 'standard', 'active'),
+(7, 'A', 7, 'standard', 'active'),
+(7, 'A', 8, 'standard', 'active'),
+(7, 'A', 9, 'standard', 'active'),
+(7, 'A', 10, 'standard', 'active'),
+(7, 'A', 11, 'standard', 'active'),
+(7, 'A', 12, 'standard', 'active'),
+(7, 'B', 1, 'standard', 'active'),
+(7, 'B', 2, 'standard', 'active'),
+(7, 'B', 3, 'standard', 'active'),
+(7, 'B', 4, 'standard', 'active'),
+(7, 'B', 5, 'standard', 'active'),
+(7, 'B', 6, 'standard', 'active'),
+(7, 'B', 7, 'standard', 'active'),
+(7, 'B', 8, 'standard', 'active'),
+(7, 'B', 9, 'standard', 'active'),
+(7, 'B', 10, 'standard', 'active'),
+(7, 'B', 11, 'standard', 'active'),
+(7, 'B', 12, 'standard', 'active'),
+(7, 'C', 1, 'standard', 'active'),
+(7, 'C', 2, 'standard', 'active'),
+(7, 'C', 3, 'standard', 'active'),
+(7, 'C', 4, 'standard', 'active'),
+(7, 'C', 5, 'standard', 'active'),
+(7, 'C', 6, 'standard', 'active'),
+(7, 'C', 7, 'standard', 'active'),
+(7, 'C', 8, 'standard', 'active'),
+(7, 'C', 9, 'standard', 'active'),
+(7, 'C', 10, 'standard', 'active'),
+(7, 'C', 11, 'standard', 'active'),
+(7, 'C', 12, 'standard', 'active'),
+(7, 'D', 1, 'vip', 'active'),
+(7, 'D', 2, 'vip', 'active'),
+(7, 'D', 3, 'vip', 'active'),
+(7, 'D', 4, 'vip', 'active'),
+(7, 'D', 5, 'vip', 'active'),
+(7, 'D', 6, 'vip', 'active'),
+(7, 'D', 7, 'vip', 'active'),
+(7, 'D', 8, 'vip', 'active'),
+(7, 'D', 9, 'vip', 'active'),
+(7, 'D', 10, 'vip', 'active'),
+(7, 'D', 11, 'vip', 'active'),
+(7, 'D', 12, 'vip', 'active'),
+(7, 'E', 1, 'vip', 'active'),
+(7, 'E', 2, 'vip', 'active'),
+(7, 'E', 3, 'vip', 'active'),
+(7, 'E', 4, 'vip', 'active'),
+(7, 'E', 5, 'vip', 'active'),
+(7, 'E', 6, 'vip', 'active'),
+(7, 'E', 7, 'vip', 'active'),
+(7, 'E', 8, 'vip', 'active'),
+(7, 'E', 9, 'vip', 'active'),
+(7, 'E', 10, 'vip', 'active'),
+(7, 'E', 11, 'vip', 'active'),
+(7, 'E', 12, 'vip', 'active'),
+(7, 'F', 1, 'couple', 'active'),
+(7, 'F', 2, 'couple', 'active'),
+(7, 'F', 3, 'couple', 'active'),
+(7, 'F', 4, 'couple', 'active'),
+(7, 'F', 5, 'couple', 'active'),
+(7, 'F', 6, 'couple', 'active'),
+(7, 'F', 7, 'couple', 'active'),
+(7, 'F', 8, 'couple', 'active'),
+(7, 'F', 9, 'couple', 'active'),
+(7, 'F', 10, 'couple', 'active'),
+(7, 'F', 11, 'couple', 'active'),
+(7, 'F', 12, 'couple', 'active'),
+(8, 'A', 1, 'standard', 'active'),
+(8, 'A', 2, 'standard', 'active'),
+(8, 'A', 3, 'standard', 'active'),
+(8, 'A', 4, 'standard', 'active'),
+(8, 'A', 5, 'standard', 'active'),
+(8, 'A', 6, 'standard', 'active'),
+(8, 'A', 7, 'standard', 'active'),
+(8, 'A', 8, 'standard', 'active'),
+(8, 'A', 9, 'standard', 'active'),
+(8, 'A', 10, 'standard', 'active'),
+(8, 'A', 11, 'standard', 'active'),
+(8, 'A', 12, 'standard', 'active'),
+(8, 'B', 1, 'standard', 'active'),
+(8, 'B', 2, 'standard', 'active'),
+(8, 'B', 3, 'standard', 'active'),
+(8, 'B', 4, 'standard', 'active'),
+(8, 'B', 5, 'standard', 'active'),
+(8, 'B', 6, 'standard', 'active'),
+(8, 'B', 7, 'standard', 'active'),
+(8, 'B', 8, 'standard', 'active'),
+(8, 'B', 9, 'standard', 'active'),
+(8, 'B', 10, 'standard', 'active'),
+(8, 'B', 11, 'standard', 'active'),
+(8, 'B', 12, 'standard', 'active'),
+(8, 'C', 1, 'standard', 'active'),
+(8, 'C', 2, 'standard', 'active'),
+(8, 'C', 3, 'standard', 'active'),
+(8, 'C', 4, 'standard', 'active'),
+(8, 'C', 5, 'standard', 'active'),
+(8, 'C', 6, 'standard', 'active'),
+(8, 'C', 7, 'standard', 'active'),
+(8, 'C', 8, 'standard', 'active'),
+(8, 'C', 9, 'standard', 'active'),
+(8, 'C', 10, 'standard', 'active'),
+(8, 'C', 11, 'standard', 'active'),
+(8, 'C', 12, 'standard', 'active'),
+(8, 'D', 1, 'vip', 'active'),
+(8, 'D', 2, 'vip', 'active'),
+(8, 'D', 3, 'vip', 'active'),
+(8, 'D', 4, 'vip', 'active'),
+(8, 'D', 5, 'vip', 'active'),
+(8, 'D', 6, 'vip', 'active'),
+(8, 'D', 7, 'vip', 'active'),
+(8, 'D', 8, 'vip', 'active'),
+(8, 'D', 9, 'vip', 'active'),
+(8, 'D', 10, 'vip', 'active'),
+(8, 'D', 11, 'vip', 'active'),
+(8, 'D', 12, 'vip', 'active'),
+(8, 'E', 1, 'vip', 'active'),
+(8, 'E', 2, 'vip', 'active'),
+(8, 'E', 3, 'vip', 'active'),
+(8, 'E', 4, 'vip', 'active'),
+(8, 'E', 5, 'vip', 'active'),
+(8, 'E', 6, 'vip', 'active'),
+(8, 'E', 7, 'vip', 'active'),
+(8, 'E', 8, 'vip', 'active'),
+(8, 'E', 9, 'vip', 'active'),
+(8, 'E', 10, 'vip', 'active'),
+(8, 'E', 11, 'vip', 'active'),
+(8, 'E', 12, 'vip', 'active'),
+(8, 'F', 1, 'couple', 'active'),
+(8, 'F', 2, 'couple', 'active'),
+(8, 'F', 3, 'couple', 'active'),
+(8, 'F', 4, 'couple', 'active'),
+(8, 'F', 5, 'couple', 'active'),
+(8, 'F', 6, 'couple', 'active'),
+(8, 'F', 7, 'couple', 'active'),
+(8, 'F', 8, 'couple', 'active'),
+(8, 'F', 9, 'couple', 'active'),
+(8, 'F', 10, 'couple', 'active'),
+(8, 'F', 11, 'couple', 'active'),
+(8, 'F', 12, 'couple', 'active');
 
 -- 8. Equipment Types (8 loại trang thiết bị rạp phim)
-INSERT INTO `equipment_types` (`id`, `name`, `description`) VALUES
+INSERT IGNORE INTO `equipment_types` (`id`, `name`, `description`) VALUES
 (1, 'Máy chiếu (Projector)', 'Máy chiếu kỹ thuật số Laser 4K, IMAX Laser, Barco, Christie'),
 (2, 'Hệ thống âm thanh (Sound System)', 'Loa surround, loa subwoofer, bộ giải mã Dolby Atmos, DTS:X, QSC amplifier'),
 (3, 'Hệ thống điều hòa (HVAC & AC)', 'Điều hòa trung tâm Chiller, điều hòa biến tần Daikin/Trane làm mát phòng chiếu'),
@@ -502,7 +1039,7 @@ INSERT INTO `equipment_types` (`id`, `name`, `description`) VALUES
 (8, 'Thiết bị mạng & Máy chủ (Server & Network)', 'Máy chủ phát phim DCP Server Dolby ShowVault, Switch mạng quang Cisco');
 
 -- 9. Equipment (52 Thiết bị chi tiết trong rạp)
-INSERT INTO `equipment` (`id`, `equipment_type_id`, `room_id`, `name`, `code`, `manufacturer`, `purchase_date`, `warranty_end`, `last_maintenance`, `next_maintenance`, `status`) VALUES
+INSERT IGNORE INTO `equipment` (`id`, `equipment_type_id`, `room_id`, `name`, `code`, `manufacturer`, `purchase_date`, `warranty_end`, `last_maintenance`, `next_maintenance`, `status`) VALUES
 -- Phòng 1
 (1, 1, 1, 'Máy chiếu Laser Christie CP4420-RGB 4K', 'EQ-P1-PRJ01', 'Christie Digital (Mỹ)', '2023-01-15', '2028-01-15', '2026-01-10', '2026-07-10', 'good'),
 (2, 2, 1, 'Bộ giải mã âm thanh Dolby Atmos CP950', 'EQ-P1-SND01', 'Dolby Laboratories', '2023-01-15', '2028-01-15', '2026-02-12', '2026-08-12', 'good'),
@@ -544,7 +1081,7 @@ INSERT INTO `equipment` (`id`, `equipment_type_id`, `room_id`, `name`, `code`, `
 
 -- 10. Screening Schedules (Lịch chiếu phong phú cho hôm nay & sắp tới)
 -- Giả định thời điểm hiện tại: 2026-09-14
-INSERT INTO `screening_schedules` (`id`, `movie_id`, `room_id`, `start_time`, `end_time`, `format`, `ticket_price`, `status`) VALUES
+INSERT IGNORE INTO `screening_schedules` (`id`, `movie_id`, `room_id`, `start_time`, `end_time`, `format`, `ticket_price`, `status`) VALUES
 -- Suất 1: Dune 2 tại Phòng 4 (IMAX)
 (1, 1, 4, '2026-09-14 14:00:00', '2026-09-14 16:50:00', 'IMAX 2D Phụ đề', 150000.00, 'screening'),
 (2, 1, 4, '2026-09-14 18:00:00', '2026-09-14 20:50:00', 'IMAX 2D Phụ đề', 160000.00, 'scheduled'),
@@ -568,66 +1105,66 @@ INSERT INTO `screening_schedules` (`id`, `movie_id`, `room_id`, `start_time`, `e
 
 -- 11. Bookings & Booking Seats & Payments & Tickets mẫu
 -- Booking 1: Đã thanh toán thành công 2 vé cho Suất 7 (Lật Mặt 7 - Phòng 1, Ghế D5, D6)
-INSERT INTO `bookings` (`id`, `customer_id`, `screening_id`, `booking_code`, `booking_time`, `total_amount`, `status`) VALUES
+INSERT IGNORE INTO `bookings` (`id`, `customer_id`, `screening_id`, `booking_code`, `booking_time`, `total_amount`, `status`) VALUES
 (1, 1, 7, 'BK-20260914-001', '2026-09-14 10:15:00', 220000.00, 'paid'),
 (2, 2, 2, 'BK-20260914-002', '2026-09-14 11:30:00', 320000.00, 'paid');
 
 -- Booking Seats (Ghế D5=41, D6=42 phòng 1 đã đặt)
-INSERT INTO `booking_seats` (`id`, `booking_id`, `seat_id`, `price`, `status`, `hold_start`, `hold_expire`) VALUES
+INSERT IGNORE INTO `booking_seats` (`id`, `booking_id`, `seat_id`, `price`, `status`, `hold_start`, `hold_expire`) VALUES
 (1, 1, 41, 110000.00, 'booked', '2026-09-14 10:15:00', '2026-09-14 10:25:00'),
 (2, 1, 42, 110000.00, 'booked', '2026-09-14 10:15:00', '2026-09-14 10:25:00'),
 (3, 2, 85, 160000.00, 'booked', '2026-09-14 11:30:00', '2026-09-14 11:40:00'),
 (4, 2, 86, 160000.00, 'booked', '2026-09-14 11:30:00', '2026-09-14 11:40:00');
 
 -- Payments
-INSERT INTO `payments` (`id`, `booking_id`, `payment_method`, `amount`, `transaction_code`, `payment_time`, `status`) VALUES
+INSERT IGNORE INTO `payments` (`id`, `booking_id`, `payment_method`, `amount`, `transaction_code`, `payment_time`, `status`) VALUES
 (1, 1, 'vnpay', 220000.00, 'VNPAY-TX-9847291', '2026-09-14 10:18:22', 'success'),
 (2, 2, 'momo', 320000.00, 'MOMO-TX-1182739', '2026-09-14 11:33:45', 'success');
 
 -- Tickets
-INSERT INTO `tickets` (`id`, `booking_id`, `customer_id`, `screening_id`, `seat_id`, `ticket_code`, `qr_code`, `status`) VALUES
+INSERT IGNORE INTO `tickets` (`id`, `booking_id`, `customer_id`, `screening_id`, `seat_id`, `ticket_code`, `qr_code`, `status`) VALUES
 (1, 1, 1, 7, 41, 'TCK-20260914-7-D5', 'QR_TCK_D5_9847291', 'active'),
 (2, 1, 1, 7, 42, 'TCK-20260914-7-D6', 'QR_TCK_D6_9847291', 'active'),
 (3, 2, 2, 2, 85, 'TCK-20260914-2-C1', 'QR_TCK_C1_1182739', 'active'),
 (4, 2, 2, 2, 86, 'TCK-20260914-2-C2', 'QR_TCK_C2_1182739', 'active');
 
 -- 12. Incidents (Báo cáo sự cố)
-INSERT INTO `incidents` (`id`, `code`, `reporter_id`, `room_id`, `equipment_id`, `title`, `description`, `severity`, `status`, `created_at`) VALUES
+INSERT IGNORE INTO `incidents` (`id`, `code`, `reporter_id`, `room_id`, `equipment_id`, `title`, `description`, `severity`, `status`, `created_at`) VALUES
 (1, 'INC-20260914-001', 4, 8, 25, 'Điều hòa phòng 8 bị ngắt block làm lạnh đột ngột', 'Trong ca chiếu sáng nay nhiệt độ phòng tăng lên 29 độ C, khách hàng phàn nàn nóng. Máy nén Chiller Block B báo lỗi quá tải E4.', 'high', 'in_progress', '2026-09-14 09:30:00'),
 (2, 'INC-20260913-002', 5, 6, 24, 'Loa Surround vách phải phòng 6 phát tiếng rè ngắt quãng', 'Kênh surround phải bị méo tiếng khi âm lượng phim vượt mức 80dB. Nghi ngờ tụ lọc tín hiệu của amply Dolby CP850 bị lão hóa.', 'medium', 'accepted', '2026-09-13 14:15:00'),
 (3, 'INC-20260910-003', 4, 1, 5, 'Đèn bậc thang hàng E phòng 1 bị đứt dải LED', 'Dải LED bậc thang lối đi hàng E bị tắt, gây khó khăn cho khách di chuyển trong bóng tối.', 'low', 'closed', '2026-09-10 08:20:00');
 
 -- 13. Incident Histories (Lịch sử xử lý sự cố)
-INSERT INTO `incident_histories` (`id`, `incident_id`, `employee_id`, `action`, `description`, `spare_parts`, `cost`, `created_at`) VALUES
+INSERT IGNORE INTO `incident_histories` (`id`, `incident_id`, `employee_id`, `action`, `description`, `spare_parts`, `cost`, `created_at`) VALUES
 (1, 1, 6, 'Khảo sát và chẩn đoán', 'Kỹ thuật viên Quân đã đến kiểm tra áp suất gas R410A và rơ-le nhiệt, phát hiện tụ khởi động quạt giải nhiệt dàn nóng bị chập.', 'Tụ ngậm 50uF / 450V Daikin', 350000.00, '2026-09-14 10:00:00'),
 (2, 2, 7, 'Tiếp nhận sự cố phòng 6', 'Kỹ thuật viên Hùng đo tín hiệu ngõ ra DSP, lên kế hoạch thay thế bo mạch tiền khuếch đại Dolby.', 'Bo DAC Dolby CP850 Refurbished', 2500000.00, '2026-09-13 16:00:00'),
 (3, 3, 7, 'Thay thế và hoàn tất', 'Đã thay mới 2 mét dây LED 12V chống nước và kiểm tra lại nguồn ổn áp.', 'Dây LED Silicon 12V Amber 2m', 150000.00, '2026-09-10 11:30:00');
 
 -- 14. Maintenances (Kế hoạch & Nhật ký bảo trì)
-INSERT INTO `maintenances` (`id`, `code`, `equipment_id`, `employee_id`, `type`, `description`, `scheduled_date`, `completed_date`, `result`, `cost`, `note`, `status`) VALUES
+INSERT IGNORE INTO `maintenances` (`id`, `code`, `equipment_id`, `employee_id`, `type`, `description`, `scheduled_date`, `completed_date`, `result`, `cost`, `note`, `status`) VALUES
 (1, 'MAINT-202609-001', 1, 6, 'periodic', 'Bảo dưỡng định kỳ máy chiếu Christie Laser 4K Phòng 1: Vệ sinh lưới lọc bụi, đo quang thông Lumen, hiệu chỉnh hội tụ ống kính 3D.', '2026-09-10', '2026-09-10', 'success', 1200000.00, 'Quang thông đạt 98% tiêu chuẩn DCI Cinema', 'completed'),
 (2, 'MAINT-202609-002', 16, 6, 'periodic', 'Bảo dưỡng hệ thống làm mát bằng chất lỏng cụm Laser IMAX Phòng 4', '2026-09-20', NULL, 'pending', 4500000.00, 'Cần phối hợp với chuyên gia kỹ thuật hãng IMAX', 'planned'),
 (3, 'MAINT-202609-003', 21, 7, 'repair', 'Kiểm tra pít-tông khí nén mô-đun ghế rung 4DX hàng C phòng 5', '2026-09-15', NULL, 'pending', 1800000.00, 'Đã chuẩn bị ron cao su và dầu thủy lực chuyên dụng', 'in_progress');
 
 -- 15. Work Shifts (Phân ca làm việc)
-INSERT INTO `work_shifts` (`id`, `employee_id`, `work_date`, `shift_name`, `start_time`, `end_time`, `position`, `room_id`, `status`) VALUES
+INSERT IGNORE INTO `work_shifts` (`id`, `employee_id`, `work_date`, `shift_name`, `start_time`, `end_time`, `position`, `room_id`, `status`) VALUES
 (1, 4, '2026-09-14', 'morning', '08:00:00', '16:00:00', 'Soát vé & Điều phối', 1, 'completed'),
 (2, 5, '2026-09-14', 'afternoon', '15:30:00', '23:30:00', 'Kiểm tra phòng & Hỗ trợ khách', 4, 'checked_in'),
 (3, 6, '2026-09-14', 'morning', '08:00:00', '16:00:00', 'Trực Kỹ thuật âm thanh - hình ảnh', NULL, 'completed'),
 (4, 7, '2026-09-14', 'afternoon', '15:30:00', '23:30:00', 'Trực Sửa chữa & Xử lý sự cố', NULL, 'checked_in');
 
 -- 16. Assignments (Phân công nhiệm vụ)
-INSERT INTO `assignments` (`id`, `employee_id`, `incident_id`, `maintenance_id`, `assigned_at`, `status`) VALUES
+INSERT IGNORE INTO `assignments` (`id`, `employee_id`, `incident_id`, `maintenance_id`, `assigned_at`, `status`) VALUES
 (1, 6, 1, NULL, '2026-09-14 09:40:00', 'in_progress'),
 (2, 7, 2, NULL, '2026-09-13 14:30:00', 'accepted'),
 (3, 7, NULL, 3, '2026-09-14 08:30:00', 'in_progress');
 
 -- 17. Room Inspections & Details (Checklist phòng chiếu)
-INSERT INTO `room_inspections` (`id`, `room_id`, `employee_id`, `inspection_date`, `status`, `note`) VALUES
+INSERT IGNORE INTO `room_inspections` (`id`, `room_id`, `employee_id`, `inspection_date`, `status`, `note`) VALUES
 (1, 1, 4, '2026-09-14 08:30:00', 'pass', 'Tất cả 9 hạng mục vận hành đạt chuẩn trước ca chiếu sáng'),
 (2, 8, 5, '2026-09-14 09:15:00', 'fail', 'Điều hòa không mát, nhiệt độ phòng quá cao - đã chuyển tạo sự cố INC-20260914-001');
 
-INSERT INTO `inspection_details` (`id`, `inspection_id`, `item_name`, `status`, `note`) VALUES
+INSERT IGNORE INTO `inspection_details` (`id`, `inspection_id`, `item_name`, `status`, `note`) VALUES
 -- Inspection 1 (Phòng 1 - Đạt)
 (1, 1, 'Máy chiếu', 'pass', 'Hình ảnh sắc nét, màu chuẩn DCI'),
 (2, 1, 'Âm thanh', 'pass', 'Tất cả loa vòm và sub hoạt động tốt'),
@@ -650,17 +1187,16 @@ INSERT INTO `inspection_details` (`id`, `inspection_id`, `item_name`, `status`, 
 (18, 2, 'PCCC', 'pass', 'Bình thường');
 
 -- 18. Notifications (Thông báo mẫu)
-INSERT INTO `notifications` (`id`, `user_id`, `title`, `message`, `type`, `is_read`, `created_at`) VALUES
-(1, 2, 'Sự cố mới tại Phòng 8', 'Nhân viên Đỗ Tuấn Kiệt vừa báo cáo sự cố điều hòa phòng 8 (Mức độ: Cao). Vui lòng phân công kỹ thuật viên.', 'incident', 0, '2026-09-14 09:30:00'),
-(2, 5, 'Phân công xử lý sự cố', 'Quản lý Phạm Minh Đức đã phân công bạn xử lý sự cố INC-20260914-001 (Điều hòa Phòng 8).', 'incident', 0, '2026-09-14 09:40:00'),
-(3, 2, 'Cảnh báo hạn bảo trì', 'Hệ thống máy chiếu IMAX Laser Phòng 4 sắp đến kỳ bảo dưỡng chất lỏng (20/09/2026).', 'maintenance', 0, '2026-09-14 08:00:00'),
-(4, 7, 'Đặt vé thành công', 'Bạn đã đặt thành công 2 vé xem phim Lật Mặt 7: Một Điều Ước (Ghế D5, D6) suất 18:00 hôm nay.', 'booking', 1, '2026-09-14 10:18:25');
+INSERT IGNORE INTO `notifications` (`id`, `user_id`, `title`, `message`, `type`, `is_read`, `created_at`) VALUES
+(1, 2, 'Sự cố mới tại Phòng 8', 'Nhân viên Đỗ Tuấn Kiệt vừa báo cáo sự cố điều hòa phòng 8 (Mức độ: Cao). Vui lòng phân công kỹ thuật viên.', 'incident', 0, '2026-11-15 09:30:00'),
+(2, 5, 'Phân công xử lý sự cố', 'Quản lý Mark Zuckerberg đã phân công bạn xử lý sự cố INC-20260914-001 (Điều hòa Phòng 8).', 'incident', 0, '2026-11-15 09:40:00'),
+(3, 2, 'Cảnh báo hạn bảo trì', 'Hệ thống máy chiếu IMAX Laser Phòng 4 sắp đến kỳ bảo dưỡng chất lỏng (20/09/2026).', 'maintenance', 0, '2026-11-15 08:00:00'),
+(4, 7, 'Đặt vé thành công', 'Bạn đã đặt thành công 2 vé xem phim Lật Mặt 7: Một Điều Ước (Ghế D5, D6) suất 18:00 hôm nay.', 'booking', 1, '2026-11-15 10:18:25');
 
 -- --------------------------------------------------------------------
 -- 19. BẢNG concession_items (Menu Bắp Nước F&B)
 -- --------------------------------------------------------------------
-DROP TABLE IF EXISTS `concession_items`;
-CREATE TABLE `concession_items` (
+CREATE TABLE IF NOT EXISTS `concession_items` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `name` VARCHAR(150) NOT NULL,
   `category` ENUM('popcorn', 'beverage', 'combo', 'hot_food') NOT NULL DEFAULT 'popcorn',
@@ -672,11 +1208,22 @@ CREATE TABLE `concession_items` (
   `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+INSERT IGNORE INTO `concession_items` (`id`, `name`, `category`, `price`, `cost_price`, `image`, `is_active`, `description`) VALUES
+(1, 'Bắp Rang Bơ Phô Mai (L)', 'popcorn', 69000.00, 18000.00, 'https://images.unsplash.com/photo-1578849278619-e73505e9610f?q=80&w=400', 1, 'Bắp rang bơ giòn rụm phủ phô mai Cheddar hảo hạng size L 85oz'),
+(2, 'Bắp Rang Caramen Ngọt (L)', 'popcorn', 69000.00, 19000.00, 'https://images.unsplash.com/photo-1585647347384-2593bc35786b?q=80&w=400', 1, 'Bắp rang bơ truyền thống bọc caramen đậm đà ngọt ngào'),
+(3, 'Coca-Cola Tươi (32oz)', 'beverage', 39000.00, 7000.00, 'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?q=80&w=400', 1, 'Nước ngọt Coca-Cola mát lạnh sảng khoái'),
+(4, 'Sprite Tươi (32oz)', 'beverage', 39000.00, 7000.00, 'https://images.unsplash.com/photo-1625772299848-391b6a87d7b3?q=80&w=400', 1, 'Nước ngọt Sprite chanh tươi mát'),
+(5, 'Combo Đơn (1 Bắp L + 1 Nước 32oz)', 'combo', 95000.00, 25000.00, '/images/combo-don.jpg', 1, 'Tiết kiệm 13.000đ - 1 Bắp phô mai/ngọt + 1 Nước ngọt tự chọn'),
+(6, 'Combo Đôi Night Movie (1 Bắp L + 2 Nước + 1 Snack)', 'combo', 145000.00, 42000.00, '/images/combo-doi.jpg', 1, 'Bộ đôi xem phim hoàn hảo: 1 Bắp lớn 2 vị + 2 Nước lớn + 1 Snack khoai tây'),
+(7, 'Xúc Xích Nướng Phô Mai', 'hot_food', 35000.00, 12000.00, 'https://images.unsplash.com/photo-1619740455993-9e612b1af08a?q=80&w=400', 1, 'Xúc xích bò nướng giòn kèm sốt mù tạt mật ong'),
+(8, 'Kem Trái Cây Mùa Hè (Tạm ngưng)', 'hot_food', 29000.00, 10000.00, 'https://images.unsplash.com/photo-1497034825429-c343d7c6a68f?q=80&w=400', 0, 'Tạm ngưng phục vụ'),
+(9, 'Bánh Tart Trứng Nướng', 'hot_food', 29000.00, 10000.00, '/images/egg-tart.jpg', 1, 'Bánh tart trứng vỏ ngàn lớp giòn xốp, nhân kem trứng nướng thơm lừng béo ngậy'),
+(10, 'Bim Bim Khoai Tây Giòn Rụm', 'hot_food', 25000.00, 9000.00, '/images/bim-bim.jpg', 1, 'Snack bim bim khoai tây lát mỏng giòn rụm vị tự nhiên thơm ngon khi xem phim');
+
 -- --------------------------------------------------------------------
 -- 20. BẢNG inventory_ingredients (Kho Nguyên Vật Liệu)
 -- --------------------------------------------------------------------
-DROP TABLE IF EXISTS `inventory_ingredients`;
-CREATE TABLE `inventory_ingredients` (
+CREATE TABLE IF NOT EXISTS `inventory_ingredients` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `code` VARCHAR(50) NOT NULL UNIQUE,
   `name` VARCHAR(150) NOT NULL,
@@ -691,8 +1238,7 @@ CREATE TABLE `inventory_ingredients` (
 -- --------------------------------------------------------------------
 -- 21. BẢNG concession_recipes (Định Lượng BOM)
 -- --------------------------------------------------------------------
-DROP TABLE IF EXISTS `concession_recipes`;
-CREATE TABLE `concession_recipes` (
+CREATE TABLE IF NOT EXISTS `concession_recipes` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `item_id` INT NOT NULL,
   `ingredient_id` INT NOT NULL,
@@ -702,11 +1248,23 @@ CREATE TABLE `concession_recipes` (
   CONSTRAINT `fk_recipe_ing` FOREIGN KEY (`ingredient_id`) REFERENCES `inventory_ingredients` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+INSERT IGNORE INTO `concession_recipes` (`id`, `item_id`, `ingredient_id`, `quantity_used`, `note`) VALUES
+(1, 1, 1, 0.080, '80g hạt ngô bắp nổ'),
+(2, 1, 2, 0.020, '20g bơ bắp'),
+(3, 1, 3, 0.025, '25g bột phô mai'),
+(4, 1, 8, 1.000, '1 hộp bắp L'),
+(5, 2, 1, 0.080, '80g hạt ngô bắp nổ'),
+(6, 2, 2, 0.020, '20g bơ bắp'),
+(7, 2, 4, 0.030, '30g đường caramen'),
+(8, 2, 8, 1.000, '1 hộp bắp L'),
+(9, 3, 5, 0.050, '50ml siro Coca'),
+(10, 3, 7, 1.000, '1 ly 32oz'),
+(11, 3, 9, 1.000, '1 nắp + ống hút');
+
 -- --------------------------------------------------------------------
 -- 22. BẢNG inventory_logs (Nhật Ký Biến Động Kho)
 -- --------------------------------------------------------------------
-DROP TABLE IF EXISTS `inventory_logs`;
-CREATE TABLE `inventory_logs` (
+CREATE TABLE IF NOT EXISTS `inventory_logs` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `ingredient_id` INT NOT NULL,
   `change_type` ENUM('import', 'usage', 'waste') NOT NULL DEFAULT 'import',
@@ -716,11 +1274,37 @@ CREATE TABLE `inventory_logs` (
   `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Trigger tự động đồng bộ tồn kho nguyên vật liệu khi có nhật ký nhập/xuất kho
+-- Nghiệp vụ chuẩn: Không dùng GREATEST(0, ...) để che giấu thiếu hàng.
+-- Nếu số lượng xuất/sử dụng vượt quá tồn kho khả dụng -> Chặn giao dịch an toàn bằng SIGNAL SQLSTATE.
+DELIMITER $$
+CREATE TRIGGER IF NOT EXISTS `trg_inventory_logs_ai` BEFORE INSERT ON `inventory_logs`
+FOR EACH ROW
+BEGIN
+  DECLARE current_stock DECIMAL(10,2);
+  
+  -- Lấy số lượng tồn kho hiện tại
+  SELECT `stock_quantity` INTO current_stock
+  FROM `inventory_ingredients`
+  WHERE `id` = NEW.ingredient_id;
+  
+  -- Nếu là xuất kho hoặc sử dụng (NEW.quantity < 0) và vượt quá tồn kho khả dụng -> Báo lỗi
+  IF NEW.quantity < 0 AND (current_stock + NEW.quantity) < 0 THEN
+    SIGNAL SQLSTATE '45000'
+      SET MESSAGE_TEXT = 'Lỗi nghiệp vụ kho: Số lượng xuất/hao hụt vượt quá tồn kho hiện có.';
+  END IF;
+  
+  -- Cập nhật tồn kho chính xác theo số lượng biến động (dương: nhập, âm: xuất)
+  UPDATE `inventory_ingredients`
+  SET `stock_quantity` = `stock_quantity` + NEW.quantity
+  WHERE `id` = NEW.ingredient_id;
+END$$
+DELIMITER ;
+
 -- --------------------------------------------------------------------
 -- 23. BẢNG shift_handovers (Bàn Giao Ca & Quỹ Tiền Mặt)
 -- --------------------------------------------------------------------
-DROP TABLE IF EXISTS `shift_handovers`;
-CREATE TABLE `shift_handovers` (
+CREATE TABLE IF NOT EXISTS `shift_handovers` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `work_shift_id` INT NOT NULL,
   `employee_id` INT NOT NULL,
@@ -741,8 +1325,7 @@ CREATE TABLE `shift_handovers` (
 -- --------------------------------------------------------------------
 -- 24. BẢNG kdm_licenses (Khóa Bản Quyền KDM)
 -- --------------------------------------------------------------------
-DROP TABLE IF EXISTS `kdm_licenses`;
-CREATE TABLE `kdm_licenses` (
+CREATE TABLE IF NOT EXISTS `kdm_licenses` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `movie_id` INT NOT NULL,
   `movie_name` VARCHAR(255) NOT NULL,
@@ -759,8 +1342,7 @@ CREATE TABLE `kdm_licenses` (
 -- --------------------------------------------------------------------
 -- 25. BẢNG projector_lamp_logs (Tuổi Thọ Bóng Đèn Máy Chiếu)
 -- --------------------------------------------------------------------
-DROP TABLE IF EXISTS `projector_lamp_logs`;
-CREATE TABLE `projector_lamp_logs` (
+CREATE TABLE IF NOT EXISTS `projector_lamp_logs` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `room_id` INT NOT NULL,
   `room_name` VARCHAR(100) NOT NULL,
@@ -777,8 +1359,7 @@ CREATE TABLE `projector_lamp_logs` (
 -- --------------------------------------------------------------------
 -- 26. BẢNG turnaround_checklists (Checklist Vệ Sinh Khán Phòng)
 -- --------------------------------------------------------------------
-DROP TABLE IF EXISTS `turnaround_checklists`;
-CREATE TABLE `turnaround_checklists` (
+CREATE TABLE IF NOT EXISTS `turnaround_checklists` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `schedule_id` INT NOT NULL,
   `room_id` INT NOT NULL,
@@ -796,5 +1377,51 @@ CREATE TABLE `turnaround_checklists` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ====================================================================
+
+-- --------------------------------------------------------------------
+-- 27. BẢNG movie_reviews (Đánh giá & Bình luận phim)
+-- --------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `movie_reviews` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `movie_id` INT NOT NULL,
+  `user_id` INT NOT NULL,
+  `user_name` VARCHAR(100) NOT NULL,
+  `rating` TINYINT NOT NULL CHECK (`rating` BETWEEN 1 AND 5),
+  `comment` TEXT NULL,
+  `is_verified_buyer` BOOLEAN NOT NULL DEFAULT FALSE,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX `idx_reviews_movie` (`movie_id`),
+  INDEX `idx_reviews_user` (`user_id`),
+  CONSTRAINT `fk_reviews_movies` FOREIGN KEY (`movie_id`) REFERENCES `movies` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_reviews_users` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 28. Movie Reviews Seed Data
+INSERT IGNORE INTO `movie_reviews` (`id`, `movie_id`, `user_id`, `user_name`, `rating`, `comment`, `is_verified_buyer`, `created_at`) VALUES
+(1, 1, 7, 'Nguyễn Văn An (Diamond VIP)', 5, 'Phim cực đỉnh, âm thanh Dolby Atmos tại rạp đánh thức mọi giác quan! Hình ảnh sa mạc cát choáng ngợp.', 1, '2026-09-14 10:30:00'),
+(2, 1, 8, 'Trần Thị Mai', 5, 'Diễn xuất của Timothée và Zendaya quá tuyệt vời. Rạp chiếu ghế ngồi êm ái, bắp phô mai rất ngon.', 0, '2026-09-14 11:15:00'),
+(3, 2, 7, 'Nguyễn Văn An (Diamond VIP)', 5, 'Kiệt tác của Christopher Nolan! Phân cảnh thử bom Trinity khiến cả rạp nín thở. Trải nghiệm điện ảnh đỉnh cao.', 0, '2026-09-14 09:00:00'),
+(4, 4, 8, 'Trần Thị Mai', 4, 'Phim gia đình rất xúc động và ý nghĩa!', 0, '2026-09-14 08:45:00');
+
+
+-- 29. KDM Licenses Seed Data
+INSERT IGNORE INTO `kdm_licenses` (`id`, `movie_id`, `movie_name`, `room_id`, `room_name`, `server_serial`, `valid_from`, `valid_until`, `status`, `key_file`) VALUES
+(1, 1, 'Dune: Hành Tinh Cát - Phần 2', 4, 'Cinema Hall 4 (IMAX Laser Theater)', 'DCI-IMAX-98821', '2026-03-01 00:00:00', '2027-03-31 23:59:59', 'active', 'KDM_DUNE2_IMAX_98821.xml'),
+(2, 1, 'Dune: Hành Tinh Cát - Phần 2', 1, 'Cinema Hall 1 (Standard Dolby)', 'DCI-SRV-20419', '2026-03-01 00:00:00', '2027-03-31 23:59:59', 'active', 'KDM_DUNE2_ROOM1_20419.xml'),
+(3, 2, 'Oppenheimer', 3, 'Cinema Hall 3 (VIP Prime Lounge)', 'DCI-SRV-33910', '2026-02-15 00:00:00', '2026-04-15 23:59:59', 'expiring_soon', 'KDM_OPPENHEIMER_R3.xml'),
+(4, 6, 'Godzilla x Kong: Đế Chế Mới', 5, 'Cinema Hall 5 (4DX Motion World)', 'DCI-4DX-44102', '2026-01-01 00:00:00', '2026-03-10 23:59:59', 'expired', 'KDM_GXK_4DX_44102.xml'),
+(5, 5, 'Deadpool & Wolverine', 5, 'Cinema Hall 5 (4DX Motion World)', 'DCI-4DX-55201', '2026-07-26 00:00:00', '2027-03-31 23:59:59', 'active', 'KDM_DPW_4DX_55201.xml');
+
+-- 30. Equipment Next Maintenance Dynamic Distribution
+-- Đặt next_maintenance theo ngày hiện tại để có ví dụ đủ loại cảnh báo:
+-- 1 quá hạn, 2 sắp đến hạn (<14 ngày), 1 hỏng/sửa, 1 kiểm tra, còn lại sau 30 ngày
+UPDATE `equipment` SET `next_maintenance` = DATE_ADD(CURDATE(), INTERVAL 3 DAY), `status` = 'good' WHERE `id` = 1;
+UPDATE `equipment` SET `next_maintenance` = DATE_ADD(CURDATE(), INTERVAL 7 DAY), `status` = 'good' WHERE `id` = 2;
+UPDATE `equipment` SET `next_maintenance` = DATE_SUB(CURDATE(), INTERVAL 5 DAY), `status` = 'good' WHERE `id` = 3;
+UPDATE `equipment` SET `next_maintenance` = DATE_ADD(CURDATE(), INTERVAL 45 DAY), `status` = 'good' WHERE `id` = 16;
+UPDATE `equipment` SET `next_maintenance` = DATE_ADD(CURDATE(), INTERVAL 20 DAY), `status` = 'repairing' WHERE `id` = 24;
+UPDATE `equipment` SET `next_maintenance` = DATE_ADD(CURDATE(), INTERVAL 35 DAY), `status` = 'broken' WHERE `id` = 25;
+UPDATE `equipment` SET `next_maintenance` = DATE_ADD(CURDATE(), INTERVAL 40 DAY), `status` = 'check_needed' WHERE `id` = 11;
+
 -- KẾT THÚC FILE SQL CINEMA_MANAGEMENT.SQL
 -- ====================================================================

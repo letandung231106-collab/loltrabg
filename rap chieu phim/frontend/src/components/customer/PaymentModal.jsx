@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useBooking } from '../../context/BookingContext';
 import { api } from '../../services/api';
 import { voucherWallet } from '../../services/voucherWallet';
@@ -15,7 +16,6 @@ import {
   Clock,
   Zap,
   Copy,
-  Sparkles,
   ExternalLink,
   RefreshCw,
   KeyRound,
@@ -38,7 +38,7 @@ export function PaymentModal({
   onSuccess,
   selectedConcessions = [],
 }) {
-  const { activeBooking, formattedHoldTime, holdRemainingSeconds, resetBookingState } = useBooking();
+  const { activeBooking, selectedSeats, formattedHoldTime, holdRemainingSeconds, resetBookingState } = useBooking();
   const [paymentMethod, setPaymentMethod] = useState('momo');
   const [momoRequestType, setMomoRequestType] = useState('captureWallet');
   const [momoSession, setMomoSession] = useState(null);
@@ -49,6 +49,10 @@ export function PaymentModal({
   const [errorMsg, setErrorMsg] = useState('');
   const [copied, setCopied] = useState('');
 
+  // SePay Automated Bank Transfer State
+  const [sepayStatus, setSepayStatus] = useState('waiting'); // 'waiting' | 'paid'
+  const [isSimulatingSepay, setIsSimulatingSepay] = useState(false);
+
   // Voucher / Promotion state
   const [voucherInput, setVoucherInput] = useState('');
   const [appliedVoucher, setAppliedVoucher] = useState(null);
@@ -58,26 +62,11 @@ export function PaymentModal({
   const [useLoyaltyPoints, setUseLoyaltyPoints] = useState(false);
   const [availablePoints, setAvailablePoints] = useState(() => loyaltyService.getPoints());
 
-  // Tự động khởi tạo phiên MoMo Sandbox khi chọn phương thức MoMo
-  useEffect(() => {
-    if (isOpen && activeBooking && paymentMethod === 'momo') {
-      handleCreateMomoOrder(momoRequestType);
-    }
-  }, [isOpen, activeBooking?.bookingId, paymentMethod, momoRequestType]);
-
-  // Cập nhật lại số điểm loyalty khả dụng mỗi khi mở modal
-  useEffect(() => {
-    if (isOpen) {
-      setAvailablePoints(loyaltyService.getPoints());
-    }
-  }, [isOpen]);
-
-  if (!isOpen || !activeBooking) return null;
-
-  // Tính toán chi phí: vé + bắp nước - giảm giá voucher - trừ điểm loyalty
-  const ticketAmount = Number(activeBooking.totalAmount || 0);
-  const concessionAmount = selectedConcessions.reduce(
-    (sum, item) => sum + Number(item.price || 0) * (item.quantity || 1),
+  // Tính toán chi phí vé + bắp nước - giảm giá voucher - trừ điểm loyalty
+  const ticketAmount = Number(activeBooking?.totalAmount || 0);
+  const safeConcessions = Array.isArray(selectedConcessions) ? selectedConcessions : [];
+  const concessionAmount = safeConcessions.reduce(
+    (sum, item) => sum + Number(item?.price || item?.unit_price || 0) * Number(item?.quantity || 1),
     0
   );
   const subtotal = ticketAmount + concessionAmount;
@@ -96,40 +85,39 @@ export function PaymentModal({
   discountAmount = Math.min(discountAmount, subtotal);
 
   const amountAfterVoucher = Math.max(0, subtotal - discountAmount);
-  // Điểm thưởng loyalty tối đa có thể trừ: tối đa bằng số tiền còn lại và tối đa bằng availablePoints
   const loyaltyDeduction = useLoyaltyPoints ? Math.min(amountAfterVoucher, availablePoints) : 0;
   const finalTotalAmount = Math.max(0, amountAfterVoucher - loyaltyDeduction);
 
-  const handleApplyVoucher = (codeToApply) => {
-    const code = (codeToApply || voucherInput || '').trim().toUpperCase();
-    setVoucherError('');
-    if (!code) {
-      setVoucherError('Vui lòng nhập mã giảm giá.');
-      return;
-    }
-    const walletVouchers = voucherWallet.getMyVouchers().filter((v) => !v.isUsed);
-    const found = walletVouchers.find((v) => v.code === code) || AVAILABLE_VOUCHERS.find((v) => v.code === code);
-    if (!found) {
-      setVoucherError('Mã giảm giá không tồn tại hoặc đã hết hạn.');
-      return;
-    }
-    setAppliedVoucher(found);
-    setVoucherInput(found.code);
-  };
+  const concessionsPayload = safeConcessions.map((c) => ({
+    item_id: c.id || c.concession_item_id || c.item_id,
+    quantity: Number(c.quantity || 1),
+  }));
 
-  const handleRemoveVoucher = () => {
-    setAppliedVoucher(null);
-    setVoucherInput('');
-    setVoucherError('');
+  const handlePaymentSuccessPostActions = async (method) => {
+    // 1. Đánh dấu voucher đã dùng
+    if (appliedVoucher?.code) {
+      voucherWallet.markAsUsed(appliedVoucher.code);
+    }
+
+    // 2. Trừ điểm loyalty nếu có dùng
+    if (useLoyaltyPoints && loyaltyDeduction > 0) {
+      loyaltyService.redeemPoints(loyaltyDeduction, `Thanh toán đơn ${activeBooking?.bookingCode || ''}`);
+    }
+
+    // 3. Tích lũy 5% điểm thưởng cho số tiền thanh toán thực tế
+    loyaltyService.addPoints(finalTotalAmount, `Tích điểm đơn vé ${activeBooking?.bookingCode || ''}`);
   };
 
   const handleCreateMomoOrder = async (reqType = momoRequestType) => {
+    if (!activeBooking) return;
     setMomoLoading(true);
     setErrorMsg('');
     try {
       const res = await api.createMomoPayment({
         booking_id: activeBooking.bookingId,
         request_type: reqType,
+        voucher_code: appliedVoucher?.code || undefined,
+        concessions: concessionsPayload,
       });
       if (res.success && res.data) {
         setMomoSession(res.data);
@@ -141,43 +129,123 @@ export function PaymentModal({
     }
   };
 
+  // Tự động khởi tạo phiên MoMo Sandbox khi chọn phương thức MoMo
+  useEffect(() => {
+    if (isOpen && activeBooking && paymentMethod === 'momo') {
+      handleCreateMomoOrder(momoRequestType);
+    }
+  }, [isOpen, activeBooking?.bookingId, paymentMethod, momoRequestType]);
+
+  // Cập nhật lại số điểm loyalty khả dụng mỗi khi mở modal
+  useEffect(() => {
+    if (isOpen) {
+      setAvailablePoints(loyaltyService.getPoints());
+    }
+  }, [isOpen]);
+
+  // Cơ chế 1: Thoát Modal bằng phím tắt ESC
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' || e.key === 'Esc' || e.keyCode === 27) {
+        onClose?.();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
+  // Cơ chế 2: Khóa cuộn trang nền khi mở Modal và dọn dẹp sạch khi đóng / unmount
+  useEffect(() => {
+    if (isOpen) {
+      const prevOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = prevOverflow || 'unset';
+      };
+    }
+  }, [isOpen]);
+
+  // SePay Automated Bank Transfer Hook for Movie Booking (chạy vô điều kiện trên mọi render)
+  useEffect(() => {
+    if (!isOpen || !activeBooking || paymentMethod !== 'vietqr') return;
+
+    let isMounted = true;
+    setSepayStatus('waiting');
+
+    // Đăng ký phiên booking với SePay backend
+    api.registerSepayBookingSession({
+      bookingId: activeBooking.bookingId,
+      bookingCode: activeBooking.bookingCode,
+      totalAmount: finalTotalAmount,
+      concessions: concessionsPayload,
+    }).catch((err) => {
+      console.warn('[SePay Register Booking]:', err.message);
+    });
+
+    const interval = setInterval(async () => {
+      if (!isMounted) return;
+      try {
+        const res = await api.checkSepayStatus(activeBooking.bookingCode);
+        if (res && res.isPaid && isMounted) {
+          clearInterval(interval);
+          setSepayStatus('paid');
+          confetti({
+            particleCount: 140,
+            spread: 90,
+            origin: { y: 0.6 },
+          });
+          await handlePaymentSuccessPostActions('vietqr');
+          onSuccess(res.data);
+        }
+      } catch (e) {
+        // Polling error silently handled
+      }
+    }, 2000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [isOpen, activeBooking?.bookingId, activeBooking?.bookingCode, paymentMethod, finalTotalAmount]);
+
+  if (!isOpen || !activeBooking) return null;
+
+  const handleApplyVoucher = async (codeToApply) => {
+    const code = (codeToApply || voucherInput || '').trim().toUpperCase();
+    setVoucherError('');
+    if (!code) {
+      setVoucherError('Vui lòng nhập mã giảm giá.');
+      return;
+    }
+    try {
+      const res = await api.validateVoucher({ code, total_amount: subtotal });
+      if (res.success && res.data) {
+        setAppliedVoucher({
+          code: res.data.voucherCode,
+          discountAmount: res.data.discountAmount,
+          desc: res.data.desc,
+        });
+        setVoucherInput(res.data.voucherCode);
+      } else {
+        setVoucherError(res.message || 'Mã giảm giá không hợp lệ.');
+      }
+    } catch (err) {
+      setVoucherError(err.message || 'Mã giảm giá không tồn tại hoặc đã hết hạn.');
+    }
+  };
+
+  const handleRemoveVoucher = () => {
+    setAppliedVoucher(null);
+    setVoucherInput('');
+    setVoucherError('');
+  };
+
   const handleOpenMomoGatewayRedirect = () => {
     if (!momoSession?.payUrl) {
       return handlePay({ isFailure: false, method: 'momo' });
     }
     window.open(momoSession.payUrl, '_blank', 'width=980,height=720');
-  };
-
-  const handlePaymentSuccessPostActions = async (method) => {
-    // 1. Đánh dấu voucher đã dùng
-    if (appliedVoucher?.code) {
-      voucherWallet.markAsUsed(appliedVoucher.code);
-    }
-
-    // 2. Trừ điểm loyalty nếu có dùng
-    if (useLoyaltyPoints && loyaltyDeduction > 0) {
-      loyaltyService.redeemPoints(loyaltyDeduction, `Thanh toán đơn ${activeBooking.bookingCode}`);
-    }
-
-    // 3. Tích lũy 5% điểm thưởng cho số tiền thanh toán thực tế
-    loyaltyService.addPoints(finalTotalAmount, `Tích điểm đơn vé ${activeBooking.bookingCode}`);
-
-    // 4. Bán bắp nước vào kho BOM
-    if (selectedConcessions.length > 0) {
-      try {
-        await api.sellConcessions({
-          items: selectedConcessions.map((c) => ({
-            id: c.id,
-            name: c.name,
-            price: c.price,
-            quantity: c.quantity,
-          })),
-          payment_method: method,
-        });
-      } catch (e) {
-        console.warn('Ghi nhận trừ kho bắp nước tự động:', e.message);
-      }
-    }
   };
 
   const handleMomoCallbackConfirm = async (resultCode = 0) => {
@@ -188,7 +256,7 @@ export function PaymentModal({
         booking_id: activeBooking.bookingId,
         orderId: momoSession?.orderId || `MOMO_${activeBooking.bookingCode}_${Date.now()}`,
         requestId: momoSession?.requestId || `REQ_${Date.now()}`,
-        amount: String(finalTotalAmount),
+        amount: String(momoSession?.amount !== undefined ? momoSession.amount : finalTotalAmount),
         orderInfo: `Thanh toan ve xem phim Night Movie - Ma don ${activeBooking.bookingCode}`,
         resultCode: resultCode,
         transId: String(Math.floor(2000000000 + Math.random() * 900000000)),
@@ -233,6 +301,8 @@ export function PaymentModal({
         booking_id: activeBooking.bookingId,
         payment_method: method,
         simulate_failure: isFailure,
+        voucher_code: appliedVoucher?.code || undefined,
+        concessions: concessionsPayload,
       });
 
       if (res.success && res.data?.paymentStatus === 'success') {
@@ -258,23 +328,86 @@ export function PaymentModal({
     }
   };
 
+  const handleSimulateSepay = async () => {
+    if (!activeBooking) return;
+    setIsSimulatingSepay(true);
+    try {
+      await api.simulateSepayPayment({
+        orderCode: activeBooking.bookingCode,
+        amount: finalTotalAmount,
+      });
+    } catch (err) {
+      setErrorMsg(`Lỗi giả lập SePay: ${err.message}`);
+    } finally {
+      setIsSimulatingSepay(false);
+    }
+  };
+
   const copyToClipboard = (text, type) => {
     navigator.clipboard.writeText(text);
     setCopied(type);
     setTimeout(() => setCopied(''), 2000);
   };
 
-  const vietQrUrl = `https://img.vietqr.io/image/970418-8813341949-compact2.png?amount=${finalTotalAmount}&addInfo=${encodeURIComponent(
-    activeBooking.bookingCode
-  )}&accountName=${encodeURIComponent('NIGHT MOVIE CINEMA')}`;
+  const bookingCodeStr = activeBooking?.bookingCode || activeBooking?.booking_code || 'NIGHTMOVIE';
+  const vietQrUrl = finalTotalAmount > 0
+    ? `https://qr.sepay.vn/img?acc=8813341949&bank=BIDV&amount=${finalTotalAmount}&des=${encodeURIComponent(bookingCodeStr)}`
+    : `https://img.vietqr.io/image/BIDV-8813341949-compact2.png?amount=${finalTotalAmount}&addInfo=${encodeURIComponent(bookingCodeStr)}&accountName=${encodeURIComponent('LE TAN DUNG')}`;
 
-  const currentTier = loyaltyService.getTier(availablePoints);
+  const currentTier = loyaltyService.getTier(availablePoints) || { name: 'Đồng (Member)', color: '#cd7f32' };
 
-  return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[100] flex items-center justify-center p-3 sm:p-4 animate-fade-in">
-      <div className="bg-cinema-900 border border-cinema-700/80 rounded-3xl max-w-xl w-full max-h-[92vh] flex flex-col overflow-hidden shadow-2xl animate-scale-in relative">
+  const modalContent = (
+    <div
+      className="fixed inset-0 z-[99999] flex items-center justify-center p-4 sm:p-6 bg-black/85 backdrop-blur-md animate-fade-in"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        width: '100vw',
+        height: '100vh',
+        zIndex: 99999,
+        background: 'rgba(0, 0, 0, 0.82)',
+        backdropFilter: 'blur(8px)',
+        WebkitBackdropFilter: 'blur(8px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '24px',
+      }}
+      onClick={(e) => {
+        // Cơ chế 3: Click Outside (Bấm ra ngoài vùng nền tối để đóng Modal)
+        if (e.target === e.currentTarget) {
+          onClose?.();
+        }
+      }}
+    >
+      <div
+        className="relative w-full max-w-[650px] max-h-[88vh] flex flex-col overflow-hidden rounded-2xl bg-[#12151f] border border-white/10 shadow-2xl animate-scale-up"
+        style={{
+          position: 'relative',
+          width: '100%',
+          maxWidth: '650px',
+          maxHeight: '88vh',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          borderRadius: '16px',
+          background: '#12151f',
+          border: '1px solid rgba(255,255,255,0.12)',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Nút Đóng (X) cố định ở góc trên bên phải, kích thước 36x36px */}
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 z-50 w-9 h-9 rounded-full bg-black/75 hover:bg-ruby-600 text-white backdrop-blur-md transition-all flex items-center justify-center border border-white/20 shadow-lg cursor-pointer hover:scale-105 active:scale-95"
+          title="Đóng (phím ESC)"
+          aria-label="Đóng"
+        >
+          <X className="w-5 h-5" />
+        </button>
+
         {/* Header */}
-        <div className="px-6 py-4 bg-cinema-950/90 border-b border-cinema-800 flex items-center justify-between shrink-0">
+        <div className="px-6 py-4 bg-cinema-950/90 border-b border-cinema-800 flex items-center justify-between shrink-0 pr-16">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-ruby-600/20 border border-ruby-500/40 flex items-center justify-center text-ruby-400">
               <CreditCard className="w-5 h-5" />
@@ -286,12 +419,6 @@ export function PaymentModal({
               </p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full bg-cinema-800 hover:bg-cinema-700 text-slate-400 hover:text-white flex items-center justify-center transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
         </div>
 
         {/* Scrollable Content */}
@@ -306,6 +433,13 @@ export function PaymentModal({
               {formattedHoldTime()}
             </span>
           </div>
+
+          {errorMsg && (
+            <div className="p-3 rounded-2xl bg-rose-950/80 border border-rose-500/60 text-rose-200 text-xs font-semibold flex items-center gap-2.5 animate-fade-in">
+              <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+              <span>{errorMsg}</span>
+            </div>
+          )}
 
           {/* Payment Methods Selection */}
           <div className="space-y-2">
@@ -406,10 +540,35 @@ export function PaymentModal({
             <div className="p-4 rounded-2xl bg-cinema-950 border border-emerald-500/50 animate-scale-in space-y-3">
               <div className="text-center">
                 <h4 className="text-xs font-bold text-emerald-400 uppercase tracking-wider">
-                  Mã VietQR Chuyển Khoản Rạp Night Movie
+                  Mã VietQR & Cổng Tự Động SePay BIDV
                 </h4>
-                <p className="text-[10px] text-slate-400">Quét mã bằng app ngân hàng bất kỳ để chuyển tiền</p>
+                <p className="text-[10px] text-slate-400">Hệ thống SePay tự động ghi nhận giao dịch và xuất vé tức thì khi nhận được tiền</p>
               </div>
+
+              {/* SePay Real-Time Status Notification */}
+              {sepayStatus === 'paid' ? (
+                <div className="p-3 rounded-xl bg-emerald-950/80 border border-emerald-500 text-emerald-300 text-xs font-bold text-center animate-bounce flex items-center justify-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-emerald-400" />
+                  <span>✓ ĐÃ NHẬN TIỀN QUA BIDV! Đang tự động xuất vé điện tử...</span>
+                </div>
+              ) : (
+                <div className="p-2.5 rounded-xl bg-cinema-900 border border-emerald-500/30 text-emerald-400 text-[11px] flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-400" />
+                    Đang lắng nghe biến động số dư BIDV...
+                  </span>
+                  <button
+                    type="button"
+                    disabled={isSimulatingSepay}
+                    onClick={handleSimulateSepay}
+                    className="px-2.5 py-1 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/40 border border-emerald-500/40 text-emerald-300 text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer"
+                    title="Bấm để kích hoạt Webhook SePay giả lập thanh toán"
+                  >
+                    <Zap className="w-3 h-3 text-gold-400" />
+                    {isSimulatingSepay ? 'Đang gửi...' : '⚡ Test SePay Webhook'}
+                  </button>
+                </div>
+              )}
 
               <div className="flex flex-col sm:flex-row items-center gap-4 bg-white p-3 rounded-xl">
                 <img
@@ -417,15 +576,14 @@ export function PaymentModal({
                   alt="VietQR Code"
                   className="w-36 h-36 object-contain border border-slate-200 rounded-lg shrink-0"
                   onError={(e) => {
-                    e.target.src =
-                      'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=' +
-                      encodeURIComponent(activeBooking.bookingCode);
+                    e.target.onerror = null;
+                    e.target.src = '/images/bidv-qr.jpg';
                   }}
                 />
                 <div className="space-y-1 text-slate-800 text-xs w-full">
                   <div>
                     <span className="text-[10px] text-slate-500 block">Ngân hàng:</span>
-                    <b className="text-blue-900">BIDV</b>
+                    <b className="text-blue-900">BIDV (Đầu tư & Phát triển VN)</b>
                   </div>
                   <div>
                     <span className="text-[10px] text-slate-500 block">Số tài khoản:</span>
@@ -435,14 +593,15 @@ export function PaymentModal({
                         type="button"
                         onClick={() => copyToClipboard('8813341949', 'acc')}
                         className="text-blue-600 hover:text-blue-800"
+                        title="Sao chép số tài khoản"
                       >
-                        <Copy className="w-3 h-3" />
+                        {copied === 'acc' ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
                       </button>
                     </div>
                   </div>
                   <div>
                     <span className="text-[10px] text-slate-500 block">Chủ tài khoản:</span>
-                    <b className="text-slate-900">NIGHT MOVIE CINEMA</b>
+                    <b className="text-slate-900 font-bold">LE TAN DUNG</b>
                   </div>
                   <div>
                     <span className="text-[10px] text-slate-500 block">Nội dung chuyển khoản:</span>
@@ -452,8 +611,9 @@ export function PaymentModal({
                         type="button"
                         onClick={() => copyToClipboard(activeBooking.bookingCode, 'msg')}
                         className="text-amber-700 hover:text-amber-900"
+                        title="Sao chép nội dung chuyển khoản"
                       >
-                        <Copy className="w-3 h-3" />
+                        {copied === 'msg' ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
                       </button>
                     </div>
                   </div>
@@ -515,30 +675,35 @@ export function PaymentModal({
 
             {/* Vouchers trong ví của bạn & Gợi ý nhanh */}
             <div className="space-y-1.5 pt-1">
-              {voucherWallet.getMyVouchers().filter((v) => !v.isUsed).length > 0 && (
-                <div>
-                  <div className="text-[10px] text-amber-400 font-bold mb-1 flex items-center gap-1">
-                    <Sparkles className="w-3 h-3" /> Voucher trong Ví của bạn (Bấm để dùng):
+              {(() => {
+                const myWallet = Array.isArray(voucherWallet.getMyVouchers()) ? voucherWallet.getMyVouchers() : [];
+                const unusedList = myWallet.filter((v) => !v.isUsed);
+                if (unusedList.length === 0) return null;
+                return (
+                  <div>
+                    <div className="text-[10px] text-amber-400 font-bold mb-1 flex items-center gap-1">
+                      <Tag className="w-3 h-3 text-gold-400" /> Voucher trong Ví của bạn (Bấm để dùng):
+                    </div>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {unusedList.map((v) => (
+                        <button
+                          key={v.id || v.code}
+                          type="button"
+                          onClick={() => handleApplyVoucher(v.code)}
+                          className={`text-[10px] px-2.5 py-1 rounded-lg border font-mono font-bold transition-all flex items-center gap-1 ${
+                            appliedVoucher?.code === v.code
+                              ? 'bg-emerald-500/30 border-emerald-400 text-emerald-300 shadow-glow-emerald'
+                              : 'bg-amber-950/40 border-amber-500/50 text-amber-300 hover:bg-amber-900/60'
+                          }`}
+                        >
+                          <span>{v.code}</span>
+                          <span className="text-[9px] opacity-80">({v.title || v.desc})</span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {voucherWallet.getMyVouchers().filter((v) => !v.isUsed).map((v) => (
-                      <button
-                        key={v.id || v.code}
-                        type="button"
-                        onClick={() => handleApplyVoucher(v.code)}
-                        className={`text-[10px] px-2.5 py-1 rounded-lg border font-mono font-bold transition-all flex items-center gap-1 ${
-                          appliedVoucher?.code === v.code
-                            ? 'bg-emerald-500/30 border-emerald-400 text-emerald-300 shadow-glow-emerald'
-                            : 'bg-amber-950/40 border-amber-500/50 text-amber-300 hover:bg-amber-900/60'
-                        }`}
-                      >
-                        <span>{v.code}</span>
-                        <span className="text-[9px] opacity-80">({v.title || v.desc})</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
+                );
+              })()}
             </div>
 
             {/* Voucher Chips gợi ý */}
@@ -615,53 +780,92 @@ export function PaymentModal({
           </div>
 
           {/* Order Summary */}
-          <div className="p-3.5 rounded-2xl bg-cinema-900/90 border border-cinema-700/60 space-y-1.5 text-xs">
-            <div className="flex justify-between text-slate-300">
-              <span>Danh sách ghế:</span>
-              <span className="font-bold text-white font-mono">
-                {activeBooking.seats?.map((s) => `${s.row_number}${s.seat_number}`).join(', ')}
-              </span>
-            </div>
-            <div className="flex justify-between text-slate-300">
-              <span>Tiền vé ({activeBooking.seats?.length || 1} ghế):</span>
-              <span className="font-bold text-white">{ticketAmount.toLocaleString('vi-VN')} VNĐ</span>
-            </div>
+          {(() => {
+            const seatsList = Array.isArray(activeBooking?.seats) && activeBooking.seats.length > 0
+              ? activeBooking.seats
+              : Array.isArray(selectedSeats) && selectedSeats.length > 0
+              ? selectedSeats
+              : [];
 
-            {selectedConcessions.length > 0 && (
-              <div className="flex justify-between text-amber-300 pt-1 border-t border-cinema-800">
-                <span className="flex items-center gap-1">
-                  <Utensils className="w-3 h-3" /> Bắp nước & combo ({selectedConcessions.reduce((sum, c) => sum + c.quantity, 0)} món):
-                </span>
-                <span className="font-bold">+{concessionAmount.toLocaleString('vi-VN')} VNĐ</span>
+            const seatsDisplayStr = seatsList.map((s) => {
+              if (typeof s === 'string') return s;
+              const code = s?.row_number && s?.seat_number ? `${s.row_number}${s.seat_number}` : s?.seat_code || s?.seatCode || s?.name || 'Ghế';
+              const isCouple = s?.seat_type === 'couple';
+              const isVip = s?.seat_type === 'vip';
+              return `${code}${isCouple ? ' (Đôi - 2 người)' : isVip ? ' (VIP)' : ''}`;
+            }).join(', ') || 'Chưa chọn';
+
+            const totalSeatsCount = seatsList.length || 1;
+            const totalPeopleCount = seatsList.reduce((sum, s) => {
+              return sum + (typeof s === 'object' && s?.seat_type === 'couple' ? 2 : 1);
+            }, 0) || 1;
+
+            return (
+              <div className="p-3.5 rounded-2xl bg-cinema-900/90 border border-cinema-700/60 space-y-1.5 text-xs">
+                <div className="flex justify-between text-slate-300">
+                  <span>Danh sách ghế:</span>
+                  <span className="font-bold text-white font-mono">
+                    {seatsDisplayStr}
+                  </span>
+                </div>
+                <div className="flex justify-between text-slate-300">
+                  <span>Tiền vé ({totalSeatsCount} mã ghế • {totalPeopleCount} chỗ ngồi):</span>
+                  <span className="font-bold text-white font-mono">{ticketAmount.toLocaleString('vi-VN')} VNĐ</span>
+                </div>
+
+                {safeConcessions.length > 0 && (
+                  <div className="pt-1.5 pb-1 border-t border-cinema-800 space-y-1">
+                    <div className="flex justify-between text-slate-300 font-semibold">
+                      <span>Bắp nước & Combo ({safeConcessions.reduce((s, i) => s + Number(i.quantity || 1), 0)} món):</span>
+                      <span className="font-bold text-amber-400 font-mono">+{concessionAmount.toLocaleString('vi-VN')} VNĐ</span>
+                    </div>
+                    {safeConcessions.map((item, idx) => {
+                      const itemQty = Number(item.quantity || 1);
+                      const itemPrice = Number(item.price || item.unit_price || 0);
+                      const lineTotal = itemQty * itemPrice;
+                      return (
+                        <div key={item.id || idx} className="flex justify-between text-slate-400 pl-2 text-[11px]">
+                          <span className="truncate max-w-[260px]">• {itemQty}x {item.name}</span>
+                          <span className="font-mono text-slate-300 shrink-0">
+                            {lineTotal.toLocaleString('vi-VN')} đ
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {appliedVoucher && (
+                  <div className="flex justify-between text-emerald-400 pt-1 border-t border-cinema-800">
+                    <span>Khuyến mãi ({appliedVoucher.code}):</span>
+                    <span className="font-bold font-mono">-{discountAmount.toLocaleString('vi-VN')} VNĐ</span>
+                  </div>
+                )}
+
+                {useLoyaltyPoints && loyaltyDeduction > 0 && (
+                  <div className="flex justify-between text-amber-400 pt-1 border-t border-cinema-800">
+                    <span>Điểm thưởng loyalty:</span>
+                    <span className="font-bold font-mono">-{loyaltyDeduction.toLocaleString('vi-VN')} VNĐ</span>
+                  </div>
+                )}
+
+                <div className="flex justify-between text-slate-400 text-[11px] pt-1">
+                  <span>Tích lũy điểm đơn này (+5%):</span>
+                  <span className="text-amber-400 font-bold">+{Math.round(finalTotalAmount * 0.05).toLocaleString('vi-VN')} pts</span>
+                </div>
+
+                <div className="pt-2 border-t border-cinema-700 flex justify-between items-center text-sm font-black text-white">
+                  <span>Tổng thanh toán:</span>
+                  <span className="text-xl text-amber-400 font-mono">
+                    {finalTotalAmount.toLocaleString('vi-VN')} VNĐ
+                  </span>
+                </div>
+                <div className="text-[10px] text-slate-400 text-right italic">
+                  * Số hiển thị chỉ để xem; số tiền thực thu do backend xác nhận khi tạo giao dịch.
+                </div>
               </div>
-            )}
-
-            {appliedVoucher && (
-              <div className="flex justify-between text-emerald-400 pt-1 border-t border-cinema-800">
-                <span>Khuyến mãi ({appliedVoucher.code}):</span>
-                <span className="font-bold">-{discountAmount.toLocaleString('vi-VN')} VNĐ</span>
-              </div>
-            )}
-
-            {useLoyaltyPoints && loyaltyDeduction > 0 && (
-              <div className="flex justify-between text-amber-400 pt-1 border-t border-cinema-800">
-                <span>Điểm thưởng loyalty:</span>
-                <span className="font-bold">-{loyaltyDeduction.toLocaleString('vi-VN')} VNĐ</span>
-              </div>
-            )}
-
-            <div className="flex justify-between text-slate-400 text-[11px] pt-1">
-              <span>Tích lũy điểm đơn này (+5%):</span>
-              <span className="text-amber-400 font-bold">+{Math.round(finalTotalAmount * 0.05).toLocaleString('vi-VN')} pts</span>
-            </div>
-
-            <div className="pt-2 border-t border-cinema-700 flex justify-between items-center text-sm font-black text-white">
-              <span>Tổng thanh toán:</span>
-              <span className="text-xl text-amber-400 font-mono">
-                {finalTotalAmount.toLocaleString('vi-VN')} VNĐ
-              </span>
-            </div>
-          </div>
+            );
+          })()}
         </div>
 
         {/* Footer Actions */}
@@ -715,4 +919,7 @@ export function PaymentModal({
       </div>
     </div>
   );
+
+  if (typeof document === 'undefined') return null;
+  return createPortal(modalContent, document.body);
 }

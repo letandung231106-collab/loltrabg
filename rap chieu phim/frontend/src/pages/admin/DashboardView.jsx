@@ -25,9 +25,10 @@ import {
   Clock,
   TrendingUp,
   RefreshCw,
-  Sparkles,
   CheckCircle2,
   Flame,
+  Award,
+  Trophy,
 } from 'lucide-react';
 
 export function DashboardView({ onNavigateTab }) {
@@ -69,15 +70,34 @@ export function DashboardView({ onNavigateTab }) {
 
   const { sales, rooms, equipment, incidents, maintenance } = summary || {};
 
-  // Mock Seat Heatmap Matrix theo dãy ghế (Tỉ lệ lấp đầy & Doanh số theo vị trí)
-  const heatmapRows = [
-    { row: 'A', fillRate: 35, avgRevenue: '1.2M', desc: 'Tiền sảnh (Gần màn hình)' },
-    { row: 'B', fillRate: 55, avgRevenue: '2.1M', desc: 'Standard Dolby' },
-    { row: 'C', fillRate: 70, avgRevenue: '3.4M', desc: 'Standard Dolby' },
-    { row: 'D', fillRate: 95, avgRevenue: '6.8M', desc: '👑 VIP Hàng Giữa (Hot nhất)' },
-    { row: 'E', fillRate: 98, avgRevenue: '7.2M', desc: '👑 VIP Góc Nhìn Chuẩn Hollywood' },
-    { row: 'F', fillRate: 85, avgRevenue: '5.9M', desc: '💖 Ghế Đôi Sweetbox Cuối Phòng' },
-  ];
+  // Dữ liệu sơ đồ cột theo dãy ghế cho từng phòng chiếu (Tỉ lệ lấp đầy % & Doanh số ước tính triệu VNĐ)
+  const heatmapByRoom = {
+    hall1: [
+      { row: 'Hàng A', shortRow: 'A', fillRate: 35, revenueM: 1.2, avgRevenue: '1.2M', desc: 'Tiền sảnh (Gần màn hình)' },
+      { row: 'Hàng B', shortRow: 'B', fillRate: 55, revenueM: 2.1, avgRevenue: '2.1M', desc: 'Standard Dolby' },
+      { row: 'Hàng C', shortRow: 'C', fillRate: 70, revenueM: 3.4, avgRevenue: '3.4M', desc: 'Standard Dolby' },
+      { row: 'Hàng D (VIP)', shortRow: 'D', fillRate: 95, revenueM: 6.8, avgRevenue: '6.8M', desc: 'VIP Hàng Giữa (Hot nhất)' },
+      { row: 'Hàng E (VIP)', shortRow: 'E', fillRate: 98, revenueM: 7.2, avgRevenue: '7.2M', desc: 'VIP Góc Nhìn Chuẩn' },
+      { row: 'Hàng F (Đôi)', shortRow: 'F', fillRate: 85, revenueM: 5.9, avgRevenue: '5.9M', desc: 'Ghế Đôi Sweetbox' },
+    ],
+    hall2: [
+      { row: 'Hàng A', shortRow: 'A', fillRate: 40, revenueM: 1.5, avgRevenue: '1.5M', desc: 'Tiền sảnh (Gần màn hình)' },
+      { row: 'Hàng B', shortRow: 'B', fillRate: 62, revenueM: 2.6, avgRevenue: '2.6M', desc: 'Standard Dolby' },
+      { row: 'Hàng C', shortRow: 'C', fillRate: 78, revenueM: 3.9, avgRevenue: '3.9M', desc: 'Standard Dolby' },
+      { row: 'Hàng D (VIP)', shortRow: 'D', fillRate: 92, revenueM: 6.4, avgRevenue: '6.4M', desc: 'VIP Hàng Giữa (Hot nhất)' },
+      { row: 'Hàng E (VIP)', shortRow: 'E', fillRate: 96, revenueM: 6.9, avgRevenue: '6.9M', desc: 'VIP Góc Nhìn Chuẩn' },
+      { row: 'Hàng F (Đôi)', shortRow: 'F', fillRate: 88, revenueM: 6.1, avgRevenue: '6.1M', desc: 'Ghế Đôi Sweetbox' },
+    ],
+    hall3: [
+      { row: 'Hàng A', shortRow: 'A', fillRate: 45, revenueM: 1.9, avgRevenue: '1.9M', desc: 'Hàng Đầu 4DX Motion' },
+      { row: 'Hàng B', shortRow: 'B', fillRate: 68, revenueM: 3.1, avgRevenue: '3.1M', desc: '4DX Tiêu Chuẩn' },
+      { row: 'Hàng C', shortRow: 'C', fillRate: 82, revenueM: 4.5, avgRevenue: '4.5M', desc: '4DX Trung Tâm' },
+      { row: 'Hàng D (VIP)', shortRow: 'D', fillRate: 97, revenueM: 7.5, avgRevenue: '7.5M', desc: 'VIP 4DX (Hot nhất)' },
+      { row: 'Hàng E (VIP)', shortRow: 'E', fillRate: 94, revenueM: 7.1, avgRevenue: '7.1M', desc: 'VIP 4DX Toàn Cảnh' },
+      { row: 'Hàng F (Đôi)', shortRow: 'F', fillRate: 80, revenueM: 5.4, avgRevenue: '5.4M', desc: 'Ghế Đôi Cuối Phòng' },
+    ],
+  };
+  const heatmapRows = heatmapByRoom[selectedHeatmapRoom] || heatmapByRoom.hall1;
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -208,59 +228,299 @@ export function DashboardView({ onNavigateTab }) {
           </div>
         </div>
 
-        {/* Heatmap Bar List */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {heatmapRows.map((item) => {
-            const isHot = item.fillRate >= 80;
-            const isMedium = item.fillRate >= 50 && item.fillRate < 80;
-            return (
-              <div
-                key={item.row}
-                className={`p-4 rounded-2xl border transition-all ${
-                  isHot
-                    ? 'bg-rose-950/30 border-rose-500/50 shadow-glow-red'
-                    : isMedium
-                    ? 'bg-amber-950/20 border-amber-500/40'
-                    : 'bg-cinema-850/40 border-cinema-700/60'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <span className="w-7 h-7 rounded-lg bg-cinema-800 font-mono font-black text-sm flex items-center justify-center text-white border border-cinema-600">
-                      {item.row}
+        {/* Sơ Đồ Cột (Vertical Column Chart) thống kê tỷ lệ lấp đầy & doanh số theo hàng ghế */}
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div className="flex flex-wrap items-center gap-4 font-semibold">
+              <span className="flex items-center gap-1.5 text-rose-400">
+                <span className="w-3 h-3 rounded bg-rose-500 inline-block" /> Hàng ghế Hot (≥ 80% lấp đầy)
+              </span>
+              <span className="flex items-center gap-1.5 text-amber-400">
+                <span className="w-3 h-3 rounded bg-amber-500 inline-block" /> Trung bình khá (50% - 79%)
+              </span>
+              <span className="flex items-center gap-1.5 text-sky-400">
+                <span className="w-3 h-3 rounded bg-sky-500 inline-block" /> Hàng gần màn hình (&lt; 50%)
+              </span>
+            </div>
+            <span className="text-[11px] text-slate-400">
+              Đơn vị: % Tỷ lệ lấp đầy & Doanh số ước tính (Triệu VNĐ)
+            </span>
+          </div>
+
+          <div className="h-72 w-full pt-2">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={heatmapRows} margin={{ top: 12, right: 20, left: 0, bottom: 8 }} barGap={8}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#263145" vertical={false} />
+                <XAxis dataKey="row" stroke="#94a3b8" tick={{ fontSize: 11, fontWeight: 700 }} />
+                <YAxis
+                  yAxisId="fill"
+                  domain={[0, 100]}
+                  stroke="#f43f5e"
+                  tick={{ fontSize: 10 }}
+                  tickFormatter={(v) => `${v}%`}
+                />
+                <YAxis
+                  yAxisId="rev"
+                  orientation="right"
+                  stroke="#f59e0b"
+                  tick={{ fontSize: 10 }}
+                  tickFormatter={(v) => `${v}M`}
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: '#0d1117',
+                    borderColor: '#384661',
+                    borderRadius: '12px',
+                    fontSize: '12px',
+                  }}
+                  formatter={(val, name, props) => {
+                    if (name === 'Tỷ lệ lấp đầy') {
+                      return [`${val}% (${props?.payload?.desc || ''})`, 'Tỷ lệ lấp đầy'];
+                    }
+                    return [`~${val} Triệu VNĐ`, 'Doanh số ước tính'];
+                  }}
+                />
+                <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }} />
+                <Bar yAxisId="fill" dataKey="fillRate" name="Tỷ lệ lấp đầy" radius={[8, 8, 0, 0]} maxBarSize={44}>
+                  {heatmapRows.map((entry, idx) => (
+                    <Cell
+                      key={`cell-fill-${idx}`}
+                      fill={entry.fillRate >= 80 ? '#f43f5e' : entry.fillRate >= 50 ? '#f59e0b' : '#38bdf8'}
+                    />
+                  ))}
+                </Bar>
+                <Bar
+                  yAxisId="rev"
+                  dataKey="revenueM"
+                  name="Doanh số (Triệu VNĐ)"
+                  fill="#a855f7"
+                  radius={[8, 8, 0, 0]}
+                  maxBarSize={32}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Tóm tắt nhanh dưới biểu đồ cột */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 pt-2">
+            {heatmapRows.map((item) => {
+              const isHot = item.fillRate >= 80;
+              const isMedium = item.fillRate >= 50 && item.fillRate < 80;
+              return (
+                <div
+                  key={item.shortRow}
+                  className={`p-2.5 rounded-xl border text-xs flex flex-col justify-between ${
+                    isHot
+                      ? 'bg-rose-950/25 border-rose-500/40'
+                      : isMedium
+                      ? 'bg-amber-950/20 border-amber-500/30'
+                      : 'bg-cinema-850/40 border-cinema-700/60'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-mono font-black text-white">{item.row}</span>
+                    <span
+                      className={`font-mono font-bold text-[11px] ${
+                        isHot ? 'text-rose-400' : isMedium ? 'text-amber-400' : 'text-sky-400'
+                      }`}
+                    >
+                      {item.fillRate}%
                     </span>
-                    <span className="text-xs font-bold text-slate-200">{item.desc}</span>
                   </div>
-                  <span
-                    className={`text-xs font-black font-mono ${
-                      isHot ? 'text-rose-400' : isMedium ? 'text-amber-400' : 'text-slate-400'
-                    }`}
-                  >
-                    {item.fillRate}% Lấp đầy
-                  </span>
+                  <div className="text-[10px] text-slate-400 truncate" title={item.desc}>
+                    {item.desc}
+                  </div>
+                  <div className="text-[11px] font-mono font-bold text-amber-300 mt-1">
+                    ~{item.avgRevenue} VNĐ
+                  </div>
                 </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
 
-                {/* Progress Visual Bar */}
-                <div className="w-full h-2.5 rounded-full bg-cinema-900 overflow-hidden mb-2">
-                  <div
-                    className={`h-full rounded-full transition-all duration-1000 ${
-                      isHot
-                        ? 'bg-gradient-to-r from-amber-500 to-rose-600 shadow-glow-red'
-                        : isMedium
-                        ? 'bg-gradient-to-r from-blue-500 to-amber-500'
-                        : 'bg-cinema-600'
-                    }`}
-                    style={{ width: `${item.fillRate}%` }}
-                  />
-                </div>
+      {/* --- 7-DAY REVENUE & TICKET SALES TREND (AREA CHART) --- */}
+      <div className="p-6 glass-panel rounded-3xl border border-cinema-700/80 shadow-2xl space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-cinema-700/60">
+          <div>
+            <h3 className="text-base font-extrabold text-white flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-ruby-500" /> Xu Hướng Doanh Thu & Lượng Vé (7 Ngày Gần Nhất)
+            </h3>
+            <p className="text-xs text-slate-400">
+              Biểu đồ trực quan tốc độ phát hành vé và tăng trưởng doanh thu toàn cụm rạp
+            </p>
+          </div>
+          <div className="flex items-center gap-4 text-xs font-semibold">
+            <span className="flex items-center gap-1.5 text-ruby-400">
+              <span className="w-3 h-3 rounded bg-ruby-500 inline-block" /> Doanh Thu (VNĐ)
+            </span>
+            <span className="flex items-center gap-1.5 text-amber-400">
+              <span className="w-3 h-3 rounded bg-amber-400 inline-block" /> Số Vé Phát Hành
+            </span>
+          </div>
+        </div>
 
-                <div className="flex justify-between items-center text-[11px] text-slate-400">
-                  <span>Doanh số ước tính:</span>
-                  <span className="font-mono font-bold text-white">~{item.avgRevenue} VNĐ</span>
-                </div>
-              </div>
-            );
-          })}
+        <div className="h-72 w-full pt-2">
+          {analytics?.dailyRevenue && analytics.dailyRevenue.length > 0 ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={analytics.dailyRevenue}>
+                <defs>
+                  <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#ef4444" stopOpacity={0.4} />
+                    <stop offset="95%" stopColor="#ef4444" stopOpacity={0.0} />
+                  </linearGradient>
+                  <linearGradient id="colorTickets" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.4} />
+                    <stop offset="95%" stopColor="#f59e0b" stopOpacity={0.0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#263145" />
+                <XAxis dataKey="date" stroke="#64748b" tick={{ fontSize: 11 }} />
+                <YAxis yAxisId="left" stroke="#ef4444" tick={{ fontSize: 10 }} />
+                <YAxis yAxisId="right" orientation="right" stroke="#f59e0b" tick={{ fontSize: 10 }} />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: '#0d1117',
+                    borderColor: '#384661',
+                    borderRadius: '12px',
+                    fontSize: '12px',
+                  }}
+                  formatter={(val, name) => [
+                    name === 'total_revenue' ? `${parseFloat(val).toLocaleString('vi-VN')} VNĐ` : `${val} vé`,
+                    name === 'total_revenue' ? 'Doanh Thu' : 'Số Vé',
+                  ]}
+                />
+                <Area
+                  yAxisId="left"
+                  type="monotone"
+                  dataKey="total_revenue"
+                  stroke="#ef4444"
+                  strokeWidth={3}
+                  fillOpacity={1}
+                  fill="url(#colorRev)"
+                />
+                <Area
+                  yAxisId="right"
+                  type="monotone"
+                  dataKey="tickets_count"
+                  stroke="#f59e0b"
+                  strokeWidth={2}
+                  fillOpacity={1}
+                  fill="url(#colorTickets)"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-full flex flex-col items-center justify-center text-slate-500 text-xs">
+              <TrendingUp className="w-8 h-8 text-slate-600 mb-2 stroke-[1.5]" />
+              Chưa có dữ liệu giao dịch trong 7 ngày qua.
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* --- TOP SELLING MOVIES BOX OFFICE LEADERBOARD --- */}
+      <div className="p-6 glass-panel rounded-3xl border border-cinema-700/80 shadow-2xl space-y-4">
+        <div className="flex items-center justify-between pb-3 border-b border-cinema-700/60">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-yellow-600 flex items-center justify-center text-white shadow-glow-amber">
+              <Trophy className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-base font-extrabold text-white flex items-center gap-2">
+                Bảng Xếp Hạng Phim Bán Chạy Nhất (Box Office Top Movies)
+              </h3>
+              <p className="text-xs text-slate-400">
+                Thống kê số lượng vé đã xuất rạp và tổng doanh thu tích lũy từng phim
+              </p>
+            </div>
+          </div>
+          <span className="text-xs px-3 py-1 rounded-full bg-cinema-850 text-gold-400 border border-cinema-700 font-bold">
+            Realtime Analytics
+          </span>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead>
+              <tr className="text-slate-400 border-b border-cinema-800 uppercase tracking-wider font-bold">
+                <th className="py-3 px-3 whitespace-nowrap">Hạng</th>
+                <th className="py-3 px-4">Tên Phim</th>
+                <th className="py-3 px-3 text-center whitespace-nowrap">Số Vé Đã Bán</th>
+                <th className="py-3 px-4 text-right whitespace-nowrap">Tổng Doanh Thu</th>
+                <th className="py-3 px-3 text-center whitespace-nowrap">Tỷ Trọng</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-cinema-800/60 font-medium">
+              {(analytics?.topMovies || []).length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="py-8 text-center text-slate-500 text-xs">
+                    Chưa có dữ liệu bán vé phim.
+                  </td>
+                </tr>
+              ) : (
+                (() => {
+                  const totalTicketsAll = (analytics?.topMovies || []).reduce(
+                    (sum, m) => sum + (Number(m.total_tickets || m.tickets_sold) || 0),
+                    0
+                  );
+                  return (analytics?.topMovies || []).map((m, idx) => {
+                    const tickets = Number(m.total_tickets || m.tickets_sold) || 0;
+                    const pct = totalTicketsAll > 0 ? Math.round((tickets / totalTicketsAll) * 100) : 0;
+                    return (
+                      <tr key={m.id || idx} className="hover:bg-cinema-850/50 transition-colors">
+                        <td className="py-3.5 px-3">
+                          <span
+                            className={`w-7 h-7 rounded-xl flex items-center justify-center font-black font-mono text-xs ${
+                              idx === 0
+                                ? 'bg-amber-500 text-black shadow-glow-amber'
+                                : idx === 1
+                                ? 'bg-slate-300 text-black'
+                                : idx === 2
+                                ? 'bg-amber-700 text-white'
+                                : 'bg-cinema-800 text-slate-400'
+                            }`}
+                          >
+                            {idx + 1}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <div className="flex items-center gap-3">
+                            {m.poster && (
+                              <img
+                                src={m.poster}
+                                alt={m.name}
+                                className="w-8 h-11 object-cover rounded-lg shadow-sm border border-cinema-700"
+                              />
+                            )}
+                            <div>
+                              <div className="font-extrabold text-white text-sm">{m.name}</div>
+                              <div className="text-[10px] text-slate-400">ID Phim: #{m.id}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-3 text-center">
+                          <span className="px-2.5 py-1 rounded-full bg-cinema-800 text-amber-300 font-mono font-bold">
+                            {tickets} vé
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 text-right font-mono font-black text-white text-sm">
+                          {parseFloat(m.total_revenue || 0).toLocaleString('vi-VN')}{' '}
+                          <span className="text-[10px] font-normal text-slate-400">VNĐ</span>
+                        </td>
+                        <td className="py-3.5 px-3 text-center">
+                          <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 font-mono font-bold text-[11px]">
+                            {pct}%
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  });
+                })()
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
 

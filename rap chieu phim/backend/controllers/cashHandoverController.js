@@ -76,7 +76,13 @@ async function approveHandover(req, res, next) {
     const { id } = req.params;
     const { status = 'approved', notes = '' } = req.body;
 
-    await db.query(`UPDATE shift_handovers SET status = ?, notes = ? WHERE id = ?`, [status, notes, id]);
+    const result = await db.query(`UPDATE shift_handovers SET status = ?, notes = ? WHERE id = ?`, [status, notes, id]);
+    if (result && result.affectedRows === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy biên bản bàn giao ca.',
+      });
+    }
     return res.status(200).json({
       success: true,
       message: 'Đã phê duyệt biên bản bàn giao két tiền ca trực.',

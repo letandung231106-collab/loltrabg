@@ -1,4 +1,5 @@
 const db = require('../config/database');
+const { resolveAuthenticatedCustomerId, isOwnedByCustomer } = require('../utils/ownershipHelper');
 
 /**
  * Lấy danh sách tất cả vé (Admin / Manager)
@@ -12,7 +13,7 @@ async function getAllTickets(req, res, next) {
              m.name AS movie_name, m.poster AS movie_poster,
              s.start_time, s.end_time,
              r.name AS room_name,
-             st.row_number, st.seat_number, st.seat_type,
+             st.\`row_number\`, st.seat_number, st.seat_type,
              c.name AS customer_name, c.email AS customer_email, c.phone AS customer_phone,
              b.booking_code
       FROM tickets t
@@ -66,14 +67,17 @@ async function getAllTickets(req, res, next) {
  */
 async function getMyTickets(req, res, next) {
   try {
-    const customerId = req.user.customerId || req.user.id;
+    const customerId = await resolveAuthenticatedCustomerId(req.user);
+    if (!customerId) {
+      return res.status(200).json({ success: true, data: [] });
+    }
 
     const tickets = await db.query(
       `SELECT t.*, 
               m.name AS movie_name, m.poster AS movie_poster, m.duration, m.age_rating,
               s.start_time, s.end_time, s.format AS screening_format,
               r.name AS room_name, r.room_type,
-              st.row_number, st.seat_number, st.seat_type,
+              st.\`row_number\`, st.seat_number, st.seat_type,
               b.booking_code, b.total_amount
        FROM tickets t
        JOIN screening_schedules s ON t.screening_id = s.id
@@ -96,6 +100,53 @@ async function getMyTickets(req, res, next) {
 }
 
 /**
+ * Lấy chi tiết vé theo ID hoặc mã vé
+ */
+async function getTicketById(req, res, next) {
+  try {
+    const { id } = req.params;
+    const tickets = await db.query(
+      `SELECT t.*, 
+              m.name AS movie_name, m.poster AS movie_poster, m.duration, m.age_rating,
+              s.start_time, s.end_time, s.format AS screening_format,
+              r.name AS room_name, r.room_type,
+              st.\`row_number\`, st.seat_number, st.seat_type,
+              c.name AS customer_name, c.email AS customer_email, c.phone AS customer_phone,
+              b.booking_code, b.total_amount
+       FROM tickets t
+       JOIN screening_schedules s ON t.screening_id = s.id
+       JOIN movies m ON s.movie_id = m.id
+       JOIN cinema_rooms r ON s.room_id = r.id
+       JOIN seats st ON t.seat_id = st.id
+       JOIN customers c ON t.customer_id = c.id
+       JOIN bookings b ON t.booking_id = b.id
+       WHERE t.id = ? OR t.ticket_code = ?`,
+      [id, id]
+    );
+
+    if (!tickets || tickets.length === 0) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy vé xem phim.' });
+    }
+
+    const ticket = tickets[0];
+    // Chống lỗ hổng IDOR - Customer chỉ được xem vé của chính mình (so sánh chặt với customerId từ JWT, KHÔNG so với users.id)
+    if (req.user?.role === 'customer') {
+      const resolvedCustomerId = await resolveAuthenticatedCustomerId(req.user);
+      if (!isOwnedByCustomer(ticket.customer_id, resolvedCustomerId)) {
+        return res.status(403).json({
+          success: false,
+          message: 'Bạn không có quyền truy cập vào thông tin vé xem phim này.',
+        });
+      }
+    }
+
+    return res.status(200).json({ success: true, data: ticket });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
  * Quét / Xác thực vé xem phim tại cửa soát vé (Staff)
  */
 async function verifyTicket(req, res, next) {
@@ -109,21 +160,40 @@ async function verifyTicket(req, res, next) {
       });
     }
 
+    // Hỗ trợ giải mã nếu quét mã QR trả về chuỗi JSON (ví dụ: {"ticketCode":"TCK-..."})
+    let normalizedCode = String(ticket_code).trim();
+    if (normalizedCode.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(normalizedCode);
+        if (parsed.ticketCode || parsed.ticket_code) {
+          normalizedCode = String(parsed.ticketCode || parsed.ticket_code).trim();
+        }
+      } catch (e) {
+        // fallback regex
+      }
+    }
+    const tckMatch = normalizedCode.match(/TCK-[A-Za-z0-9-]+/);
+    if (tckMatch) {
+      normalizedCode = tckMatch[0];
+    }
+
     const tickets = await db.query(
       `SELECT t.*, 
               m.name AS movie_name,
               s.start_time, s.end_time,
               r.name AS room_name,
-              st.row_number, st.seat_number,
-              c.name AS customer_name
+              st.\`row_number\`, st.seat_number,
+              c.name AS customer_name,
+              b.status AS booking_status
        FROM tickets t
        JOIN screening_schedules s ON t.screening_id = s.id
        JOIN movies m ON s.movie_id = m.id
        JOIN cinema_rooms r ON s.room_id = r.id
        JOIN seats st ON t.seat_id = st.id
        JOIN customers c ON t.customer_id = c.id
+       JOIN bookings b ON t.booking_id = b.id
        WHERE t.ticket_code = ?`,
-      [ticket_code]
+      [normalizedCode]
     );
 
     if (!tickets || tickets.length === 0) {
@@ -134,6 +204,28 @@ async function verifyTicket(req, res, next) {
     }
 
     const ticket = tickets[0];
+
+    // 1. Kiểm tra đơn hàng đã thanh toán thành công chưa
+    if (ticket.booking_status && ticket.booking_status !== 'paid') {
+      return res.status(400).json({
+        success: false,
+        message: 'Vé thuộc đơn hàng chưa thanh toán hợp lệ.',
+        data: ticket,
+      });
+    }
+
+    // 2. Kiểm tra thời hạn suất chiếu: Từ chối nếu suất chiếu đã kết thúc hơn 4 tiếng
+    if (ticket.end_time) {
+      const endTime = new Date(ticket.end_time);
+      const fourHoursAfter = new Date(endTime.getTime() + 4 * 60 * 60 * 1000);
+      if (new Date() > fourHoursAfter) {
+        return res.status(400).json({
+          success: false,
+          message: 'Suất chiếu của vé này đã kết thúc quá 4 tiếng. Vé không còn hiệu lực vào rạp.',
+          data: ticket,
+        });
+      }
+    }
 
     if (ticket.status === 'used') {
       return res.status(400).json({
@@ -151,8 +243,20 @@ async function verifyTicket(req, res, next) {
       });
     }
 
-    // Đánh dấu vé đã sử dụng (Check-in)
-    await db.query(`UPDATE tickets SET status = 'used' WHERE id = ?`, [ticket.id]);
+    // STT 21: Soát vé nguyên tử (Atomic Update) chống race condition
+    const updateResult = await db.query(
+      `UPDATE tickets SET status = 'used' WHERE id = ? AND status = 'active'`,
+      [ticket.id]
+    );
+
+    const affectedRows = updateResult?.affectedRows ?? updateResult?.[0]?.affectedRows ?? 0;
+    if (affectedRows === 0) {
+      return res.status(409).json({
+        success: false,
+        message: 'Vé này vừa được soát tại cổng hoặc không còn ở trạng thái hợp lệ.',
+        data: ticket,
+      });
+    }
 
     return res.status(200).json({
       success: true,
@@ -171,7 +275,7 @@ async function cancelTicket(req, res, next) {
   try {
     const { id } = req.params;
     const userRole = req.user.role;
-    const customerId = req.user.customerId;
+    const resolvedCustomerId = await resolveAuthenticatedCustomerId(req.user);
 
     const tickets = await db.query(
       `SELECT t.*, s.start_time, b.id AS booking_id
@@ -188,9 +292,9 @@ async function cancelTicket(req, res, next) {
 
     const ticket = tickets[0];
 
-    // Nếu là customer, kiểm tra quyền sở hữu và thời gian hủy
+    // Nếu là customer, kiểm tra quyền sở hữu chặt chẽ (KHÔNG so với users.id) và thời gian hủy
     if (userRole === 'customer') {
-      if (ticket.customer_id !== customerId) {
+      if (!isOwnedByCustomer(ticket.customer_id, resolvedCustomerId)) {
         return res.status(403).json({ success: false, message: 'Bạn không có quyền hủy vé này.' });
       }
 
@@ -222,6 +326,15 @@ async function cancelTicket(req, res, next) {
         `UPDATE booking_seats SET status = 'released' WHERE booking_id = ? AND seat_id = ?`,
         [ticket.booking_id, ticket.seat_id]
       );
+
+      // Nếu toàn bộ vé của booking này đã bị hủy, đồng bộ trạng thái đơn booking sang 'cancelled'
+      const [remainingActiveTickets] = await conn.query(
+        `SELECT id FROM tickets WHERE booking_id = ? AND status = 'active'`,
+        [ticket.booking_id]
+      );
+      if (!remainingActiveTickets || remainingActiveTickets.length === 0) {
+        await conn.query(`UPDATE bookings SET status = 'cancelled' WHERE id = ?`, [ticket.booking_id]);
+      }
     });
 
     return res.status(200).json({
@@ -236,6 +349,7 @@ async function cancelTicket(req, res, next) {
 module.exports = {
   getAllTickets,
   getMyTickets,
+  getTicketById,
   verifyTicket,
   cancelTicket,
 };

@@ -42,18 +42,24 @@ async function getDashboardSummary(req, res, next) {
        FROM incidents`
     );
 
-    // 4. Thống kê Suất chiếu & Vé & Doanh thu Hôm Nay (So với tổng)
+    // 4. Thống kê Suất chiếu & Vé & Doanh thu Hôm Nay (Doanh thu gộp, Tiền hoàn, Doanh thu thuần)
+    // Tách biệt độc lập tránh lỗi nhân đôi doanh thu do Cartesian JOIN
+    // Lưu ý: concession_orders có mã ORD-BK-% đã nằm trong payments.amount nên chỉ tách riêng doanh thu POS độc lập (NOT LIKE 'ORD-BK-%')
     const todaySales = await db.query(
       `SELECT 
-        COUNT(DISTINCT s.id) AS screenings_today,
-        COUNT(DISTINCT CASE WHEN b.status = 'paid' AND DATE(b.booking_time) = CURDATE() THEN t.id END) AS tickets_sold_today,
-        COALESCE(SUM(CASE WHEN b.status = 'paid' AND DATE(b.booking_time) = CURDATE() THEN b.total_amount END), 0) AS revenue_today,
-        COALESCE(SUM(CASE WHEN b.status = 'paid' THEN b.total_amount END), 0) AS total_revenue_all_time,
-        COUNT(DISTINCT CASE WHEN b.status = 'paid' THEN t.id END) AS total_tickets_all_time
-       FROM screening_schedules s
-       LEFT JOIN bookings b ON b.screening_id = s.id
-       LEFT JOIN tickets t ON t.booking_id = b.id
-       WHERE DATE(s.start_time) = CURDATE() OR 1=1`
+        (SELECT COUNT(*) FROM screening_schedules WHERE DATE(start_time) = CURDATE() AND status != 'cancelled') AS screenings_today,
+        (SELECT COUNT(*) FROM tickets t JOIN bookings b ON t.booking_id = b.id WHERE b.status = 'paid' AND DATE(b.booking_time) = CURDATE() AND t.status IN ('active', 'used')) AS tickets_sold_today,
+        (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE status = 'success' AND DATE(payment_time) = CURDATE()) AS net_revenue_today,
+        (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE status IN ('success', 'refunded') AND DATE(payment_time) = CURDATE()) AS gross_revenue_today,
+        (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE status = 'refunded' AND DATE(payment_time) = CURDATE()) AS refunded_amount_today,
+        (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE status = 'success') AS net_revenue_all_time,
+        (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE status IN ('success', 'refunded')) AS gross_revenue_all_time,
+        (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE status = 'refunded') AS refunded_amount_all_time,
+        (SELECT COALESCE(SUM(total_amount), 0) FROM concession_orders WHERE order_code NOT LIKE 'ORD-BK-%' AND DATE(created_at) = CURDATE()) AS standalone_pos_revenue_today,
+        (SELECT COALESCE(SUM(total_amount), 0) FROM concession_orders WHERE order_code NOT LIKE 'ORD-BK-%') AS standalone_pos_revenue_all_time,
+        (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE status = 'success' AND DATE(payment_time) = CURDATE()) AS revenue_today,
+        (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE status = 'success') AS total_revenue_all_time,
+        (SELECT COUNT(*) FROM tickets WHERE status IN ('active', 'used')) AS total_tickets_all_time`
     );
 
     // 5. Thống kê Bảo trì & Chi phí
@@ -86,32 +92,83 @@ async function getDashboardSummary(req, res, next) {
  */
 async function getRevenueAnalytics(req, res, next) {
   try {
-    // Doanh thu theo 7 ngày gần nhất
+    // Doanh thu theo 7 ngày gần nhất (Chuẩn PostgreSQL & MySQL ONLY_FULL_GROUP_BY)
+    // Tổng hợp payments và tickets ở 2 bảng dẫn xuất độc lập theo ngày trước khi LEFT JOIN 1-1 để tránh lỗi 42803 và tuyệt đối không nhân bản doanh thu
     const dailyRevenue = await db.query(
       `SELECT 
-        DATE(p.payment_time) AS date,
-        COUNT(DISTINCT p.id) AS transaction_count,
-        COUNT(DISTINCT t.id) AS tickets_count,
-        COALESCE(SUM(p.amount), 0) AS total_revenue
-       FROM payments p
-       JOIN bookings b ON p.booking_id = b.id
-       LEFT JOIN tickets t ON t.booking_id = b.id
-       WHERE p.status = 'success' AND p.payment_time >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
-       GROUP BY DATE(p.payment_time)
-       ORDER BY DATE(p.payment_time) ASC`
+        DATE_FORMAT(p_daily.pay_date, '%Y-%m-%d') AS date,
+        p_daily.transaction_count,
+        COALESCE(t_daily.tickets_count, 0) AS tickets_count,
+        p_daily.gross_revenue,
+        p_daily.refunded_amount,
+        p_daily.net_revenue,
+        p_daily.net_revenue AS total_revenue
+       FROM (
+         SELECT
+           DATE(p.payment_time) AS pay_date,
+           COUNT(DISTINCT CASE WHEN p.status = 'success' THEN p.id END) AS transaction_count,
+           COALESCE(SUM(CASE WHEN p.status IN ('success', 'refunded') THEN p.amount ELSE 0 END), 0) AS gross_revenue,
+           COALESCE(SUM(CASE WHEN p.status = 'refunded' THEN p.amount ELSE 0 END), 0) AS refunded_amount,
+           COALESCE(SUM(CASE WHEN p.status = 'success' THEN p.amount ELSE 0 END), 0) AS net_revenue
+         FROM payments p
+         WHERE p.status IN ('success', 'refunded')
+           AND p.payment_time >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+         GROUP BY DATE(p.payment_time)
+       ) p_daily
+       LEFT JOIN (
+         SELECT
+           DATE(p2.payment_time) AS pay_date,
+           COUNT(DISTINCT t.id) AS tickets_count
+         FROM tickets t
+         JOIN bookings b ON t.booking_id = b.id
+         JOIN payments p2 ON p2.booking_id = b.id
+         WHERE p2.status = 'success'
+           AND p2.payment_time >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+           AND t.status IN ('active', 'used')
+         GROUP BY DATE(p2.payment_time)
+       ) t_daily ON t_daily.pay_date = p_daily.pay_date
+       ORDER BY p_daily.pay_date ASC`
     );
 
-    // Top phim có doanh thu cao nhất
+    // Top phim có doanh thu cao nhất (Tách biệt tính doanh thu và đếm vé để tránh Cartesian join)
     const topMovies = await db.query(
       `SELECT 
         m.id, m.name, m.poster,
-        COUNT(DISTINCT t.id) AS total_tickets,
-        COALESCE(SUM(b.total_amount), 0) AS total_revenue
+        COALESCE((
+          SELECT COUNT(DISTINCT t.id)
+          FROM tickets t
+          JOIN screening_schedules s ON t.screening_id = s.id
+          WHERE s.movie_id = m.id AND t.status IN ('active', 'used')
+        ), 0) AS total_tickets,
+        COALESCE((
+          SELECT SUM(p.amount)
+          FROM payments p
+          JOIN bookings b ON p.booking_id = b.id
+          JOIN screening_schedules s ON b.screening_id = s.id
+          WHERE s.movie_id = m.id AND p.status IN ('success', 'refunded')
+        ), 0) AS gross_revenue,
+        COALESCE((
+          SELECT SUM(p.amount)
+          FROM payments p
+          JOIN bookings b ON p.booking_id = b.id
+          JOIN screening_schedules s ON b.screening_id = s.id
+          WHERE s.movie_id = m.id AND p.status = 'refunded'
+        ), 0) AS refunded_amount,
+        COALESCE((
+          SELECT SUM(p.amount)
+          FROM payments p
+          JOIN bookings b ON p.booking_id = b.id
+          JOIN screening_schedules s ON b.screening_id = s.id
+          WHERE s.movie_id = m.id AND p.status = 'success'
+        ), 0) AS net_revenue,
+        COALESCE((
+          SELECT SUM(p.amount)
+          FROM payments p
+          JOIN bookings b ON p.booking_id = b.id
+          JOIN screening_schedules s ON b.screening_id = s.id
+          WHERE s.movie_id = m.id AND p.status = 'success'
+        ), 0) AS total_revenue
        FROM movies m
-       JOIN screening_schedules s ON s.movie_id = m.id
-       JOIN bookings b ON b.screening_id = s.id AND b.status = 'paid'
-       LEFT JOIN tickets t ON t.booking_id = b.id
-       GROUP BY m.id
        ORDER BY total_revenue DESC
        LIMIT 6`
     );
@@ -127,7 +184,7 @@ async function getRevenueAnalytics(req, res, next) {
        ORDER BY month ASC LIMIT 6`
     );
 
-    // Chi phí bảo trì theo loại thiết bị
+    // Chi phí bảo trì theo loại thiết bị (GROUP BY đầy đủ chuẩn PostgreSQL)
     const maintenanceCostByType = await db.query(
       `SELECT 
         et.name AS type_name,
@@ -136,7 +193,7 @@ async function getRevenueAnalytics(req, res, next) {
        FROM maintenances m
        JOIN equipment e ON m.equipment_id = e.id
        JOIN equipment_types et ON e.equipment_type_id = et.id
-       GROUP BY et.id
+       GROUP BY et.id, et.name
        ORDER BY total_cost DESC`
     );
 

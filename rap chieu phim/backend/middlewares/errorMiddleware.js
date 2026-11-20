@@ -1,11 +1,33 @@
 function errorHandler(err, req, res, next) {
-  console.error('[Error Occurred]:', err);
+  if (res.headersSent) return next(err);
 
-  const statusCode = res.statusCode !== 200 ? res.statusCode : 500;
-  res.status(statusCode).json({
+  // Body JSON hỏng / quá lớn (do express.json) -> 400/413 thay vì 500
+  let status = err.status || err.statusCode;
+  let message = err.message;
+  if (err.type === 'entity.parse.failed') {
+    status = 400;
+    message = 'Dữ liệu gửi lên không phải JSON hợp lệ.';
+  } else if (err.type === 'entity.too.large') {
+    status = 413;
+    message = 'Dữ liệu gửi lên quá lớn.';
+  }
+
+  if (!Number.isInteger(status) || status < 400 || status > 599) {
+    status = res.statusCode >= 400 ? res.statusCode : 500;
+  }
+
+  const isServerError = status >= 500;
+  if (isServerError) console.error('[Error Occurred]:', err);
+
+  const isProd = process.env.NODE_ENV === 'production';
+  res.status(status).json({
     success: false,
-    message: err.message || 'Lỗi hệ thống máy chủ. Vui lòng thử lại sau.',
-    stack: process.env.NODE_ENV === 'production' ? null : err.stack,
+    // Với lỗi 5xx ở production không lộ chi tiết nội bộ
+    message: isServerError && isProd && !err.expose
+      ? 'Lỗi hệ thống máy chủ. Vui lòng thử lại sau.'
+      : message || 'Lỗi hệ thống máy chủ. Vui lòng thử lại sau.',
+    // Stack chỉ hiển thị khi dev và là lỗi hệ thống
+    stack: isServerError && !isProd ? err.stack : undefined,
   });
 }
 

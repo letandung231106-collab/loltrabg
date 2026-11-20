@@ -1,6 +1,6 @@
 import React from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { Film, Calendar, Clock, MapPin, CheckCircle, Sparkles, XCircle, Eye, Compass } from 'lucide-react';
+import { Film, Calendar, Clock, MapPin, CheckCircle, XCircle, Eye, Compass } from 'lucide-react';
 
 export function TicketCard({ ticket, onCancel, onSelectDetail, onOpenNavigator }) {
   const isUsed = ticket.status === 'used';
@@ -54,13 +54,13 @@ export function TicketCard({ ticket, onCancel, onSelectDetail, onOpenNavigator }
           <div className="grid grid-cols-2 gap-3 text-xs text-slate-300 mb-4">
             <div className="flex items-center gap-2">
               <Calendar className="w-4 h-4 text-gold-400" />
-              <span>{ticket.start_time ? new Date(ticket.start_time).toLocaleDateString('vi-VN') : '14/09/2026'}</span>
+              <span>{ticket.start_time ? new Date(typeof ticket.start_time === 'string' ? ticket.start_time.replace(' ', 'T') : ticket.start_time).toLocaleDateString('vi-VN') : '14/09/2026'}</span>
             </div>
             <div className="flex items-center gap-2">
               <Clock className="w-4 h-4 text-gold-400" />
               <span className="font-bold text-white">
                 {ticket.start_time
-                  ? new Date(ticket.start_time).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+                  ? new Date(typeof ticket.start_time === 'string' ? ticket.start_time.replace(' ', 'T') : ticket.start_time).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
                   : '18:00'}
               </span>
             </div>
@@ -79,8 +79,15 @@ export function TicketCard({ ticket, onCancel, onSelectDetail, onOpenNavigator }
         <div className="pt-3 border-t border-cinema-700/60 flex items-center justify-between flex-wrap gap-2">
           <div>
             <div className="text-[10px] text-slate-400">VỊ TRÍ GHẾ</div>
-            <div className="text-xl font-black text-amber-400 font-mono">
-              HÀNG {ticket.row_number} - GHẾ {ticket.seat_number}
+            <div className={`text-xl font-black font-mono flex items-center gap-2 ${
+              ticket.seat_type === 'couple' || ticket.row_number === 'F' ? 'text-pink-400' : 'text-amber-400'
+            }`}>
+              <span>HÀNG {ticket.row_number} - GHẾ {ticket.seat_number}</span>
+              {(ticket.seat_type === 'couple' || ticket.row_number === 'F') && (
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-pink-500/20 text-pink-300 font-bold border border-pink-500/40 font-sans">
+                  💖 Ghế Đôi (2 Chỗ)
+                </span>
+              )}
             </div>
           </div>
 

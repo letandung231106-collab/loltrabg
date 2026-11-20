@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { api } from '../../services/api';
 import {
   Utensils,
@@ -14,10 +15,15 @@ import {
   DollarSign,
   Package,
   Layers,
-  Sparkles,
   UploadCloud,
-  Image as ImageIcon
+  Image as ImageIcon,
+  QrCode,
+  Copy,
+  Check,
+  RefreshCw,
+  Zap
 } from 'lucide-react';
+import { ModalPortal } from '../../components/common/ModalPortal';
 
 export function ConcessionManager() {
   const [items, setItems] = useState([]);
@@ -29,9 +35,37 @@ export function ConcessionManager() {
 
   // POS Cart State
   const [cart, setCart] = useState([]);
-  const [paymentMethod, setPaymentMethod] = useState('cash');
+  const [paymentMethod, setPaymentMethod] = useState('cash'); // 'cash' | 'qr'
   const [isProcessingSale, setIsProcessingSale] = useState(false);
   const [lastReceipt, setLastReceipt] = useState(null);
+
+  // Product Quick-Select Modal State
+  const [selectedProductModal, setSelectedProductModal] = useState(null);
+  const [modalQuantity, setModalQuantity] = useState(1);
+
+  // VietQR Modal State
+  const [showQrModal, setShowQrModal] = useState(false);
+  const [copiedStk, setCopiedStk] = useState(false);
+  const [copiedContent, setCopiedContent] = useState(false);
+  const [qrOrderCode, setQrOrderCode] = useState(() => `NIGHTMOVIE POS ${Math.floor(100000 + Math.random() * 900000)}`);
+
+  useEffect(() => {
+    if (paymentMethod !== 'cash' && paymentMethod !== 'qr') {
+      setPaymentMethod('cash');
+    }
+  }, [paymentMethod]);
+
+  // ESC key listener to close active modals
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' || e.key === 'Esc' || e.keyCode === 27) {
+        setSelectedProductModal(null);
+        setShowQrModal(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // Menu Modal State
   const [modalOpen, setModalOpen] = useState(false);
@@ -65,14 +99,28 @@ export function ConcessionManager() {
   };
 
   // Cart Functions
-  const addToCart = (item) => {
+  const addToCart = (item, quantity = 1) => {
+    const q = Math.max(1, parseInt(quantity, 10) || 1);
     setCart((prev) => {
       const existing = prev.find((c) => c.id === item.id);
       if (existing) {
-        return prev.map((c) => (c.id === item.id ? { ...c, quantity: c.quantity + 1 } : c));
+        return prev.map((c) => (c.id === item.id ? { ...c, quantity: c.quantity + q } : c));
       }
-      return [...prev, { ...item, quantity: 1 }];
+      return [...prev, { ...item, quantity: q }];
     });
+  };
+
+  const handleOpenProductModal = (item) => {
+    if (!item.is_active || item.is_active === 0 || item.is_active === '0') return;
+    setSelectedProductModal(item);
+    setModalQuantity(1);
+  };
+
+  const handleConfirmAddToCart = () => {
+    if (!selectedProductModal || modalQuantity <= 0) return;
+    addToCart(selectedProductModal, modalQuantity);
+    setSelectedProductModal(null);
+    setModalQuantity(1);
   };
 
   const updateQuantity = (id, delta) => {
@@ -93,6 +141,93 @@ export function ConcessionManager() {
 
   const totalAmount = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
+  // SePay Real-Time Auto-Recognition State
+  const [sepayStatus, setSepayStatus] = useState('waiting'); // 'waiting' | 'paid'
+  const [isSimulatingSepay, setIsSimulatingSepay] = useState(false);
+
+  // Tự động kết nối SePay Webhook và Polling trạng thái chuyển khoản khi mở VietQR Modal
+  useEffect(() => {
+    if (!showQrModal || cart.length === 0) return;
+
+    let isMounted = true;
+    setSepayStatus('waiting');
+
+    // 1. Đăng ký session POS với SePay backend
+    api.registerSepayPosSession({
+      orderCode: qrOrderCode,
+      items: cart,
+      totalAmount,
+      staffId: 1,
+    }).catch((err) => {
+      console.warn('[SePay Register POS]:', err.message);
+    });
+
+    // 2. Polling kiểm tra trạng thái thanh toán từ SePay mỗi 2 giây
+    const interval = setInterval(async () => {
+      if (!isMounted) return;
+      try {
+        const res = await api.checkSepayStatus(qrOrderCode);
+        if (res && res.isPaid && isMounted) {
+          clearInterval(interval);
+          setSepayStatus('paid');
+          setLastReceipt({
+            ...(res.data || {}),
+            items: [...cart],
+          });
+          setCart([]);
+          setTimeout(() => {
+            if (isMounted) {
+              setShowQrModal(false);
+              setMsg({
+                text: `✓ [SePay Tự Động] Đã nhận ${Number(res.transaction?.transferAmount || totalAmount).toLocaleString('vi-VN')} đ từ BIDV (Mã GD: ${res.transaction?.referenceCode || 'SePay'})! Đơn hàng đã tự động hoàn tất và trừ kho.`,
+                type: 'success',
+              });
+            }
+          }, 1500);
+        }
+      } catch (e) {
+        // Polling error silently handled
+      }
+    }, 2000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [showQrModal, qrOrderCode, cart, totalAmount]);
+
+  const handleSimulateSepay = async () => {
+    setIsSimulatingSepay(true);
+    try {
+      await api.simulateSepayPayment({
+        orderCode: qrOrderCode,
+        amount: totalAmount > 0 ? totalAmount : 69000,
+      });
+    } catch (err) {
+      setMsg({ text: `Lỗi giả lập SePay: ${err.message}`, type: 'error' });
+    } finally {
+      setIsSimulatingSepay(false);
+    }
+  };
+
+  const handleSelectPaymentMethod = (method) => {
+    setPaymentMethod(method);
+    if (method === 'qr') {
+      setQrOrderCode(`NIGHTMOVIE POS ${Math.floor(100000 + Math.random() * 900000)}`);
+      setShowQrModal(true);
+    }
+  };
+
+  const handleInitiateCheckout = () => {
+    if (paymentMethod === 'qr') {
+      setQrOrderCode(`NIGHTMOVIE POS ${Math.floor(100000 + Math.random() * 900000)}`);
+      setShowQrModal(true);
+      return;
+    }
+    if (cart.length === 0) return;
+    handleCheckout();
+  };
+
   const handleCheckout = async () => {
     if (cart.length === 0) return;
     setIsProcessingSale(true);
@@ -109,6 +244,7 @@ export function ConcessionManager() {
           items: [...cart],
         });
         setCart([]);
+        setShowQrModal(false);
         setMsg({ text: 'Thanh toán bắp nước thành công! Đã trừ định lượng kho nguyên vật liệu.', type: 'success' });
       }
     } catch (err) {
@@ -279,36 +415,71 @@ export function ConcessionManager() {
 
             {/* Product Grid */}
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5">
-              {filteredItems.map((item) => (
-                <div
-                  key={item.id}
-                  onClick={() => addToCart(item)}
-                  className="glass-panel rounded-2xl p-3 border border-cinema-700/60 hover:border-ruby-500/80 cursor-pointer transition-all hover:scale-[1.02] flex flex-col justify-between group bg-cinema-900/60"
-                >
-                  <div className="aspect-square rounded-xl overflow-hidden bg-cinema-950 mb-2 relative">
-                    <img
-                      src={item.image}
-                      alt={item.name}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                      onError={(e) => {
-                        e.target.src = 'https://images.unsplash.com/photo-1578849278619-e73505e9610f?q=80&w=400';
-                      }}
-                    />
-                    <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-black/70 backdrop-blur-sm text-[10px] font-mono text-gold-400 font-bold">
-                      {item.price.toLocaleString('vi-VN')} đ
+              {filteredItems.map((item) => {
+                const isInactive = !item.is_active || item.is_active === 0 || item.is_active === '0';
+                const fallbackImg = item.category === 'dessert'
+                  ? 'https://images.unsplash.com/photo-1501443762994-82bd5dace89a?q=80&w=400'
+                  : 'https://images.unsplash.com/photo-1578849278619-e73505e9610f?q=80&w=400';
+                const imgSrc = item.image && item.image.trim() !== '' ? item.image : fallbackImg;
+
+                return (
+                  <div
+                    key={item.id}
+                    onClick={() => !isInactive && handleOpenProductModal(item)}
+                    className={`glass-panel rounded-2xl p-3 border border-cinema-700/60 flex flex-col justify-between group bg-cinema-900/60 transition-all ${
+                      isInactive
+                        ? 'opacity-65 cursor-not-allowed'
+                        : 'hover:border-ruby-500/80 cursor-pointer hover:scale-[1.02]'
+                    }`}
+                  >
+                    <div className="aspect-square rounded-xl overflow-hidden bg-cinema-950 mb-2 relative">
+                      <img
+                        src={imgSrc}
+                        alt={item.name}
+                        className={`w-full h-full object-cover transition-transform ${isInactive ? 'opacity-70 grayscale' : 'group-hover:scale-105'}`}
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          e.target.src = fallbackImg;
+                        }}
+                      />
+                      <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-black/70 backdrop-blur-sm text-[10px] font-mono text-gold-400 font-bold">
+                        {item.price.toLocaleString('vi-VN')} đ
+                      </div>
+                      {isInactive && (
+                        <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-rose-950/90 border border-rose-600/60 text-[10px] font-bold text-rose-300 backdrop-blur-sm">
+                          Tạm ngưng
+                        </div>
+                      )}
                     </div>
-                  </div>
 
-                  <div>
-                    <h4 className="font-bold text-white text-xs line-clamp-2 mb-1">{item.name}</h4>
-                    <p className="text-[10px] text-slate-400 line-clamp-1">{item.description}</p>
-                  </div>
+                    <div>
+                      <h4 className="font-bold text-white text-xs line-clamp-2 mb-1">{item.name}</h4>
+                      <p className="text-[10px] text-slate-400 line-clamp-1">{item.description}</p>
+                    </div>
 
-                  <button className="mt-2.5 w-full py-1.5 rounded-lg bg-cinema-800 group-hover:bg-ruby-600 text-white text-[11px] font-bold transition-colors flex items-center justify-center gap-1">
-                    <Plus className="w-3 h-3" /> Chọn Món
-                  </button>
-                </div>
-              ))}
+                    {isInactive ? (
+                      <button
+                        type="button"
+                        disabled
+                        className="mt-2.5 w-full py-1.5 rounded-lg bg-cinema-800 text-slate-500 text-[11px] font-bold cursor-not-allowed opacity-60 border border-cinema-700/50 flex items-center justify-center gap-1"
+                      >
+                        Tạm ngưng
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenProductModal(item);
+                        }}
+                        className="mt-2.5 w-full py-1.5 rounded-lg bg-ruby-600 hover:bg-ruby-500 text-white text-[11px] font-bold transition-all shadow-glow-red flex items-center justify-center gap-1 cursor-pointer active:scale-95"
+                      >
+                        <Plus className="w-3 h-3" /> Chọn Món
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
 
@@ -321,7 +492,7 @@ export function ConcessionManager() {
               {cart.length > 0 && (
                 <button
                   onClick={clearCart}
-                  className="text-[10px] text-rose-400 hover:text-rose-300 font-semibold"
+                  className="text-[10px] text-rose-400 hover:text-rose-300 font-semibold cursor-pointer"
                 >
                   Xóa tất cả
                 </button>
@@ -333,7 +504,7 @@ export function ConcessionManager() {
               {cart.length === 0 ? (
                 <div className="py-10 text-center text-slate-500 text-xs">
                   <Package className="w-8 h-8 mx-auto mb-2 text-slate-600 opacity-60" />
-                  Chưa có món nào được chọn.<br />Nhấn vào món bên trái để thêm vào đơn.
+                  Chưa có món nào được chọn.<br />Nhấn nút + Chọn Món để thêm vào đơn.
                 </div>
               ) : (
                 cart.map((c) => (
@@ -348,7 +519,7 @@ export function ConcessionManager() {
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => updateQuantity(c.id, -1)}
-                        className="w-6 h-6 rounded-lg bg-cinema-800 hover:bg-cinema-700 text-white font-bold flex items-center justify-center text-xs"
+                        className="w-6 h-6 rounded-lg bg-cinema-800 hover:bg-cinema-700 text-white font-bold flex items-center justify-center text-xs cursor-pointer"
                       >
                         -
                       </button>
@@ -357,7 +528,7 @@ export function ConcessionManager() {
                       </span>
                       <button
                         onClick={() => updateQuantity(c.id, 1)}
-                        className="w-6 h-6 rounded-lg bg-cinema-800 hover:bg-cinema-700 text-white font-bold flex items-center justify-center text-xs"
+                        className="w-6 h-6 rounded-lg bg-cinema-800 hover:bg-cinema-700 text-white font-bold flex items-center justify-center text-xs cursor-pointer"
                       >
                         +
                       </button>
@@ -370,17 +541,16 @@ export function ConcessionManager() {
             {/* Payment Method Selector */}
             <div className="pt-2 border-t border-cinema-700/60 space-y-2">
               <label className="block text-[11px] font-bold text-slate-300">Phương thức thanh toán:</label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-2.5" style={{ gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
                 {[
-                  { id: 'cash', label: '💵 Tiền Mặt' },
-                  { id: 'qr', label: '📱 Quét QR' },
-                  { id: 'card', label: '💳 Thẻ POS' },
+                  { id: 'cash', label: 'Tiền Mặt' },
+                  { id: 'qr', label: 'Quét QR' },
                 ].map((m) => (
                   <button
                     key={m.id}
                     type="button"
-                    onClick={() => setPaymentMethod(m.id)}
-                    className={`py-2 rounded-xl text-xs font-bold transition-all border ${
+                    onClick={() => handleSelectPaymentMethod(m.id)}
+                    className={`py-2.5 rounded-xl text-xs font-bold transition-all border cursor-pointer ${
                       paymentMethod === m.id
                         ? 'bg-ruby-600 text-white border-ruby-500 shadow-glow-red'
                         : 'bg-cinema-900 text-slate-400 border-cinema-800 hover:text-white'
@@ -390,14 +560,12 @@ export function ConcessionManager() {
                   </button>
                 ))}
               </div>
+
+
             </div>
 
             {/* Total & Checkout Button */}
             <div className="pt-3 border-t border-cinema-700 space-y-3">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-400 font-semibold">Tự động trừ kho (BOM):</span>
-                <span className="text-emerald-400 font-bold">✓ Bật tự động</span>
-              </div>
               <div className="flex items-center justify-between">
                 <span className="font-bold text-white text-sm">Tổng cộng:</span>
                 <span className="text-xl font-black text-ruby-400 font-mono">
@@ -406,30 +574,354 @@ export function ConcessionManager() {
               </div>
 
               <button
-                disabled={cart.length === 0 || isProcessingSale}
-                onClick={handleCheckout}
-                className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-ruby-600 via-ruby-700 to-rose-700 hover:from-ruby-500 hover:to-rose-600 disabled:opacity-50 text-white font-extrabold text-sm shadow-glow-red transition-all flex items-center justify-center gap-2"
+                disabled={isProcessingSale || (paymentMethod === 'cash' && cart.length === 0)}
+                onClick={handleInitiateCheckout}
+                className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-ruby-600 via-ruby-700 to-rose-700 hover:from-ruby-500 hover:to-rose-600 disabled:opacity-50 text-white font-extrabold text-sm shadow-glow-red transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
                 <CheckCircle className="w-4 h-4" />
-                {isProcessingSale ? 'Đang xuất hóa đơn...' : `Thanh Toán (${totalAmount.toLocaleString('vi-VN')} đ)`}
+                {isProcessingSale
+                  ? 'Đang xử lý...'
+                  : paymentMethod === 'qr'
+                  ? `Quét Mã QR BIDV (${totalAmount.toLocaleString('vi-VN')} đ)`
+                  : `Thanh Toán (${totalAmount.toLocaleString('vi-VN')} đ)`}
               </button>
             </div>
-
-            {/* Last Receipt Notification */}
-            {lastReceipt && (
-              <div className="p-3 rounded-2xl bg-emerald-950/80 border border-emerald-500/60 text-emerald-200 text-xs space-y-1 animate-scale-in">
-                <div className="font-bold flex items-center justify-between">
-                  <span>✓ Hóa đơn: {lastReceipt.order_id}</span>
-                  <span className="font-mono">{lastReceipt.total_amount?.toLocaleString('vi-VN')} đ</span>
-                </div>
-                <div className="text-[10px] text-emerald-300">
-                  Đã ghi nhận doanh thu và cập nhật tồn kho nguyên liệu bắp nước.
-                </div>
-              </div>
-            )}
           </div>
         </div>
       )}
+
+      {/* ================= PRODUCT QUICK-SELECT MODAL ================= */}
+      {selectedProductModal &&
+        createPortal(
+          <div
+            className="animate-fade-in"
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 99999,
+              background: 'rgba(0, 0, 0, 0.82)',
+              backdropFilter: 'blur(8px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '20px',
+            }}
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setSelectedProductModal(null);
+              }
+            }}
+          >
+            <div
+              className="animate-scale-in"
+              style={{
+                maxWidth: '520px',
+                width: '100%',
+                background: '#141722',
+                border: '1px solid rgba(255, 255, 255, 0.14)',
+                borderRadius: '20px',
+                overflow: 'hidden',
+                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.9)',
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Large Image on top */}
+              <div className="relative w-full" style={{ height: '240px' }}>
+                <img
+                  src={
+                    selectedProductModal.image && selectedProductModal.image.trim() !== ''
+                      ? selectedProductModal.image
+                      : selectedProductModal.category === 'dessert'
+                      ? 'https://images.unsplash.com/photo-1501443762994-82bd5dace89a?q=80&w=400'
+                      : 'https://images.unsplash.com/photo-1578849278619-e73505e9610f?q=80&w=400'
+                  }
+                  alt={selectedProductModal.name}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = 'https://images.unsplash.com/photo-1578849278619-e73505e9610f?q=80&w=400';
+                  }}
+                />
+                {/* Price badge */}
+                <div className="absolute top-3.5 left-3.5 px-3 py-1 rounded-full bg-black/80 backdrop-blur-md border border-white/10 text-gold-400 font-mono font-bold text-xs shadow-lg">
+                  {selectedProductModal.price.toLocaleString('vi-VN')} đ
+                </div>
+
+                {/* Circular close button (X) */}
+                <button
+                  type="button"
+                  onClick={() => setSelectedProductModal(null)}
+                  className="absolute top-3.5 right-3.5 w-9 h-9 rounded-full bg-black/70 hover:bg-ruby-600 text-white flex items-center justify-center transition-all backdrop-blur-md border border-white/10 cursor-pointer shadow-lg"
+                  title="Đóng (ESC)"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Product Info Section */}
+              <div className="p-6 space-y-5">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="px-2.5 py-0.5 rounded-full bg-cinema-800 text-slate-300 text-[10px] font-bold uppercase tracking-wider">
+                      {selectedProductModal.category === 'popcorn'
+                        ? 'Bắp Rang Bơ'
+                        : selectedProductModal.category === 'beverage'
+                        ? 'Nước Ngọt'
+                        : selectedProductModal.category === 'combo'
+                        ? 'Combo Tiết Kiệm'
+                        : selectedProductModal.category === 'hot_food'
+                        ? 'Đồ Ăn Nóng'
+                        : 'Món Bắp Nước'}
+                    </span>
+                  </div>
+                  <h3 className="text-xl font-extrabold text-white leading-snug">
+                    {selectedProductModal.name}
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
+                    {selectedProductModal.description || 'Sản phẩm phục vụ tươi ngon tại quầy bắp nước Night Movie.'}
+                  </p>
+                  <div className="mt-2 text-sm font-bold text-gold-400 font-mono">
+                    Đơn giá: {selectedProductModal.price.toLocaleString('vi-VN')} đ
+                  </div>
+                </div>
+
+                {/* Large Quantity Stepper */}
+                <div className="p-4 rounded-2xl bg-cinema-950/80 border border-cinema-800 flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-300">Số lượng chọn:</span>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      disabled={modalQuantity <= 1}
+                      onClick={() => setModalQuantity((q) => Math.max(1, q - 1))}
+                      className="w-10 h-10 rounded-xl bg-cinema-800 hover:bg-cinema-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-extrabold text-lg flex items-center justify-center transition-all cursor-pointer shadow-sm active:scale-95"
+                    >
+                      -
+                    </button>
+                    <span className="font-mono text-lg font-black text-white w-10 text-center select-none">
+                      {modalQuantity}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setModalQuantity((q) => q + 1)}
+                      className="w-10 h-10 rounded-xl bg-cinema-800 hover:bg-cinema-700 text-white font-extrabold text-lg flex items-center justify-center transition-all cursor-pointer shadow-sm active:scale-95"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+
+                {/* Footer Actions */}
+                <div className="grid grid-cols-3 gap-3 pt-3 border-t border-cinema-800">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedProductModal(null)}
+                    className="col-span-1 py-3.5 rounded-xl bg-cinema-800 hover:bg-cinema-700 text-slate-300 hover:text-white font-bold text-xs transition-colors cursor-pointer text-center"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleConfirmAddToCart}
+                    style={{ background: '#E50914' }}
+                    className="col-span-2 py-3.5 rounded-xl hover:brightness-110 text-white font-extrabold text-xs transition-all shadow-glow-red cursor-pointer flex items-center justify-center gap-2 active:scale-[0.99]"
+                  >
+                    <Plus className="w-4 h-4" />
+                    + Thêm Vào Đơn • {(selectedProductModal.price * modalQuantity).toLocaleString('vi-VN')} đ
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {/* ================= VIETQR PAYMENT MODAL ================= */}
+      {showQrModal &&
+        createPortal(
+          <div
+            className="animate-fade-in"
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 99999,
+              background: 'rgba(0, 0, 0, 0.82)',
+              backdropFilter: 'blur(8px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '20px',
+            }}
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setShowQrModal(false);
+              }
+            }}
+          >
+            <div
+              className="animate-scale-in"
+              style={{
+                maxWidth: '460px',
+                width: '100%',
+                background: '#141722',
+                border: '1px solid rgba(255, 255, 255, 0.14)',
+                borderRadius: '20px',
+                overflow: 'hidden',
+                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.9)',
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Modal Header */}
+              <div className="p-5 border-b border-cinema-800 flex items-center justify-between">
+                <div>
+                  <h3 className="text-base font-extrabold text-white flex items-center gap-2">
+                    <QrCode className="w-5 h-5 text-emerald-400" /> Thanh Toán VietQR & SePay Tự Động
+                  </h3>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="flex h-2 w-2 relative">
+                      <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${sepayStatus === 'paid' ? 'bg-emerald-400' : 'bg-emerald-500'}`}></span>
+                      <span className={`relative inline-flex rounded-full h-2 w-2 ${sepayStatus === 'paid' ? 'bg-emerald-500' : 'bg-emerald-400'}`}></span>
+                    </span>
+                    <p className="text-[11px] text-emerald-400 font-medium">
+                      {sepayStatus === 'paid'
+                        ? 'Đã xác nhận giao dịch thành công qua SePay!'
+                        : 'Cổng SePay tự động phát hiện biến động số dư BIDV'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowQrModal(false)}
+                  className="w-8 h-8 rounded-full bg-cinema-800 hover:bg-ruby-600 text-slate-300 hover:text-white flex items-center justify-center transition-all cursor-pointer"
+                  title="Đóng (ESC)"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="p-5 space-y-4">
+                {/* VietQR Image Container - SePay Dynamic QR Code */}
+                <div
+                  style={{
+                    maxWidth: '280px',
+                    width: '100%',
+                    margin: '0 auto',
+                    borderRadius: '16px',
+                    padding: '10px',
+                    background: '#ffffff',
+                    boxShadow: '0 10px 30px rgba(0, 0, 0, 0.5)',
+                  }}
+                  className="flex flex-col items-center justify-center overflow-hidden transition-all"
+                >
+                  <img
+                    src={
+                      totalAmount > 0
+                        ? `https://qr.sepay.vn/img?acc=8813341949&bank=BIDV&amount=${totalAmount}&des=${encodeURIComponent(qrOrderCode)}`
+                        : `https://qr.sepay.vn/img?acc=8813341949&bank=BIDV&des=${encodeURIComponent(qrOrderCode)}`
+                    }
+                    alt="Mã QR SePay BIDV - LE TAN DUNG 8813341949"
+                    className="w-full h-auto object-contain rounded-xl"
+                  />
+                </div>
+
+                {/* SePay Real-Time Status Notification */}
+                {sepayStatus === 'paid' ? (
+                  <div className="p-3 rounded-xl bg-emerald-950/80 border border-emerald-500 text-emerald-300 text-xs font-bold text-center animate-bounce flex items-center justify-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-emerald-400" />
+                    <span>✓ ĐÃ NHẬN TIỀN QUA BIDV! Đang tự động hoàn tất đơn & xuất hóa đơn...</span>
+                  </div>
+                ) : (
+                  <div className="p-2.5 rounded-xl bg-cinema-950/90 border border-emerald-500/30 text-emerald-400 text-[11px] flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-400" />
+                      Đang lắng nghe Webhook SePay...
+                    </span>
+                    <button
+                      type="button"
+                      disabled={isSimulatingSepay}
+                      onClick={handleSimulateSepay}
+                      className="px-2.5 py-1 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/40 border border-emerald-500/40 text-emerald-300 text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer"
+                      title="Bấm để kích hoạt Webhook SePay giả lập thanh toán"
+                    >
+                      <Zap className="w-3 h-3 text-gold-400" />
+                      {isSimulatingSepay ? 'Đang gửi...' : '⚡ Test SePay Webhook'}
+                    </button>
+                  </div>
+                )}
+
+                {/* Transfer Info Details */}
+                <div className="rounded-xl bg-cinema-950/90 border border-cinema-800 p-3.5 space-y-2 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">Chủ tài khoản:</span>
+                    <span className="font-bold text-white uppercase tracking-wide">LE TAN DUNG</span>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">Ngân hàng:</span>
+                    <span className="font-bold text-white">BIDV (Đầu tư & Phát triển VN)</span>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">Số tài khoản:</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-bold text-white text-sm">8813341949</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard?.writeText('8813341949');
+                          setCopiedStk(true);
+                          setTimeout(() => setCopiedStk(false), 2000);
+                        }}
+                        className="px-2 py-0.5 rounded-lg bg-cinema-800 hover:bg-cinema-700 text-slate-300 hover:text-white text-[10px] font-semibold transition-all flex items-center gap-1 cursor-pointer"
+                      >
+                        {copiedStk ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                        {copiedStk ? 'Đã chép' : 'Sao chép'}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">Số tiền thanh toán:</span>
+                    <span className="font-mono font-black text-gold-400 text-base">
+                      {totalAmount > 0 ? `${totalAmount.toLocaleString('vi-VN')} đ` : 'Nhập theo hóa đơn (0 đ)'}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">Nội dung chuyển khoản:</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-bold text-rose-300 text-xs">{qrOrderCode}</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard?.writeText(qrOrderCode);
+                          setCopiedContent(true);
+                          setTimeout(() => setCopiedContent(false), 2000);
+                        }}
+                        className="px-2 py-0.5 rounded-lg bg-cinema-800 hover:bg-cinema-700 text-slate-300 hover:text-white text-[10px] font-semibold transition-all flex items-center gap-1 cursor-pointer"
+                      >
+                        {copiedContent ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                        {copiedContent ? 'Đã chép' : 'Sao chép'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Footer Button */}
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowQrModal(false)}
+                    className="w-full py-3 rounded-xl bg-cinema-800 hover:bg-cinema-700 text-slate-300 hover:text-white font-bold text-xs transition-colors cursor-pointer text-center"
+                  >
+                    Đóng / Đổi phương thức
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
 
       {/* ================= MENU & BOM MANAGEMENT VIEW ================= */}
       {activeTab === 'menu' && (
@@ -439,12 +931,12 @@ export function ConcessionManager() {
               <thead className="bg-cinema-900/90 text-slate-400 uppercase tracking-wider text-[10px] border-b border-cinema-700">
                 <tr>
                   <th className="p-4">Hình ảnh & Tên món</th>
-                  <th className="p-4">Phân loại</th>
-                  <th className="p-4">Giá bán lẻ</th>
-                  <th className="p-4">Giá vốn ước tính</th>
-                  <th className="p-4">Lợi nhuận gộp</th>
-                  <th className="p-4">Trạng thái</th>
-                  <th className="p-4 text-right">Thao tác</th>
+                  <th className="p-4 whitespace-nowrap">Phân loại</th>
+                  <th className="p-4 whitespace-nowrap">Giá bán lẻ</th>
+                  <th className="p-4 whitespace-nowrap">Giá vốn ước tính</th>
+                  <th className="p-4 whitespace-nowrap">Lợi nhuận gộp</th>
+                  <th className="p-4 whitespace-nowrap">Trạng thái</th>
+                  <th className="p-4 text-right whitespace-nowrap">Thao tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-cinema-800">
@@ -456,10 +948,11 @@ export function ConcessionManager() {
                       <td className="p-4">
                         <div className="flex items-center gap-3">
                           <img
-                            src={item.image}
+                            src={item.image && item.image.trim() !== '' ? item.image : (item.category === 'dessert' ? 'https://images.unsplash.com/photo-1501443762994-82bd5dace89a?q=80&w=400' : 'https://images.unsplash.com/photo-1578849278619-e73505e9610f?q=80&w=400')}
                             alt={item.name}
                             className="w-12 h-12 rounded-xl object-cover border border-cinema-700 bg-cinema-900"
                             onError={(e) => {
+                              e.target.onerror = null;
                               e.target.src = 'https://images.unsplash.com/photo-1578849278619-e73505e9610f?q=80&w=400';
                             }}
                           />
@@ -485,14 +978,18 @@ export function ConcessionManager() {
                           +{profit.toLocaleString('vi-VN')} đ ({marginPercent}%)
                         </span>
                       </td>
-                      <td className="p-4">
-                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${
-                          item.is_active
-                            ? 'bg-emerald-950 text-emerald-400 border border-emerald-600'
-                            : 'bg-cinema-800 text-slate-400'
-                        }`}>
-                          {item.is_active ? 'Đang bán' : 'Tạm dừng'}
-                        </span>
+                      <td className="p-4 whitespace-nowrap">
+                        {item.is_active ? (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 whitespace-nowrap">
+                            <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+                            Đang kinh doanh
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-500/15 text-slate-300 border border-slate-500/30 whitespace-nowrap">
+                            <span className="w-2 h-2 rounded-full bg-slate-400 shrink-0" />
+                            Tạm dừng
+                          </span>
+                        )}
                       </td>
                       <td className="p-4 text-right">
                         <div className="flex items-center justify-end gap-2">
@@ -521,21 +1018,15 @@ export function ConcessionManager() {
         </div>
       )}
 
-      {/* Modal Thêm/Sửa Món F&B */}
-      {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-fade-in">
-          <div className="relative w-full max-w-lg glass-panel rounded-3xl p-6 shadow-2xl border border-cinema-600">
-            <div className="flex items-center justify-between pb-3 border-b border-cinema-700">
-              <h3 className="font-extrabold text-base text-white flex items-center gap-2">
-                <Utensils className="w-5 h-5 text-ruby-500" />
-                {editingItem ? `Chỉnh Sửa Món: ${editingItem.name}` : 'Thêm Món F&B Mới'}
-              </h3>
-              <button onClick={() => setModalOpen(false)} className="p-1 text-slate-400 hover:text-white">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmit} className="space-y-4 mt-4 text-xs">
+      {/* Modal Thêm/Sửa Món F&B - Đưa ra document.body qua ModalPortal */}
+      <ModalPortal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title={editingItem ? `Chỉnh Sửa Món: ${editingItem.name}` : 'Thêm Món F&B Mới'}
+        subtitle="Cập nhật danh mục bắp nước, giá bán, giá vốn và hình ảnh sản phẩm"
+        maxWidth="max-w-lg"
+      >
+        <form onSubmit={handleSubmit} className="space-y-4 text-xs">
               <div>
                 <label className="block font-bold text-slate-200 mb-1">Tên món bắp nước / combo *</label>
                 <input
@@ -641,21 +1132,19 @@ export function ConcessionManager() {
                 <button
                   type="button"
                   onClick={() => setModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-cinema-800 text-slate-300 hover:bg-cinema-700"
+                  className="px-4 py-2 rounded-xl bg-cinema-800 text-slate-300 hover:bg-cinema-700 cursor-pointer"
                 >
                   Hủy bỏ
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2 rounded-xl bg-ruby-600 hover:bg-ruby-500 text-white font-bold shadow-glow-red"
+                  className="px-6 py-2 rounded-xl bg-ruby-600 hover:bg-ruby-500 text-white font-bold shadow-glow-red cursor-pointer"
                 >
                   Lưu Thông Tin
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+      </ModalPortal>
     </div>
   );
 }

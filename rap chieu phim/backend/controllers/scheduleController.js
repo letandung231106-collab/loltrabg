@@ -86,7 +86,7 @@ async function getScheduleSeatMap(req, res, next) {
 
     // 2. Lấy toàn bộ danh sách ghế vật lý của phòng
     const physicalSeats = await db.query(
-      `SELECT * FROM seats WHERE room_id = ? ORDER BY row_number ASC, seat_number ASC`,
+      `SELECT * FROM seats WHERE room_id = ? ORDER BY \`row_number\` ASC, seat_number ASC`,
       [schedule.room_id]
     );
 
@@ -142,6 +142,7 @@ async function getScheduleSeatMap(req, res, next) {
         seat_number: seat.seat_number,
         seat_type: seat.seat_type,
         price,
+        capacity: seat.seat_type === 'couple' ? 2 : 1,
         state, // 'available' | 'holding' | 'booked' | 'unavailable'
         holdInfo,
       };
@@ -154,6 +155,7 @@ async function getScheduleSeatMap(req, res, next) {
         seats: seatLayout,
         summary: {
           total: seatLayout.length,
+          total_capacity: seatLayout.reduce((sum, s) => sum + (s.seat_type === 'couple' ? 2 : 1), 0),
           available: seatLayout.filter((s) => s.state === 'available').length,
           holding: seatLayout.filter((s) => s.state === 'holding').length,
           booked: seatLayout.filter((s) => s.state === 'booked').length,
@@ -186,7 +188,28 @@ async function createSchedule(req, res, next) {
     }
     const movie = movies[0];
 
+    // Nghiệp vụ: Cấm lập lịch cho phim đã ngừng chiếu hoặc lưu trữ
+    if (['ended', 'archived'].includes(movie.status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Không thể lập lịch chiếu cho phim "${movie.name}" vì phim đang ở trạng thái ${movie.status === 'ended' ? 'NGỪNG CHIẾU' : 'LƯU TRỮ'}.`,
+      });
+    }
+
     const startDateTime = new Date(start_time);
+    if (isNaN(startDateTime.getTime())) {
+      return res.status(400).json({
+        success: false,
+        message: 'Thời gian bắt đầu không hợp lệ.',
+      });
+    }
+
+    if (startDateTime < new Date()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Thời gian bắt đầu suất chiếu không thể ở trong quá khứ.',
+      });
+    }
     const endDateTime = new Date(startDateTime.getTime() + (movie.duration + 15) * 60000);
     // Định dạng theo giờ địa phương (tránh lệch múi giờ khi dùng toISOString/UTC)
     const pad = (n) => String(n).padStart(2, '0');
@@ -284,27 +307,237 @@ async function createSchedule(req, res, next) {
 async function cancelSchedule(req, res, next) {
   try {
     const { id } = req.params;
+    const { emergency = false, reason = '' } = req.body || {};
 
-    // Kiểm tra vé đã bán chưa
-    const bookedSeats = await db.query(
-      `SELECT COUNT(*) AS count FROM booking_seats bs
-       JOIN bookings b ON bs.booking_id = b.id
-       WHERE b.screening_id = ? AND bs.status = 'booked'`,
+    const existing = await db.query(
+      `SELECT s.*, m.name AS movie_name, r.name AS room_name 
+       FROM screening_schedules s 
+       JOIN movies m ON s.movie_id = m.id 
+       JOIN cinema_rooms r ON s.room_id = r.id 
+       WHERE s.id = ?`,
       [id]
     );
-
-    if (bookedSeats[0].count > 0) {
-      return res.status(400).json({
+    if (!existing || existing.length === 0) {
+      return res.status(404).json({
         success: false,
-        message: `Lịch chiếu này đã bán được ${bookedSeats[0].count} vé. Cần hoàn tiền cho khách trước khi hủy.`,
+        message: 'Không tìm thấy lịch chiếu cần hủy.',
+      });
+    }
+    const schedule = existing[0];
+
+    // Idempotency: Kiểm tra nếu lịch chiếu đã bị hủy trước đó
+    if (schedule.status === 'cancelled') {
+      return res.status(200).json({
+        success: true,
+        alreadyCancelled: true,
+        message: 'Lịch chiếu này đã được hủy trước đó.',
+        data: {
+          scheduleId: Number(id),
+          status: 'cancelled',
+        },
       });
     }
 
-    await db.query(`UPDATE screening_schedules SET status = 'cancelled' WHERE id = ?`, [id]);
+    // Kiểm tra vé đã bán hoặc ghế đang giữ
+    const bookedSeats = await db.query(
+      `SELECT bs.id, b.customer_id, b.id AS booking_id, b.booking_code
+       FROM booking_seats bs
+       JOIN bookings b ON bs.booking_id = b.id
+       WHERE b.screening_id = ? AND (bs.status = 'booked' OR (bs.status = 'holding' AND bs.hold_expire > NOW()))`,
+      [id]
+    );
+
+    if (bookedSeats.length > 0 && !emergency) {
+      return res.status(400).json({
+        success: false,
+        hasBookedSeats: true,
+        bookedCount: bookedSeats.length,
+        message: `Lịch chiếu này đã có ${bookedSeats.length} ghế đã bán hoặc đang giữ. Nếu đây là sự cố kỹ thuật khẩn cấp cần hủy rạp, vui lòng kích hoạt quy trình hủy khẩn cấp (emergency: true).`,
+      });
+    }
+
+    await db.withTransaction(async (conn) => {
+      // Cập nhật schedule -> cancelled
+      await conn.query(`UPDATE screening_schedules SET status = 'cancelled' WHERE id = ?`, [id]);
+
+      if (bookedSeats.length > 0 && emergency) {
+        // 1. Chuyển toàn bộ vé của suất chiếu sang 'cancelled'
+        await conn.query(`UPDATE tickets SET status = 'cancelled' WHERE screening_id = ? AND status = 'active'`, [id]);
+
+        // 2. Giải phóng tất cả ghế
+        await conn.query(
+          `UPDATE booking_seats bs 
+           JOIN bookings b ON bs.booking_id = b.id 
+           SET bs.status = 'released' 
+           WHERE b.screening_id = ?`,
+          [id]
+        );
+
+        // 3. Đánh dấu booking sang 'cancelled'
+        await conn.query(`UPDATE bookings SET status = 'cancelled' WHERE screening_id = ?`, [id]);
+
+        // 4. Gửi thông báo đến từng khách hàng bị ảnh hưởng
+        const customerIds = [...new Set(bookedSeats.map((b) => b.customer_id).filter(Boolean))];
+        for (const custId of customerIds) {
+          const userRows = await conn.query(`SELECT user_id FROM customers WHERE id = ?`, [custId]);
+          const userObj = Array.isArray(userRows?.[0]) ? userRows[0][0] : userRows?.[0];
+          const targetUserId = userObj?.user_id || custId;
+          await conn.query(
+            `INSERT INTO notifications (user_id, title, message, type)
+             VALUES (?, ?, ?, 'system')`,
+            [
+              targetUserId,
+              'Thông báo hủy suất chiếu khẩn cấp',
+              `Suất chiếu phim "${schedule.movie_name}" lúc ${schedule.start_time} tại phòng ${schedule.room_name} đã bị hủy do sự cố: ${reason || 'Sự cố vận hành kỹ thuật rạp'}. Lịch sử thanh toán đã được bảo toàn, vui lòng liên hệ quầy vé hoặc hotline để nhận hỗ trợ hoàn tiền/đổi suất.`,
+            ]
+          );
+        }
+      }
+    });
 
     return res.status(200).json({
       success: true,
-      message: 'Đã hủy lịch chiếu thành công.',
+      message: emergency && bookedSeats.length > 0
+        ? `Đã hủy lịch chiếu khẩn cấp! Đã giải phóng ${bookedSeats.length} ghế, bảo toàn lịch sử giao dịch và gửi thông báo hoàn vé đến khách hàng.`
+        : 'Đã hủy lịch chiếu thành công.',
+      data: {
+        scheduleId: Number(id),
+        cancelledBy: req.user?.id || 1,
+        cancelledAt: new Date().toISOString(),
+        reason: reason || 'Sự cố vận hành kỹ thuật rạp',
+        affectedSeats: bookedSeats.length,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Cập nhật thông tin suất chiếu
+ */
+async function updateSchedule(req, res, next) {
+  try {
+    const { id } = req.params;
+    const { movie_id, room_id, start_time, ticket_price, format, status } = req.body;
+
+    const existingSchedules = await db.query(`SELECT * FROM screening_schedules WHERE id = ?`, [id]);
+    if (!existingSchedules || existingSchedules.length === 0) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy suất chiếu.' });
+    }
+    const current = existingSchedules[0];
+
+    // Nghiệp vụ rạp: Không cho sửa suất chiếu trong quá khứ
+    if (new Date(current.start_time) < new Date()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Không thể chỉnh sửa suất chiếu đã bắt đầu hoặc đã kết thúc trong quá khứ.',
+      });
+    }
+
+    const targetMovieId = movie_id || current.movie_id;
+    const targetRoomId = room_id || current.room_id;
+    const targetStartTime = start_time || current.start_time;
+
+    // Kiểm tra tính toàn vẹn vé đã bán: Nếu đã có vé được bán hoặc giữ chỗ, cấm đổi Phim, Phòng chiếu, hoặc Giờ bắt đầu
+    const bookedSeats = await db.query(
+      `SELECT bs.id FROM booking_seats bs
+       JOIN bookings b ON bs.booking_id = b.id
+       WHERE b.screening_id = ?
+         AND (bs.status = 'booked' OR (bs.status = 'holding' AND bs.hold_expire > NOW()))`,
+      [id]
+    );
+
+    const hasBookedSeats = bookedSeats && bookedSeats.length > 0;
+    const isMovieChanged = Number(targetMovieId) !== Number(current.movie_id);
+    const isRoomChanged = Number(targetRoomId) !== Number(current.room_id);
+    const isTimeChanged = new Date(targetStartTime).getTime() !== new Date(current.start_time).getTime();
+
+    if (hasBookedSeats && (isMovieChanged || isRoomChanged || isTimeChanged)) {
+      return res.status(400).json({
+        success: false,
+        message: `Không thể thay đổi phim, phòng chiếu hoặc giờ chiếu của suất đã có khách đặt chỗ (${bookedSeats.length} ghế đã bán/giữ). Chỉ được phép điều chỉnh giá vé hoặc định dạng chiếu.`,
+      });
+    }
+
+    // Tính end_time
+    const movies = await db.query(`SELECT id, name, duration, status FROM movies WHERE id = ?`, [targetMovieId]);
+    if (!movies || movies.length === 0) {
+      return res.status(400).json({ success: false, message: 'Phim không tồn tại.' });
+    }
+    const movie = movies[0];
+
+    if (['ended', 'archived'].includes(movie.status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Không thể chọn phim "${movie.name}" vì phim đang ở trạng thái ${movie.status === 'ended' ? 'NGỪNG CHIẾU' : 'LƯU TRỮ'}.`,
+      });
+    }
+
+    const startDateTime = new Date(targetStartTime);
+    if (isNaN(startDateTime.getTime())) {
+      return res.status(400).json({
+        success: false,
+        message: 'Thời gian bắt đầu không hợp lệ.',
+      });
+    }
+    const endDateTime = new Date(startDateTime.getTime() + (movie.duration + 20) * 60000);
+    const pad = (n) => String(n).padStart(2, '0');
+    const endTimeStr = `${endDateTime.getFullYear()}-${pad(endDateTime.getMonth() + 1)}-${pad(endDateTime.getDate())} ` +
+      `${pad(endDateTime.getHours())}:${pad(endDateTime.getMinutes())}:${pad(endDateTime.getSeconds())}`;
+
+    // Kiểm tra BR02
+    const rooms = await db.query(`SELECT id, name, status FROM cinema_rooms WHERE id = ?`, [targetRoomId]);
+    if (rooms && rooms.length > 0 && ['maintenance', 'incident'].includes(rooms[0].status)) {
+      return res.status(400).json({
+        success: false,
+        message: `BR02: Không thể xếp lịch cho phòng ${rooms[0].name} vì đang trong trạng thái ${rooms[0].status.toUpperCase()}.`,
+      });
+    }
+
+    // Kiểm tra BR01 xung đột (trừ chính suất chiếu này)
+    const conflicts = await db.query(
+      `SELECT s.id, s.start_time, s.end_time, m.name AS movie_name
+       FROM screening_schedules s
+       JOIN movies m ON s.movie_id = m.id
+       WHERE s.room_id = ? 
+         AND s.id != ?
+         AND s.status IN ('scheduled', 'screening')
+         AND (
+           (? >= s.start_time AND ? < s.end_time)
+           OR (? > s.start_time AND ? <= s.end_time)
+           OR (? <= s.start_time AND ? >= s.end_time)
+         )`,
+      [targetRoomId, id, targetStartTime, targetStartTime, endTimeStr, endTimeStr, targetStartTime, endTimeStr]
+    );
+
+    if (conflicts.length > 0) {
+      const c = conflicts[0];
+      return res.status(409).json({
+        success: false,
+        message: `BR01: Xung đột lịch chiếu! Phòng đã có suất chiếu phim "${c.movie_name}" từ ${c.start_time} đến ${c.end_time}.`,
+      });
+    }
+
+    await db.query(
+      `UPDATE screening_schedules
+       SET movie_id = ?, room_id = ?, start_time = ?, end_time = ?, ticket_price = ?, format = ?, status = ?
+       WHERE id = ?`,
+      [
+        targetMovieId,
+        targetRoomId,
+        targetStartTime,
+        endTimeStr,
+        ticket_price !== undefined ? ticket_price : current.ticket_price,
+        format || current.format,
+        status || current.status,
+        id,
+      ]
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: `Đã cập nhật suất chiếu thành công!`,
     });
   } catch (error) {
     next(error);
@@ -316,4 +549,5 @@ module.exports = {
   getScheduleSeatMap,
   createSchedule,
   cancelSchedule,
+  updateSchedule,
 };

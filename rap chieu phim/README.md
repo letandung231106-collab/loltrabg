@@ -21,12 +21,15 @@ Dự án là một hệ sinh thái Web App hoàn chỉnh phục vụ báo cáo v
 
 ---
 
-## 👥 5 ACTORS & TÀI KHOẢN TRUY CẬP MẪU
+## 👥 5 ACTORS & TÀI KHOẢN TRUY CẬP MẪU (MÔI TRƯỜNG DEV & BẢO VỆ ĐỒ ÁN)
 
-> [!TIP]
-> Hệ thống tích hợp tính năng **⚡ 1-Click Fast Role Switcher** trên thanh Header của giao diện để giảng viên và sinh viên có thể chuyển đổi tức thì giữa 5 vai trò khi bảo vệ đồ án!
+> [!WARNING]
+> **Lưu ý bảo mật quan trọng:**
+> - Các tài khoản mẫu dưới đây và tiện ích **⚡ 1-Click Fast Role Switcher** trên thanh Header chỉ được kích hoạt trong môi trường phát triển (`import.meta.env.DEV`) phục vụ chấm điểm và bảo vệ đồ án.
+> - Tiện ích chuyển nhanh vai trò bị vô hiệu hóa hoàn toàn trong môi trường Production để ngăn chặn hành vi tự nâng quyền (Privilege Escalation).
+> - Mã nguồn không lưu trữ bất kỳ mật khẩu thật, khóa bí mật hay API token thực tế nào.
 
-| STT | Vai Trò (Actor) | Tên Đăng Nhập | Mật Khẩu | Quyền Hạn Chính |
+| STT | Vai Trò (Actor) | Tên Đăng Nhập | Mật Khẩu Mẫu | Quyền Hạn Chính |
 |---|---|---|---|---|
 | 1 | 👑 **Admin** | `admin` | `password123` | Toàn quyền quản trị hệ thống, tài khoản, phim, phòng, lịch chiếu, báo cáo |
 | 2 | 👔 **Manager** | `manager1` | `password123` | Lập lịch chiếu, phân công KTV xử lý sự cố, kế hoạch bảo trì, nghiệm thu |
@@ -61,21 +64,38 @@ Database bắt buộc có tên: **`cinema_management`** và engine **InnoDB**.
 ### Bước 1: Khởi động Backend (Node.js/Express)
 1. Mở terminal thứ nhất:
    ```bash
-   cd backend
+   cd "rap chieu phim/backend"
    npm install
    npm start
    ```
-2. Backend REST API sẽ chạy tại: **`http://localhost:5000`**
-3. Kiểm tra trạng thái máy chủ: **`http://localhost:5000/api/health`**
+2. Backend REST API sẽ chạy tại: **`http://localhost:5050`** *(cổng 5050 tránh xung đột với AirPlay trên macOS)*
+3. Kiểm tra trạng thái máy chủ: **`http://localhost:5050/api/health`**
 
 ### Bước 2: Khởi động Frontend (React SPA)
 1. Mở terminal thứ hai:
    ```bash
-   cd frontend
+   cd "rap chieu phim/frontend"
    npm install
    npm run dev
    ```
-2. Mở trình duyệt tại địa chỉ hiển thị (thường là: **`http://localhost:5173`**).
+2. Mở trình duyệt tại địa chỉ: **`http://localhost:5173`**
+
+### Bước 3: Chạy Kiểm Thử Tự Động Toàn Diện (76/76 Tests)
+
+Hệ thống cung cấp 2 bộ test case tự động độc lập kiểm tra toàn diện API Backend, Transaction và Quy tắc Nghiệp vụ:
+
+```bash
+# Bộ 1: Kiểm thử End-to-End quy trình rạp & 16 Business Rules (40 ca test)
+node "rap chieu phim/backend/scripts/testAllEndpoints.js"
+
+# Bộ 2: Kiểm thử bảo mật F&B POS, Transaction Rollback, Huy hiệu "Đã xem rạp" & Rating (36 ca test)
+node "rap chieu phim/backend/scripts/testNewFeatures.js"
+```
+
+> [!NOTE]
+> **Phân biệt kiểm thử API và kiểm thử giao diện:**
+> - **Kiểm thử tự động API (Headless Node.js):** Thực thi trực tiếp các kịch bản tấn công giả mạo (Price Tampering, Staff ID Spoofing, Concurrency Seat Hold, XSS Sanitization, Cross-room validation).
+> - **Kiểm thử giao diện (Browser UI):** Sử dụng trình duyệt truy cập `http://localhost:5173` để trải nghiệm trực quan hiệu ứng chuyển động, sơ đồ ghế thời gian thực tự động refresh 4s, giỏ hàng F&B và modal chi tiết phim.
 
 ---
 
@@ -150,3 +170,11 @@ rap-chieu-phim/
    - Chuyển vai trò 👔 **Manager** ➔ Vào *Quản lý sự cố* ➔ Bấm *Phân công KTV* cho `Võ Minh Quân`.
    - Chuyển vai trò 🔧 **Technician** ➔ Vào *Quản lý sự cố* ➔ Cập nhật nguyên nhân, linh kiện thay thế và chi phí.
    - Chuyển lại 👔 **Manager** ➔ Bấm *Nghiệm thu & Đóng sự cố* ➔ Phòng chuyển lại trạng thái hoạt động bình thường!
+4. **Workflow 4 – Đánh giá & Nhận xét phim (Movie Reviews):**
+   - Bấm vào poster phim bất kỳ trên Trang chủ để mở *Cửa sổ Chi tiết phim*.
+   - Xem trailer YouTube, điểm đánh giá sao trung bình ⭐⭐⭐⭐⭐ và bình luận từ khán giả.
+   - Chọn số sao (1-5 sao) và viết nhận xét ➔ Bấm *Gửi nhận xét* để chia sẻ cảm nhận tức thì.
+5. **Workflow 5 – Đặt combo bắp nước & Gọi món tận ghế:**
+   - Bấm nút *🍿 Gọi Món Tận Ghế* trên thanh Header hoặc Banner Trang chủ.
+   - Chọn phòng chiếu, số ghế (ví dụ: D5 - Phòng IMAX) và các món bắp phô mai, caramel, nước ngọt.
+   - Bấm *Xác nhận đặt món* ➔ Hệ thống tự động xử lý đơn hàng và khấu trừ định lượng kho nguyên vật liệu (BOM).

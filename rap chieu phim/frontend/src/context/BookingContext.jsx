@@ -16,9 +16,11 @@ export function BookingProvider({ children }) {
 
     if (activeBooking && activeBooking.holdExpire) {
       const updateTimer = () => {
-        const expireTime = new Date(activeBooking.holdExpire).getTime();
+        const rawExpire = activeBooking.holdExpire;
+        const isoStr = typeof rawExpire === 'string' ? rawExpire.replace(' ', 'T') : rawExpire;
+        const expireTime = new Date(isoStr).getTime();
         const now = Date.now();
-        const diffSeconds = Math.max(0, Math.floor((expireTime - now) / 1000));
+        const diffSeconds = isNaN(expireTime) ? 0 : Math.max(0, Math.floor((expireTime - now) / 1000));
 
         setHoldRemainingSeconds(diffSeconds);
 
@@ -106,6 +108,11 @@ export function BookingProvider({ children }) {
     setHoldRemainingSeconds(null);
   };
 
+  const totalPeople = selectedSeats.reduce(
+    (sum, s) => sum + (s.seat_type === 'couple' ? 2 : 1),
+    0
+  );
+
   return (
     <BookingContext.Provider
       value={{
@@ -113,6 +120,7 @@ export function BookingProvider({ children }) {
         setSelectedSchedule,
         selectedSeats,
         setSelectedSeats,
+        totalPeople,
         toggleSeatSelection,
         activeBooking,
         setActiveBooking,

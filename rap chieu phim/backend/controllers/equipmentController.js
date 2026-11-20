@@ -65,6 +65,33 @@ async function getEquipmentTypes(req, res, next) {
 }
 
 /**
+ * Lấy thông tin chi tiết một thiết bị theo ID
+ */
+async function getEquipmentById(req, res, next) {
+  try {
+    const { id } = req.params;
+    const items = await db.query(
+      `SELECT e.*, 
+              et.name AS type_name,
+              r.name AS room_name, r.room_type
+       FROM equipment e
+       JOIN equipment_types et ON e.equipment_type_id = et.id
+       LEFT JOIN cinema_rooms r ON e.room_id = r.id
+       WHERE e.id = ?`,
+      [id]
+    );
+
+    if (!items || items.length === 0) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy thiết bị.' });
+    }
+
+    return res.status(200).json({ success: true, data: items[0] });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
  * Cảnh báo thiết bị sắp đến hạn bảo trì hoặc bảo hành
  */
 async function getMaintenanceAlerts(req, res, next) {
@@ -80,9 +107,47 @@ async function getMaintenanceAlerts(req, res, next) {
        ORDER BY e.next_maintenance ASC`
     );
 
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const formattedAlerts = (alerts || []).map((e) => {
+      let daysUntil = e.days_until_maintenance !== undefined && e.days_until_maintenance !== null
+        ? Number(e.days_until_maintenance)
+        : null;
+
+      if (daysUntil === null && e.next_maintenance) {
+        const nextD = new Date(e.next_maintenance);
+        nextD.setHours(0, 0, 0, 0);
+        daysUntil = Math.round((nextD.getTime() - today.getTime()) / (24 * 60 * 60 * 1000));
+      }
+
+      // Thứ tự ưu tiên lý do cảnh báo:
+      // 1. broken (status: broken / repairing)
+      // 2. check_needed (status: check_needed)
+      // 3. overdue (next_maintenance < hôm nay, tức daysUntil < 0)
+      // 4. due_soon (trong 14 ngày tới)
+      const st = String(e.status || '').toLowerCase();
+      let alert_reason = 'due_soon';
+      if (st === 'broken' || st === 'repairing') {
+        alert_reason = 'broken';
+      } else if (st === 'check_needed') {
+        alert_reason = 'check_needed';
+      } else if (daysUntil !== null && daysUntil < 0) {
+        alert_reason = 'overdue';
+      } else {
+        alert_reason = 'due_soon';
+      }
+
+      return {
+        ...e,
+        days_until_maintenance: daysUntil,
+        alert_reason,
+      };
+    });
+
     return res.status(200).json({
       success: true,
-      data: alerts,
+      data: formattedAlerts,
     });
   } catch (error) {
     next(error);
@@ -148,7 +213,7 @@ async function updateEquipment(req, res, next) {
     const { id } = req.params;
     const { name, room_id, status, last_maintenance, next_maintenance, manufacturer } = req.body;
 
-    await db.query(
+    const result = await db.query(
       `UPDATE equipment SET
         name = COALESCE(?, name),
         room_id = COALESCE(?, room_id),
@@ -159,6 +224,13 @@ async function updateEquipment(req, res, next) {
        WHERE id = ?`,
       [name, room_id, status, last_maintenance, next_maintenance, manufacturer, id]
     );
+
+    if (result && result.affectedRows === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy thiết bị cần cập nhật.',
+      });
+    }
 
     return res.status(200).json({
       success: true,
@@ -172,6 +244,7 @@ async function updateEquipment(req, res, next) {
 module.exports = {
   getEquipment,
   getEquipmentTypes,
+  getEquipmentById,
   getMaintenanceAlerts,
   createEquipment,
   updateEquipment,
